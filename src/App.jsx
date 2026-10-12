@@ -81,7 +81,6 @@ export default function App() {
 
   // Reset History Modal States
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetOption, setResetOption] = useState('clear_only'); // 'clear_only' | 'restore_demo'
   const [resetBalancesCheckbox, setResetBalancesCheckbox] = useState(false);
   const [isResettingTx, setIsResettingTx] = useState(false);
 
@@ -534,7 +533,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resetBalances: resetBalancesCheckbox,
-          restoreDemo: resetOption === 'restore_demo'
+          restoreDemo: false
         })
       });
       const data = await res.json();
@@ -870,8 +869,6 @@ export default function App() {
       <ResetTransactionsModal
         isOpen={showResetModal}
         onClose={() => setShowResetModal(false)}
-        resetOption={resetOption}
-        setResetOption={setResetOption}
         resetBalancesCheckbox={resetBalancesCheckbox}
         setResetBalancesCheckbox={setResetBalancesCheckbox}
         isResettingTx={isResettingTx}

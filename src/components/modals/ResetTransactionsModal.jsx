@@ -4,8 +4,6 @@ import { Trash2, X, RefreshCw } from 'lucide-react';
 export default function ResetTransactionsModal({
   isOpen,
   onClose,
-  resetOption,
-  setResetOption,
   resetBalancesCheckbox,
   setResetBalancesCheckbox,
   isResettingTx,
@@ -19,7 +17,7 @@ export default function ResetTransactionsModal({
         <div className="reset-modal-header">
           <div className="reset-modal-title">
             <Trash2 size={20} color="#fb7185" />
-            <span>Reset Lịch Sử Giao Dịch</span>
+            <span>Xóa Lịch Sử Giao Dịch</span>
           </div>
           <button
             className="prompt-close"
@@ -32,43 +30,15 @@ export default function ResetTransactionsModal({
 
         <div className="reset-modal-body">
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-            Hành động này cho phép bạn làm sạch lịch sử để bắt đầu ghi chép chi tiêu mới, hoặc khôi phục dữ liệu mẫu để trải nghiệm.
+            Bạn có chắc chắn muốn xóa toàn bộ lịch sử giao dịch để làm mới dữ liệu ghi chép chi tiêu?
           </p>
 
-          <div
-            className={`reset-option-card ${resetOption === 'clear_only' ? 'selected' : ''}`}
-            onClick={() => setResetOption('clear_only')}
-          >
-            <input
-              type="radio"
-              name="resetOption"
-              checked={resetOption === 'clear_only'}
-              onChange={() => setResetOption('clear_only')}
-              style={{ marginTop: '3px', cursor: 'pointer' }}
-            />
+          <div className="reset-option-card selected" style={{ cursor: 'default' }}>
+            <Trash2 size={20} color="#fb7185" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <div className="reset-option-title">🗑️ Xóa sạch toàn bộ lịch sử giao dịch</div>
+              <div className="reset-option-title">Xóa sạch toàn bộ lịch sử giao dịch</div>
               <div className="reset-option-desc">
-                Xóa sạch các bản ghi thu / chi và thông báo cũ. Danh mục và tài khoản liên kết vẫn được giữ nguyên.
-              </div>
-            </div>
-          </div>
-
-          <div
-            className={`reset-option-card ${resetOption === 'restore_demo' ? 'selected' : ''}`}
-            onClick={() => setResetOption('restore_demo')}
-          >
-            <input
-              type="radio"
-              name="resetOption"
-              checked={resetOption === 'restore_demo'}
-              onChange={() => setResetOption('restore_demo')}
-              style={{ marginTop: '3px', cursor: 'pointer' }}
-            />
-            <div>
-              <div className="reset-option-title">🔄 Khôi phục dữ liệu demo mẫu ban đầu</div>
-              <div className="reset-option-desc">
-                Tái lập bộ dữ liệu mẫu (các giao dịch cơm, bún bò, cà phê Highlands, lương, tiền điện...) đã phân loại sẵn.
+                Xóa tất cả các bản ghi thu / chi và thông báo cũ. Danh mục chi tiêu và các tài khoản/ví liên kết vẫn được giữ nguyên.
               </div>
             </div>
           </div>
@@ -102,11 +72,11 @@ export default function ResetTransactionsModal({
           >
             {isResettingTx ? (
               <>
-                <RefreshCw size={15} className="spin" /> Đang xử lý...
+                <RefreshCw size={15} className="spin" /> Đang xóa...
               </>
             ) : (
               <>
-                <Trash2 size={15} /> Xác nhận Reset
+                <Trash2 size={15} /> Xác nhận xóa
               </>
             )}
           </button>
