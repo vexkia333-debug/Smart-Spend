@@ -2989,8 +2989,43 @@ input[type="number"] {
     min-width: 100% !important;
   }
 }
+/* Custom Date Range Modal Styling */
+.custom-date-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  z-index: 10000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  animation: fadeIn 0.2s ease-out;
+}
 
+.custom-date-modal-card {
+  width: 460px;
+  max-width: 100%;
+  padding: 24px;
+  background: var(--bg-card-solid) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(56, 189, 248, 0.15);
+  color: var(--text-main);
+  box-sizing: border-box;
+  animation: scaleUp 0.2s ease-out;
+}
 
-
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 

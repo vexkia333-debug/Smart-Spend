@@ -78,18 +78,42 @@ export default function CustomDateModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      className="custom-date-modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(8px)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+      onClick={onClose}
+    >
       <div
-        className="modal-card glass-panel"
-        style={{ maxWidth: '440px', width: '92%' }}
+        className="glass-panel custom-date-modal-card"
+        style={{
+          width: '460px',
+          maxWidth: '100%',
+          padding: '24px',
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(56, 189, 248, 0.15)',
+          color: 'var(--text-main)',
+          boxSizing: 'border-box'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '10px',
                 background: 'rgba(56, 189, 248, 0.15)',
                 display: 'flex',
@@ -101,18 +125,23 @@ export default function CustomDateModal({
               <Calendar size={20} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Lọc khoảng thời gian</h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)' }}>Lọc khoảng thời gian</h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
                 Chọn khoảng ngày bạn muốn thống kê và theo dõi
               </p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            style={{ width: '32px', height: '32px', padding: 0 }}
+            onClick={onClose}
+          >
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
+        <form onSubmit={handleSubmit} style={{ marginTop: '14px' }}>
           {/* Gợi ý chọn nhanh */}
           <div style={{ marginBottom: '16px' }}>
             <label
@@ -120,7 +149,8 @@ export default function CustomDateModal({
                 fontSize: '0.8rem',
                 color: 'var(--text-muted)',
                 marginBottom: '8px',
-                display: 'block'
+                display: 'block',
+                fontWeight: 600
               }}
             >
               Chọn nhanh:
@@ -129,7 +159,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('TODAY')}
               >
                 Hôm nay
@@ -137,7 +167,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('YESTERDAY')}
               >
                 Hôm qua
@@ -145,7 +175,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('LAST_7_DAYS')}
               >
                 7 ngày qua
@@ -153,7 +183,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('LAST_30_DAYS')}
               >
                 30 ngày qua
@@ -161,7 +191,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('THIS_MONTH')}
               >
                 Tháng này
@@ -169,7 +199,7 @@ export default function CustomDateModal({
               <button
                 type="button"
                 className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                 onClick={() => applyPreset('LAST_MONTH')}
               >
                 Tháng trước
@@ -178,14 +208,15 @@ export default function CustomDateModal({
           </div>
 
           {/* Hai ô chọn ngày Từ -> Đến */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '22px' }}>
             <div>
               <label
                 style={{
                   fontSize: '0.8rem',
                   color: 'var(--text-muted)',
                   marginBottom: '6px',
-                  display: 'block'
+                  display: 'block',
+                  fontWeight: 600
                 }}
               >
                 Từ ngày:
@@ -204,7 +235,8 @@ export default function CustomDateModal({
                   fontSize: '0.8rem',
                   color: 'var(--text-muted)',
                   marginBottom: '6px',
-                  display: 'block'
+                  display: 'block',
+                  fontWeight: 600
                 }}
               >
                 Đến ngày:
@@ -220,7 +252,7 @@ export default function CustomDateModal({
           </div>
 
           {/* Nút hành động */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
             <button
               type="button"
               className="btn btn-secondary"
