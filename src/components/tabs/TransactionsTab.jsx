@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Trash2 } from 'lucide-react';
+import { Layers, Trash2, Calendar, X } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect.jsx';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
@@ -14,7 +14,11 @@ export default function TransactionsTab({
   txSortOrder,
   setTxSortOrder,
   onOpenResetModal,
-  onNavigateToPending
+  onNavigateToPending,
+  timeFilter = 'ALL',
+  timeLabel = 'Toàn bộ thời gian',
+  onOpenCustomDateModal,
+  onResetTimeFilter
 }) {
   return (
     <div className="glass-panel" style={{ padding: '24px' }}>
@@ -43,20 +47,39 @@ export default function TransactionsTab({
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             type="text"
             placeholder="Tìm nội dung, ngân hàng..."
             className="form-input"
-            style={{ width: '220px' }}
+            style={{ width: '200px' }}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
 
+          <button
+            type="button"
+            className={`btn ${timeFilter !== 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              padding: '8px 12px',
+              height: '38px',
+              boxSizing: 'border-box'
+            }}
+            onClick={onOpenCustomDateModal}
+            title="Lọc theo khoảng thời gian"
+          >
+            <Calendar size={15} />
+            <span>{timeFilter === 'ALL' ? 'Thời gian' : timeLabel}</span>
+          </button>
+
           <CustomSelect
             value={filterStatus}
             onChange={setFilterStatus}
-            style={{ minWidth: '175px' }}
+            style={{ minWidth: '165px' }}
             options={[
               { value: 'ALL', label: 'Tất cả trạng thái' },
               { value: 'PENDING', label: 'Chờ phân loại' },
@@ -68,7 +91,7 @@ export default function TransactionsTab({
           <CustomSelect
             value={filterType}
             onChange={setFilterType}
-            style={{ minWidth: '145px' }}
+            style={{ minWidth: '140px' }}
             options={[
               { value: 'ALL', label: 'Tất cả loại' },
               { value: 'EXPENSE', label: 'Chi tiêu (-)' },
@@ -77,6 +100,41 @@ export default function TransactionsTab({
           />
         </div>
       </div>
+
+      {timeFilter !== 'ALL' && (
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '5px 12px',
+            background: 'rgba(56, 189, 248, 0.12)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: '20px',
+            fontSize: '0.82rem',
+            color: 'var(--text-main)',
+            marginBottom: '16px'
+          }}
+        >
+          <span>📅 Đang lọc: <strong>{timeLabel}</strong></span>
+          <button
+            type="button"
+            onClick={onResetTimeFilter}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Xem toàn bộ thời gian"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {filteredTransactions.length === 0 ? (
         <div className="empty-state">

@@ -7,7 +7,8 @@ import {
   Sparkles,
   Key,
   Bot,
-  CheckCircle2
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
 
 export default function Header({
@@ -25,7 +26,10 @@ export default function Header({
   setAiIsCash,
   isAnalyzingAi,
   handleAnalyzeAi,
-  aiMessage
+  aiMessage,
+  onOpenCustomDateModal,
+  customStartDate,
+  customEndDate
 }) {
   return (
     <>
@@ -41,7 +45,7 @@ export default function Header({
         </div>
 
         <div className="header-actions">
-          {/* Bộ lọc thời gian: Tất cả / Tháng / Tuần / Ngày */}
+          {/* Bộ lọc thời gian: Tất cả / Tháng / Tuần / Ngày / Tùy chọn */}
           <div className="time-filter-bar">
             <button
               className={`time-filter-btn ${timeFilter === 'ALL' ? 'active' : ''}`}
@@ -66,6 +70,15 @@ export default function Header({
               onClick={() => setTimeFilter('DAY')}
             >
               Hôm nay
+            </button>
+            <button
+              className={`time-filter-btn ${timeFilter === 'CUSTOM' ? 'active' : ''}`}
+              onClick={onOpenCustomDateModal}
+              title="Lọc theo khoảng thời gian tùy chọn"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
+            >
+              <Calendar size={13} />
+              <span>Tùy chọn</span>
             </button>
           </div>
 

@@ -774,7 +774,7 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
 
         db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, 'cat_transfer_cash', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'GEMINI_AI', ?, ?)
+          VALUES (?, ?, 'cat_transfer_cash', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
         `).run(
           txId,
           sourceAcc.id,
@@ -794,7 +794,7 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
 
         db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'GEMINI_AI', ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
         `).run(
           txId,
           targetAcc.id,

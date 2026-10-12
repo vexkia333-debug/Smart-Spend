@@ -18,9 +18,16 @@ import ResetTransactionsModal from './components/modals/ResetTransactionsModal.j
 import ReconcileModal from './components/modals/ReconcileModal.jsx';
 import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
+import CustomDateModal from './components/modals/CustomDateModal.jsx';
 
 // Utilities & Constants
-import { formatVND, formatTxTime, formatNumberWithCommas } from './utils/formatters.js';
+import {
+  formatVND,
+  formatTxTime,
+  formatNumberWithCommas,
+  parseTxDate,
+  formatDateVN
+} from './utils/formatters.js';
 import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
 
@@ -41,7 +48,10 @@ export default function App() {
 
   // Theme & Time Filter States
   const [theme, setTheme] = useState(() => localStorage.getItem('smartspend_theme') || 'dark');
-  const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY'
+  const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY' | 'CUSTOM'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [hoveredCatId, setHoveredCatId] = useState(null);
 
   // AI Assistant States (Google AI Studio)
@@ -557,17 +567,9 @@ export default function App() {
   // Logic kiểm tra giao dịch khớp với bộ lọc thời gian
   const isMatchingTime = (timeStr, createdAtStr) => {
     if (timeFilter === 'ALL') return true;
-    const now = new Date();
-    let txDate;
-    if (timeStr && timeStr.includes('-') && timeStr.length >= 10) {
-      txDate = new Date(timeStr.replace(' ', 'T'));
-    } else if (createdAtStr) {
-      txDate = new Date(createdAtStr.replace(' ', 'T'));
-    } else {
-      txDate = new Date();
-    }
-
+    const txDate = parseTxDate(timeStr, createdAtStr);
     if (isNaN(txDate.getTime())) return true;
+    const now = new Date();
 
     if (timeFilter === 'DAY') {
       return (
@@ -589,13 +591,26 @@ export default function App() {
         txDate.getFullYear() === now.getFullYear()
       );
     }
+    if (timeFilter === 'CUSTOM') {
+      if (customStartDate) {
+        const start = new Date(customStartDate);
+        start.setHours(0, 0, 0, 0);
+        if (txDate < start) return false;
+      }
+      if (customEndDate) {
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        if (txDate > end) return false;
+      }
+      return true;
+    }
     return true;
   };
 
   // Danh sách giao dịch theo bộ lọc thời gian
   const timeFilteredTransactions = useMemo(
     () => transactions.filter((t) => isMatchingTime(t.transaction_time, t.created_at)),
-    [transactions, timeFilter]
+    [transactions, timeFilter, customStartDate, customEndDate]
   );
 
   const displayedExpense = useMemo(
@@ -700,14 +715,37 @@ export default function App() {
 
   const maxDayAmount = Math.max(...last7DaysData.map((d) => d.amount), 1);
 
-  const timeLabel =
-    timeFilter === 'ALL'
-      ? 'Toàn bộ thời gian'
-      : timeFilter === 'MONTH'
-      ? 'Tháng này'
-      : timeFilter === 'WEEK'
-      ? 'Tuần này'
-      : 'Hôm nay';
+  const handleApplyCustomDate = (start, end) => {
+    setCustomStartDate(start);
+    setCustomEndDate(end);
+    setTimeFilter('CUSTOM');
+  };
+
+  const handleResetTimeFilter = () => {
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setTimeFilter('ALL');
+  };
+
+  const timeLabel = useMemo(() => {
+    if (timeFilter === 'ALL') return 'Toàn bộ thời gian';
+    if (timeFilter === 'MONTH') return 'Tháng này';
+    if (timeFilter === 'WEEK') return 'Tuần này';
+    if (timeFilter === 'DAY') return 'Hôm nay';
+    if (timeFilter === 'CUSTOM') {
+      if (customStartDate && customEndDate) {
+        return `${formatDateVN(customStartDate)} - ${formatDateVN(customEndDate)}`;
+      }
+      if (customStartDate) {
+        return `Từ ${formatDateVN(customStartDate)}`;
+      }
+      if (customEndDate) {
+        return `Đến ${formatDateVN(customEndDate)}`;
+      }
+      return 'Khoảng thời gian tùy chọn';
+    }
+    return 'Toàn bộ thời gian';
+  }, [timeFilter, customStartDate, customEndDate]);
 
   const pendingList = useMemo(
     () => transactions.filter((t) => t.status === 'PENDING'),
@@ -717,6 +755,7 @@ export default function App() {
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
+        if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
         if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
         if (filterType !== 'ALL' && t.type !== filterType) return false;
         if (
@@ -730,11 +769,11 @@ export default function App() {
         return true;
       })
       .sort((a, b) => {
-        const timeA = new Date(a.transaction_time || a.created_at || 0).getTime();
-        const timeB = new Date(b.transaction_time || b.created_at || 0).getTime();
+        const timeA = parseTxDate(a.transaction_time, a.created_at).getTime();
+        const timeB = parseTxDate(b.transaction_time, b.created_at).getTime();
         return txSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
       });
-  }, [transactions, filterStatus, filterType, searchQuery, txSortOrder]);
+  }, [transactions, timeFilter, customStartDate, customEndDate, filterStatus, filterType, searchQuery, txSortOrder]);
 
   return (
     <div className="app-container">
@@ -755,6 +794,9 @@ export default function App() {
         isAnalyzingAi={isAnalyzingAi}
         handleAnalyzeAi={handleAnalyzeAi}
         aiMessage={aiMessage}
+        onOpenCustomDateModal={() => setShowCustomDateModal(true)}
+        customStartDate={customStartDate}
+        customEndDate={customEndDate}
       />
 
       {/* Navigation Tabs */}
@@ -828,6 +870,10 @@ export default function App() {
           setTxSortOrder={setTxSortOrder}
           onOpenResetModal={() => setShowResetModal(true)}
           onNavigateToPending={() => setActiveTab('pending')}
+          timeFilter={timeFilter}
+          timeLabel={timeLabel}
+          onOpenCustomDateModal={() => setShowCustomDateModal(true)}
+          onResetTimeFilter={handleResetTimeFilter}
         />
       )}
 
@@ -905,6 +951,15 @@ export default function App() {
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}
         onOpenApiKeyModal={() => setShowApiKeyModal(true)}
+      />
+
+      <CustomDateModal
+        isOpen={showCustomDateModal}
+        onClose={() => setShowCustomDateModal(false)}
+        startDate={customStartDate}
+        endDate={customEndDate}
+        onApply={handleApplyCustomDate}
+        onReset={handleResetTimeFilter}
       />
     </div>
   );
