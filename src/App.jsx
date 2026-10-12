@@ -28,7 +28,9 @@ import {
   Bot,
   Settings,
   Banknote,
-  HandCoins
+  HandCoins,
+  Activity,
+  TrendingUp
 } from 'lucide-react';
 import './App.css';
 
@@ -90,6 +92,103 @@ function CustomSelect({ value, onChange, options = [], style, placeholder }) {
   );
 }
 
+function InteractiveDonutChart({ categories = [], totalExpense = 0, formatVND, activeCatId, onHoverCat }) {
+  const [internalHoveredCat, setInternalHoveredCat] = useState(null);
+
+  const activeCategories = categories.filter((c) => c.total_amount > 0 && c.id !== 'cat_transfer_cash');
+  const sumAmount = activeCategories.reduce((s, c) => s + c.total_amount, 0) || totalExpense || 1;
+
+  const hoveredCat = activeCatId !== undefined
+    ? (activeCategories.find((c) => c.id === activeCatId) || null)
+    : internalHoveredCat;
+
+  const handleHover = (cat) => {
+    if (onHoverCat) {
+      onHoverCat(cat ? cat.id : null);
+    } else {
+      setInternalHoveredCat(cat);
+    }
+  };
+
+  const radius = 68;
+  const circumference = 2 * Math.PI * radius; // ~427.26
+
+  let accumulatedPercent = 0;
+
+  if (activeCategories.length === 0) {
+    return (
+      <div className="donut-chart-wrapper empty">
+        <div className="donut-empty-state">
+          <PieChartIcon size={40} color="var(--text-dim)" />
+          <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Chưa có dữ liệu chi tiêu trong kỳ
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="donut-chart-wrapper">
+      <div className="donut-chart-svg-container">
+        <svg viewBox="0 0 200 200" className="donut-svg">
+          <circle
+            cx="100"
+            cy="100"
+            r={radius}
+            className="donut-bg-track"
+          />
+          {activeCategories.map((cat) => {
+            const pct = cat.total_amount / sumAmount;
+            const strokeDasharray = `${pct * circumference} ${circumference * (1 - pct)}`;
+            const strokeDashoffset = -accumulatedPercent * circumference;
+            accumulatedPercent += pct;
+
+            const isHovered = hoveredCat?.id === cat.id;
+
+            return (
+              <circle
+                key={cat.id}
+                cx="100"
+                cy="100"
+                r={radius}
+                fill="none"
+                stroke={cat.color}
+                strokeWidth={isHovered ? 26 : 20}
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDashoffset}
+                className="donut-slice"
+                style={{
+                  opacity: hoveredCat ? (isHovered ? 1 : 0.35) : 1,
+                  filter: isHovered ? `drop-shadow(0 0 8px ${cat.color})` : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease'
+                }}
+                onMouseEnter={() => handleHover(cat)}
+                onMouseLeave={() => handleHover(null)}
+              />
+            );
+          })}
+        </svg>
+
+        <div className="donut-center-content">
+          <span className="donut-center-label">
+            {hoveredCat ? hoveredCat.name : 'Tổng chi tiêu'}
+          </span>
+          <span className="donut-center-val">
+            {formatVND(hoveredCat ? hoveredCat.total_amount : totalExpense)}
+          </span>
+          <span className="donut-center-sub">
+            {hoveredCat
+              ? `${Math.round((hoveredCat.total_amount / sumAmount) * 100)}% tổng chi`
+              : `${activeCategories.length} nhóm chi`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('pending');
   const [stats, setStats] = useState({
@@ -109,6 +208,7 @@ export default function App() {
   // Theme & Time Filter States
   const [theme, setTheme] = useState(() => localStorage.getItem('smartspend_theme') || 'dark');
   const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY'
+  const [hoveredCatId, setHoveredCatId] = useState(null);
 
   // AI Assistant States (Google AI Studio)
   const [aiInputText, setAiInputText] = useState('');
@@ -656,7 +756,7 @@ export default function App() {
   );
 
   const displayedExpense = timeFilteredTransactions
-    .filter((t) => t.type === 'EXPENSE' && t.status !== 'IGNORED')
+    .filter((t) => t.type === 'EXPENSE' && t.status !== 'IGNORED' && t.category_id !== 'cat_transfer_cash')
     .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   const displayedIncome = timeFilteredTransactions
@@ -666,6 +766,67 @@ export default function App() {
   const displayedPendingCount = timeFilteredTransactions.filter(
     (t) => t.status === 'PENDING'
   ).length;
+
+  const netSavings = displayedIncome - displayedExpense;
+  const spendRatio = displayedIncome > 0
+    ? Math.round((displayedExpense / displayedIncome) * 100)
+    : (displayedExpense > 0 ? 100 : 0);
+  const savingsRate = displayedIncome > 0
+    ? Math.max(0, Math.round(((displayedIncome - displayedExpense) / displayedIncome) * 100))
+    : 0;
+
+  // Cơ cấu danh mục chi tiêu theo bộ lọc thời gian
+  const categoryBreakdown = React.useMemo(() => {
+    const map = {};
+    categories.forEach((c) => {
+      map[c.id] = { ...c, total_amount: 0, tx_count: 0 };
+    });
+    timeFilteredTransactions.forEach((t) => {
+      if (t.type === 'EXPENSE' && t.status !== 'IGNORED' && t.category_id && t.category_id !== 'cat_transfer_cash') {
+        if (!map[t.category_id]) {
+          map[t.category_id] = {
+            id: t.category_id,
+            name: t.category_name || 'Khác',
+            color: t.category_color || '#94a3b8',
+            total_amount: 0,
+            tx_count: 0
+          };
+        }
+        map[t.category_id].total_amount += (t.amount || 0);
+        map[t.category_id].tx_count += 1;
+      }
+    });
+    return Object.values(map)
+      .filter((c) => c.total_amount > 0)
+      .sort((a, b) => b.total_amount - a.total_amount);
+  }, [categories, timeFilteredTransactions]);
+
+  // Xu hướng chi tiêu 7 ngày qua
+  const last7DaysData = React.useMemo(() => {
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const dayStr = d.toISOString().split('T')[0];
+      const label = i === 0 ? 'Hôm nay' : i === 1 ? 'Hôm qua' : `${d.getDate()}/${d.getMonth() + 1}`;
+
+      const dayExpense = transactions
+        .filter((t) => {
+          if (t.type !== 'EXPENSE' || t.status === 'IGNORED' || t.category_id === 'cat_transfer_cash') return false;
+          const txDate = new Date(t.transaction_time || t.created_at);
+          txDate.setHours(0, 0, 0, 0);
+          return txDate.toISOString().split('T')[0] === dayStr;
+        })
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      days.push({ label, date: dayStr, amount: dayExpense, isToday: i === 0 });
+    }
+    return days;
+  }, [transactions]);
+
+  const maxDayAmount = Math.max(...last7DaysData.map((d) => d.amount), 1);
 
   const timeLabel =
     timeFilter === 'ALL'
@@ -1036,92 +1197,259 @@ export default function App() {
 
       {/* TAB 2: DASHBOARD & ANALYTICS */}
       {activeTab === 'dashboard' && (
-        <div className="dashboard-columns">
-          {/* Cột trái: Phân bổ danh mục chi tiêu */}
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <h3 style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <PieChartIcon size={20} color="#06b6d4" />
-              Cơ cấu chi tiêu theo nhóm
-            </h3>
+        <div className="dashboard-content-wrapper">
+          {/* Top Analytics Banner: Sức khỏe dòng tiền & Xu hướng 7 ngày */}
+          <div className="analytics-top-grid">
+            {/* Card 1: Sức khỏe dòng tiền & Tỷ lệ tích lũy */}
+            <div className="glass-panel analytics-health-card">
+              <div className="card-header-clean">
+                <div className="card-header-left">
+                  <div className="card-badge-icon pulse">
+                    <Activity size={18} color="#10b981" />
+                  </div>
+                  <div>
+                    <h4>Dòng tiền & Tiết kiệm ({timeLabel})</h4>
+                    <p className="card-sub-desc">Cân đối dòng tiền thực tế giữa Thu nhập & Chi tiêu</p>
+                  </div>
+                </div>
+                <span className={`health-status-badge ${
+                  spendRatio <= 50 ? 'safe' :
+                  spendRatio <= 80 ? 'good' :
+                  spendRatio <= 100 ? 'warning' : 'danger'
+                }`}>
+                  {spendRatio <= 50 ? '🌟 Dòng tiền rất tốt' :
+                   spendRatio <= 80 ? '👍 Dòng tiền ổn định' :
+                   spendRatio <= 100 ? '⚠️ Cận biên thu nhập' : '🚨 Chi vượt thu'}
+                </span>
+              </div>
 
-            {stats.categories.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>Chưa có dữ liệu chi tiêu đã xác nhận.</p>
-            ) : (
-              <div>
-                {stats.categories.map((cat) => {
-                  const percent = stats.totalExpense > 0
-                    ? Math.round((cat.total_amount / stats.totalExpense) * 100)
-                    : 0;
+              <div className="health-metrics-row">
+                <div className="health-metric-item">
+                  <span className="health-metric-label">Tổng thu nhập</span>
+                  <span className="health-metric-val income-val">+{formatVND(displayedIncome)}</span>
+                </div>
+                <div className="health-metric-divider"></div>
+                <div className="health-metric-item">
+                  <span className="health-metric-label">Tổng chi tiêu</span>
+                  <span className="health-metric-val expense-val">-{formatVND(displayedExpense)}</span>
+                </div>
+                <div className="health-metric-divider"></div>
+                <div className="health-metric-item">
+                  <span className="health-metric-label">Dòng tiền ròng</span>
+                  <span className={`health-metric-val ${netSavings >= 0 ? 'savings-positive' : 'savings-negative'}`}>
+                    {netSavings >= 0 ? '+' : ''}{formatVND(netSavings)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Thanh tỷ trọng Thu - Chi Dual-tone */}
+              <div className="dual-progress-wrapper">
+                <div className="dual-progress-header">
+                  <span>Tỷ lệ chi tiêu: <strong>{spendRatio}%</strong></span>
+                  <span>Tích lũy ròng: <strong>{savingsRate}%</strong></span>
+                </div>
+                <div className="dual-progress-track">
+                  <div
+                    className="dual-progress-expense"
+                    style={{ width: `${Math.min(spendRatio, 100)}%` }}
+                    title={`Chi tiêu: ${spendRatio}%`}
+                  ></div>
+                  <div
+                    className="dual-progress-savings"
+                    style={{ width: `${Math.max(0, 100 - Math.min(spendRatio, 100))}%` }}
+                    title={`Tích lũy: ${savingsRate}%`}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Xu hướng chi tiêu 7 ngày gần nhất */}
+            <div className="glass-panel spending-trend-card">
+              <div className="card-header-clean">
+                <div className="card-header-left">
+                  <div className="card-badge-icon trend">
+                    <TrendingUp size={18} color="#38bdf8" />
+                  </div>
+                  <div>
+                    <h4>Xu hướng chi tiêu 7 ngày</h4>
+                    <p className="card-sub-desc">Biểu đồ chi tiêu sinh hoạt theo từng ngày</p>
+                  </div>
+                </div>
+                <div className="trend-total-pill">
+                  7 ngày: <strong>{formatVND(last7DaysData.reduce((s, d) => s + d.amount, 0))}</strong>
+                </div>
+              </div>
+
+              <div className="trend-chart-container">
+                {last7DaysData.map((d, idx) => {
+                  const barHeightPct = maxDayAmount > 0 ? Math.max(8, Math.round((d.amount / maxDayAmount) * 100)) : 8;
                   return (
-                    <div key={cat.id} className="cat-breakdown-row">
-                      <div className="cat-breakdown-meta">
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-                          <span style={{ color: cat.color }}>●</span>
-                          {cat.name}
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                            ({cat.tx_count} GD)
-                          </span>
-                        </span>
-                        <span style={{ fontWeight: 700 }}>
-                          {formatVND(cat.total_amount)}
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginLeft: '6px' }}>
-                            ({percent}%)
-                          </span>
-                        </span>
+                    <div key={idx} className={`trend-bar-column ${d.isToday ? 'is-today' : ''}`}>
+                      <div className="trend-bar-tooltip">
+                        <span className="tooltip-amount">{formatVND(d.amount)}</span>
+                        <span className="tooltip-date">{d.label}</span>
                       </div>
-                      <div className="progress-track">
+                      <div className="trend-bar-track">
                         <div
-                          className="progress-fill"
-                          style={{
-                            width: `${percent}%`,
-                            backgroundColor: cat.color
-                          }}
+                          className="trend-bar-fill"
+                          style={{ height: `${barHeightPct}%` }}
                         ></div>
+                      </div>
+                      <span className="trend-bar-label">{d.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-columns">
+            {/* Cột trái: Phân bổ danh mục chi tiêu với Interactive Donut */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <PieChartIcon size={20} color="#06b6d4" />
+                  Cơ cấu chi tiêu theo nhóm ({timeLabel})
+                </h3>
+                <span className="cat-count-badge">
+                  {categoryBreakdown.length} danh mục
+                </span>
+              </div>
+
+              {/* Donut Chart tương tác trực quan */}
+              <InteractiveDonutChart
+                categories={categoryBreakdown}
+                totalExpense={displayedExpense}
+                formatVND={formatVND}
+                activeCatId={hoveredCatId}
+                onHoverCat={setHoveredCatId}
+              />
+
+              {/* Danh sách phân bổ chi tiết với Progress Bars */}
+              {categoryBreakdown.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>
+                  Chưa có dữ liệu chi tiêu trong kỳ ({timeLabel}).
+                </p>
+              ) : (
+                <div className="cat-breakdown-list" style={{ marginTop: '20px' }}>
+                  {categoryBreakdown.map((cat) => {
+                    const percent = displayedExpense > 0
+                      ? Math.round((cat.total_amount / displayedExpense) * 100)
+                      : 0;
+                    const isHovered = hoveredCatId === cat.id;
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className={`cat-breakdown-row ${isHovered ? 'highlighted' : ''}`}
+                        onMouseEnter={() => setHoveredCatId(cat.id)}
+                        onMouseLeave={() => setHoveredCatId(null)}
+                      >
+                        <div className="cat-breakdown-meta">
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}>
+                            <span
+                              className="cat-dot-indicator"
+                              style={{
+                                backgroundColor: cat.color,
+                                boxShadow: isHovered ? `0 0 12px ${cat.color}` : `0 0 6px ${cat.color}66`
+                              }}
+                            ></span>
+                            <span className="cat-name-text">{cat.name}</span>
+                            <span className="cat-tx-pill">
+                              {cat.tx_count} GD
+                            </span>
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                              {formatVND(cat.total_amount)}
+                            </span>
+                            <span
+                              className="cat-percent-pill"
+                              style={{ backgroundColor: `${cat.color}22`, color: cat.color }}
+                            >
+                              {percent}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="progress-track">
+                          <div
+                            className="progress-fill"
+                            style={{
+                              width: `${percent}%`,
+                              background: `linear-gradient(90deg, ${cat.color}cc 0%, ${cat.color} 100%)`,
+                              boxShadow: isHovered ? `0 0 10px ${cat.color}` : `0 0 6px ${cat.color}55`
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Cột phải: Danh sách Tài khoản & Số dư */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <Wallet size={20} color="#10b981" />
+                  Tài khoản & Ví liên kết
+                </h3>
+                <div className="total-balance-pill">
+                  Tổng: <strong>{formatVND(stats.totalBalance)}</strong>
+                </div>
+              </div>
+
+              <div>
+                {accounts.map((acc) => {
+                  const accPercent = stats.totalBalance > 0
+                    ? Math.round((acc.balance / stats.totalBalance) * 100)
+                    : 0;
+
+                  return (
+                    <div key={acc.id} className="account-card">
+                      <div className="account-left">
+                        <div
+                          className="account-icon-box"
+                          style={{ background: `${acc.color || '#10b981'}22`, color: acc.color || '#10b981' }}
+                        >
+                          {acc.id === 'acc_cash' ? '💵' : '🏦'}
+                        </div>
+                        <div className="account-info">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <h4>{acc.name}</h4>
+                            <span className={`acc-type-pill ${acc.id === 'acc_cash' ? 'cash' : 'bank'}`}>
+                              {acc.id === 'acc_cash' ? 'Tiền mặt' : 'Ngân hàng'}
+                            </span>
+                          </div>
+                          <p>{acc.account_number || (acc.id === 'acc_cash' ? 'Tiền mặt trong ví' : 'Tài khoản chính')}</p>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <div className="account-balance">{formatVND(acc.balance)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                            {accPercent}% tài sản
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-reconcile"
+                            onClick={() => {
+                              setReconcileAccount(acc);
+                              setReconcileAmount(String(acc.balance || 0));
+                              setReconcileReason(acc.id === 'acc_cash' ? 'Kiểm kê ví tiền mặt' : 'Điều chỉnh số dư tài khoản');
+                              setShowReconcileModal(true);
+                            }}
+                            title="Kiểm kê và điều chỉnh số dư"
+                          >
+                            ⚡ Kiểm kê
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </div>
-
-          {/* Cột phải: Danh sách Tài khoản & Số dư */}
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <h3 style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Wallet size={20} color="#10b981" />
-              Tài khoản & Ví liên kết
-            </h3>
-
-            <div>
-              {accounts.map((acc) => (
-                <div key={acc.id} className="account-card">
-                  <div className="account-left">
-                    <div className="account-icon-box" style={{ background: `${acc.color || '#10b981'}22`, color: acc.color || '#10b981' }}>
-                      {acc.id === 'acc_cash' ? '💵' : '🏦'}
-                    </div>
-                    <div className="account-info">
-                      <h4>{acc.name}</h4>
-                      <p>{acc.account_number || (acc.id === 'acc_cash' ? 'Tiền mặt trong ví' : 'Tài khoản chính')}</p>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    <div className="account-balance">{formatVND(acc.balance)}</div>
-                    <button
-                      type="button"
-                      className="btn-reconcile"
-                      onClick={() => {
-                        setReconcileAccount(acc);
-                        setReconcileAmount(String(acc.balance || 0));
-                        setReconcileReason(acc.id === 'acc_cash' ? 'Kiểm kê ví tiền mặt' : 'Điều chỉnh số dư tài khoản');
-                        setShowReconcileModal(true);
-                      }}
-                      title="Kiểm kê và điều chỉnh số dư"
-                    >
-                      ⚡ Kiểm kê số dư
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
