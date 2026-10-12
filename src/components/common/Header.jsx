@@ -115,14 +115,14 @@ export default function Header({
             className="ai-text-input"
             value={aiInputText}
             onChange={(e) => setAiInputText(e.target.value)}
-            placeholder="Gõ tự nhiên (VD: bún bò 45k tiền mặt, rút tiền mặt 2tr, cho Nam vay 500k, đổ xăng 70k)..."
+            placeholder="Gõ chi tiết chi tiêu (VD: bún bò 45k, cafe Highlands, đổ xăng 50k)..."
             disabled={isAnalyzingAi}
           />
           <button
             type="button"
             className={`ai-cash-toggle ${aiIsCash ? 'active' : ''}`}
             onClick={() => setAiIsCash(!aiIsCash)}
-            title="Bật để trừ thẳng vào Ví Tiền Mặt"
+            title="Mặc định: Ghi vào Ví Tiền Mặt (nhấn để đổi)"
           >
             💵 Tiền mặt {aiIsCash ? '✓' : ''}
           </button>
@@ -131,46 +131,6 @@ export default function Header({
             {isAnalyzingAi ? 'Đang phân tích...' : '✨ Phân loại AI'}
           </button>
         </form>
-
-        {/* Suggestion Chips */}
-        <div className="ai-chips-row">
-          <span className="ai-chip-label">Thử nhanh:</span>
-          <button
-            type="button"
-            className="ai-chip"
-            onClick={() => { setAiInputText('Gửi xe máy 5k tiền mặt'); setAiIsCash(true); }}
-          >
-            🅿️ Gửi xe 5k tiền mặt
-          </button>
-          <button
-            type="button"
-            className="ai-chip"
-            onClick={() => { setAiInputText('Ăn bún bò Huế 45k tiền mặt'); setAiIsCash(true); }}
-          >
-            🍜 Bún bò 45k tiền mặt
-          </button>
-          <button
-            type="button"
-            className="ai-chip"
-            onClick={() => { setAiInputText('Rút tiền mặt 2 triệu về ví'); setAiIsCash(false); }}
-          >
-            🏧 Rút tiền mặt 2tr
-          </button>
-          <button
-            type="button"
-            className="ai-chip"
-            onClick={() => { setAiInputText('Chuyển 500k cho bạn Nam vay'); setAiIsCash(false); }}
-          >
-            🤝 Cho Nam vay 500k
-          </button>
-          <button
-            type="button"
-            className="ai-chip"
-            onClick={() => { setAiInputText('Nam chuyển khoản trả nợ 500k'); setAiIsCash(false); }}
-          >
-            💰 Nam trả nợ 500k
-          </button>
-        </div>
 
         {aiMessage && (
           <div className="ai-result-alert">

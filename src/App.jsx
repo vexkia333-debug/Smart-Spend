@@ -46,7 +46,7 @@ export default function App() {
 
   // AI Assistant States (Google AI Studio)
   const [aiInputText, setAiInputText] = useState('');
-  const [aiIsCash, setAiIsCash] = useState(false);
+  const [aiIsCash, setAiIsCash] = useState(true);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [aiMessage, setAiMessage] = useState(null);
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
@@ -464,7 +464,7 @@ export default function App() {
         )} (${data.parsed.reasoning})`
       );
       setAiInputText('');
-      setAiIsCash(false);
+      setAiIsCash(true);
       await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts()]);
 
       confetti({
