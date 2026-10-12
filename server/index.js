@@ -140,7 +140,7 @@ app.get('/api/transactions', (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY t.transaction_time DESC, t.created_at DESC LIMIT 100';
+    query += ' ORDER BY t.created_at DESC LIMIT 100';
 
     const transactions = db.prepare(query).all(...params);
     res.json(transactions);

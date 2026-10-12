@@ -708,6 +708,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [txSortOrder, setTxSortOrder] = useState('DESC'); // 'DESC' = Gần nhất lên đầu
 
   // Simulator Form State
   const [simBank, setSimBank] = useState('VCB');
@@ -1310,23 +1311,49 @@ export default function App() {
       ? 'Tuần này'
       : 'Hôm nay';
 
-  const pendingList = transactions.filter(
-    (t) => t.status === 'PENDING' && isMatchingTime(t.transaction_time, t.created_at)
-  );
-
-  const filteredTransactions = transactions.filter((t) => {
-    if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
-    if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
-    if (filterType !== 'ALL' && t.type !== filterType) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchDesc = t.description?.toLowerCase().includes(q);
-      const matchBank = t.bank_name?.toLowerCase().includes(q);
-      const matchCat = t.category_name?.toLowerCase().includes(q);
-      if (!matchDesc && !matchBank && !matchCat) return false;
+  // Helper chuyển đổi thời gian giao dịch sang mili-giây để so sánh chính xác
+  const getTxTimestamp = (t) => {
+    if (t.created_at) {
+      const d = new Date(t.created_at.replace(' ', 'T'));
+      if (!isNaN(d.getTime())) return d.getTime();
     }
-    return true;
-  });
+    if (t.transaction_time) {
+      if (t.transaction_time.includes('-') && t.transaction_time.length >= 10) {
+        const d = new Date(t.transaction_time.replace(' ', 'T'));
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+      const m = t.transaction_time.match(/(\d{1,2}):(\d{1,2})\s+(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (m) {
+        const [, hh, mm, dd, MM, yyyy] = m;
+        const d = new Date(Number(yyyy), Number(MM) - 1, Number(dd), Number(hh), Number(mm));
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+    }
+    return 0;
+  };
+
+  const pendingList = transactions
+    .filter((t) => t.status === 'PENDING' && isMatchingTime(t.transaction_time, t.created_at))
+    .sort((a, b) => getTxTimestamp(b) - getTxTimestamp(a));
+
+  const filteredTransactions = transactions
+    .filter((t) => {
+      if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
+      if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
+      if (filterType !== 'ALL' && t.type !== filterType) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchDesc = t.description?.toLowerCase().includes(q);
+        const matchBank = t.bank_name?.toLowerCase().includes(q);
+        const matchCat = t.category_name?.toLowerCase().includes(q);
+        if (!matchDesc && !matchBank && !matchCat) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const diff = getTxTimestamp(b) - getTxTimestamp(a);
+      return txSortOrder === 'DESC' ? diff : -diff;
+    });
 
   const webhookUrl = `${window.location.origin}/api/webhook/bank-notification`;
 
@@ -1982,7 +2009,28 @@ export default function App() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Thời gian</th>
+                  <th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setTxSortOrder((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
+                    title="Nhấn để đổi thứ tự sắp xếp thời gian"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      Thời gian
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          color: '#38bdf8',
+                          background: 'rgba(56, 189, 248, 0.14)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {txSortOrder === 'DESC' ? '↓ Gần nhất' : '↑ Cũ nhất'}
+                      </span>
+                    </span>
+                  </th>
                   <th>Ngân hàng</th>
                   <th>Nội dung</th>
                   <th>Số tiền</th>
