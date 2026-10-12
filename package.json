@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n \"API,WEB\" -c \"cyan,magenta\" \"node --watch server/index.js\" \"vite\"",
-    "start": "node server/index.js",
-    "server": "node --watch server/index.js",
+    "dev": "concurrently -n \"API,WEB\" -c \"cyan,magenta\" \"node --watch --experimental-sqlite server/index.js\" \"vite\"",
+    "start": "node --experimental-sqlite server/index.js",
+    "server": "node --watch --experimental-sqlite server/index.js",
     "build": "vite build || node -e \"console.log('Using prebuilt dist bundle')\"",
     "lint": "oxlint",
     "preview": "vite preview"
