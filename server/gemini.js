@@ -29,10 +29,12 @@ QUY TẮC PHÂN TÍCH:
    - "EXPENSE": Chi tiêu hoặc chuyển tiền đưa đi.
    - "INCOME": Thu nhập, nhận tiền hoặc thu hồi nợ.
 3. categoryId: Phải chọn đúng một ID từ danh sách trên:
+   - Nếu là Đồ ăn, bữa ăn (cơm, bún bò, phở, bánh mì, hủ tiếu, quán ăn, nhà hàng, đồ ăn vặt) -> chọn "cat_food" (Cơm & Đồ ăn).
+   - Nếu là Đồ uống (cà phê, cafe, trà sữa, trà đá, nước ngọt, sinh tố, Highlands, Phúc Long, The Coffee House, Starbucks, Katinat, Mixue...) -> chọn "cat_drink" (Cà phê & Đồ uống).
    - Nếu là Rút tiền mặt từ cây ATM / tài khoản thẻ -> chọn "cat_transfer_cash" (Rút tiền vào Ví (ATM)).
    - Nếu là Cho vay / Cho mượn tiền ("cho Nam vay 500k", "cho bạn mượn 1tr") -> chọn "cat_loan" (Cho vay & Cho mượn).
    - Nếu là Nhận lại tiền người khác trả nợ ("Nam trả nợ 500k", "được trả tiền") -> chọn "cat_debt_collect" (Thu hồi nợ / Nhận tiền trả).
-   - Các khoản chi tiêu thông thường khác: chọn danh mục phù hợp nhất (cat_food, cat_transport, cat_shopping...).
+   - Các khoản chi tiêu thông thường khác: chọn danh mục phù hợp nhất (cat_transport, cat_shopping, cat_bills...).
 4. wallet:
    - "TRANSFER_TO_CASH": Khi rút tiền mặt từ thẻ/ngân hàng về ví (ví dụ: "rút tiền mặt 2tr", "rút atm 500k", "rút 1 triệu").
    - "CASH": Khi câu nói có từ "tiền mặt", "ví", "tiền túi", "trả mặt", hoặc chi tiêu vặt (gửi xe, mua rau, trà đá, bánh mì) hoặc options.forceCash = true.

@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { db, initDatabase } from './db.js';
+import { db, initDatabase, seedInitialTransactions } from './db.js';
 import { parseBankNotification, matchSuggestedCategory } from './parser.js';
 import { parseTransactionWithGemini } from './gemini.js';
 import crypto from 'node:crypto';
@@ -249,6 +249,38 @@ app.post('/api/reset-data', (req, res) => {
     res.json({
       success: true,
       message: 'Đã xóa toàn bộ dữ liệu mẫu và khởi tạo ví tài khoản của bạn!'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint Xóa / Đặt lại lịch sử giao dịch (Transaction History Reset)
+app.post('/api/transactions/clear', (req, res) => {
+  try {
+    const { resetBalances = false, restoreDemo = false } = req.body || {};
+
+    db.exec(`
+      DELETE FROM notification_logs;
+      DELETE FROM transactions;
+    `);
+
+    if (resetBalances) {
+      db.exec(`UPDATE accounts SET balance = 0;`);
+    }
+
+    if (restoreDemo) {
+      seedInitialTransactions();
+    }
+
+    broadcastEvent('TRANSACTIONS_CLEARED', { restoreDemo, resetBalances });
+    broadcastEvent('DATA_RESET', { message: 'Transactions cleared' });
+
+    res.json({
+      success: true,
+      message: restoreDemo
+        ? 'Đã đặt lại và khôi phục dữ liệu giao dịch mẫu thành công!'
+        : 'Đã xóa toàn bộ lịch sử giao dịch thành công!'
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -100,6 +100,73 @@ export function initDatabase() {
   `);
 
   seedInitialData();
+  runMigrations();
+}
+
+function runMigrations() {
+  try {
+    // 1. Kiểm tra xem đã có danh mục cat_drink (Cà phê & Đồ uống) chưa
+    const checkDrink = db.prepare("SELECT id FROM categories WHERE id = 'cat_drink'").get();
+    if (!checkDrink) {
+      console.log('Migrating: Thêm danh mục cat_drink (Cà phê & Đồ uống)...');
+      db.prepare(`
+        INSERT INTO categories (id, name, type, icon, color, is_quick_action, sort_order)
+        VALUES ('cat_drink', 'Cà phê & Đồ uống', 'EXPENSE', 'Coffee', '#d97706', 1, 2)
+      `).run();
+    }
+
+    // 2. Cập nhật tên cat_food thành 'Cơm & Đồ ăn'
+    db.prepare(`
+      UPDATE categories 
+      SET name = 'Cơm & Đồ ăn', icon = 'Utensils', color = '#f59e0b'
+      WHERE id = 'cat_food' AND (name = 'Ăn uống & Cà phê' OR name = 'Ăn uống')
+    `).run();
+
+    // 3. Chuyển đổi các rules cà phê/đồ uống sang cat_drink
+    const drinkKeywords = ['PHUC LONG', 'HIGHLANDS', 'STARBUCKS', 'THE COFFEE HOUSE', 'KATINAT', 'TRA SUA', 'CA PHE', 'MIXUE'];
+    for (const kw of drinkKeywords) {
+      const rule = db.prepare('SELECT id FROM auto_rules WHERE keyword = ?').get(kw);
+      if (rule) {
+        db.prepare('UPDATE auto_rules SET category_id = ? WHERE id = ?').run('cat_drink', rule.id);
+      } else {
+        db.prepare('INSERT INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)').run(
+          'rule_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          kw,
+          'cat_drink',
+          0
+        );
+      }
+    }
+
+    // 4. Bổ sung các rule đồ ăn cơ bản
+    const foodKeywords = ['COM TAM', 'BUN BO', 'PHO ', 'BANH MI', 'QUAN COM', 'NHA HANG'];
+    for (const kw of foodKeywords) {
+      const rule = db.prepare('SELECT id FROM auto_rules WHERE keyword = ?').get(kw);
+      if (!rule) {
+        db.prepare('INSERT INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)').run(
+          'rule_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          kw,
+          'cat_food',
+          0
+        );
+      }
+    }
+
+    // 5. Cập nhật các giao dịch đồ uống hiện có đã từng gán vào cat_food
+    db.prepare(`
+      UPDATE transactions
+      SET category_id = 'cat_drink'
+      WHERE category_id = 'cat_food'
+        AND (
+          description LIKE '%Phuc Long%' OR description LIKE '%Highlands%' 
+          OR description LIKE '%Starbucks%' OR description LIKE '%Cafe%' 
+          OR description LIKE '%Cà phê%' OR description LIKE '%Trà sữa%'
+          OR raw_content LIKE '%Phuc Long%' OR raw_content LIKE '%Highlands%'
+        )
+    `).run();
+  } catch (err) {
+    console.warn('Migration warning:', err.message);
+  }
 }
 
 function seedInitialData() {
@@ -128,22 +195,23 @@ function seedInitialData() {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Chi tiêu
-  insertCategory.run('cat_food', 'Ăn uống & Cà phê', 'EXPENSE', 'Utensils', '#f59e0b', 1, 1);
-  insertCategory.run('cat_shopping', 'Mua sắm & Siêu thị', 'EXPENSE', 'ShoppingBag', '#ec4899', 1, 2);
-  insertCategory.run('cat_transport', 'Di chuyển & Xăng xe', 'EXPENSE', 'Car', '#3b82f6', 1, 3);
-  insertCategory.run('cat_bills', 'Hóa đơn & Tiện ích', 'EXPENSE', 'Receipt', '#8b5cf6', 1, 4);
-  insertCategory.run('cat_entertainment', 'Giải trí & Phim ảnh', 'EXPENSE', 'Film', '#06b6d4', 1, 5);
-  insertCategory.run('cat_health', 'Sức khỏe & Thuốc', 'EXPENSE', 'HeartPulse', '#10b981', 1, 6);
-  insertCategory.run('cat_education', 'Học tập & Sách', 'EXPENSE', 'GraduationCap', '#6366f1', 0, 7);
-  insertCategory.run('cat_housing', 'Nhà cửa & Đồ gia dụng', 'EXPENSE', 'Home', '#14b8a6', 0, 8);
-  insertCategory.run('cat_other_expense', 'Chi tiêu khác', 'EXPENSE', 'MoreHorizontal', '#64748b', 1, 9);
+  // Chi tiêu: Tách riêng Đồ ăn và Đồ uống
+  insertCategory.run('cat_food', 'Cơm & Đồ ăn', 'EXPENSE', 'Utensils', '#f59e0b', 1, 1);
+  insertCategory.run('cat_drink', 'Cà phê & Đồ uống', 'EXPENSE', 'Coffee', '#d97706', 1, 2);
+  insertCategory.run('cat_shopping', 'Mua sắm & Siêu thị', 'EXPENSE', 'ShoppingBag', '#ec4899', 1, 3);
+  insertCategory.run('cat_transport', 'Di chuyển & Xăng xe', 'EXPENSE', 'Car', '#3b82f6', 1, 4);
+  insertCategory.run('cat_bills', 'Hóa đơn & Tiện ích', 'EXPENSE', 'Receipt', '#8b5cf6', 1, 5);
+  insertCategory.run('cat_entertainment', 'Giải trí & Phim ảnh', 'EXPENSE', 'Film', '#06b6d4', 1, 6);
+  insertCategory.run('cat_health', 'Sức khỏe & Thuốc', 'EXPENSE', 'HeartPulse', '#10b981', 1, 7);
+  insertCategory.run('cat_education', 'Học tập & Sách', 'EXPENSE', 'GraduationCap', '#6366f1', 0, 8);
+  insertCategory.run('cat_housing', 'Nhà cửa & Đồ gia dụng', 'EXPENSE', 'Home', '#14b8a6', 0, 9);
+  insertCategory.run('cat_other_expense', 'Chi tiêu khác', 'EXPENSE', 'MoreHorizontal', '#64748b', 1, 10);
 
   // Thu nhập
-  insertCategory.run('cat_salary', 'Lương hàng tháng', 'INCOME', 'Briefcase', '#10b981', 1, 10);
-  insertCategory.run('cat_freelance', 'Thu nhập ngoài & Thưởng', 'INCOME', 'Award', '#84cc16', 1, 11);
-  insertCategory.run('cat_investment', 'Đầu tư & Lãi suất', 'INCOME', 'TrendingUp', '#06b6d4', 1, 12);
-  insertCategory.run('cat_other_income', 'Thu nhập khác', 'INCOME', 'PlusCircle', '#64748b', 0, 13);
+  insertCategory.run('cat_salary', 'Lương hàng tháng', 'INCOME', 'Briefcase', '#10b981', 1, 11);
+  insertCategory.run('cat_freelance', 'Thu nhập ngoài & Thưởng', 'INCOME', 'Award', '#84cc16', 1, 12);
+  insertCategory.run('cat_investment', 'Đầu tư & Lãi suất', 'INCOME', 'TrendingUp', '#06b6d4', 1, 13);
+  insertCategory.run('cat_other_income', 'Thu nhập khác', 'INCOME', 'PlusCircle', '#64748b', 0, 14);
 
   // 3. Seed Auto Rules
   const insertRule = db.prepare(`
@@ -151,9 +219,16 @@ function seedInitialData() {
     VALUES (?, ?, ?, ?)
   `);
 
-  insertRule.run('rule_1', 'PHUC LONG', 'cat_food', 0);
-  insertRule.run('rule_2', 'HIGHLANDS', 'cat_food', 0);
-  insertRule.run('rule_3', 'STARBUCKS', 'cat_food', 0);
+  insertRule.run('rule_1', 'PHUC LONG', 'cat_drink', 0);
+  insertRule.run('rule_2', 'HIGHLANDS', 'cat_drink', 0);
+  insertRule.run('rule_3', 'STARBUCKS', 'cat_drink', 0);
+  insertRule.run('rule_coffee_house', 'THE COFFEE HOUSE', 'cat_drink', 0);
+  insertRule.run('rule_katinat', 'KATINAT', 'cat_drink', 0);
+  insertRule.run('rule_ca_phe', 'CA PHE', 'cat_drink', 0);
+  insertRule.run('rule_tra_sua', 'TRA SUA', 'cat_drink', 0);
+  insertRule.run('rule_food_1', 'COM TAM', 'cat_food', 0);
+  insertRule.run('rule_food_2', 'BUN BO', 'cat_food', 0);
+  insertRule.run('rule_food_3', 'PHO ', 'cat_food', 0);
   insertRule.run('rule_4', 'GRAB', 'cat_transport', 0);
   insertRule.run('rule_5', 'BE GROUP', 'cat_transport', 0);
   insertRule.run('rule_6', 'SHOPEE', 'cat_shopping', 0);
@@ -161,7 +236,11 @@ function seedInitialData() {
   insertRule.run('rule_8', 'TIEN DIEN', 'cat_bills', 1);
   insertRule.run('rule_9', 'LUONG THANG', 'cat_salary', 1);
 
-  // 4. Seed initial transactions (vừa có CONFIRMED, vừa có PENDING)
+  seedInitialTransactions();
+  console.log('Seeding completed successfully!');
+}
+
+export function seedInitialTransactions() {
   const insertTrans = db.prepare(`
     INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -173,7 +252,7 @@ function seedInitialData() {
     return d.toISOString().replace('T', ' ').slice(0, 19);
   };
 
-  // Các giao dịch PENDING (người dùng bỏ lỡ thông báo trên điện thoại, cần bổ sung trên web)
+  // Các giao dịch PENDING
   insertTrans.run(
     'tx_pend_1',
     'acc_vcb',
@@ -219,7 +298,7 @@ function seedInitialData() {
     null
   );
 
-  // Các giao dịch CONFIRMED (đã chọn trực tiếp qua thông báo hoặc trước đó)
+  // Các giao dịch CONFIRMED
   insertTrans.run(
     'tx_conf_1',
     'acc_vcb',
@@ -280,7 +359,21 @@ function seedInitialData() {
     formatTime(51)
   );
 
-  console.log('Seeding completed successfully!');
+  // Thêm 1 giao dịch cà phê xác nhận để thống kê tiền uống có số liệu mẫu ngay
+  insertTrans.run(
+    'tx_conf_5',
+    'acc_vcb',
+    'cat_drink',
+    55000,
+    'EXPENSE',
+    'Highlands Coffee Diamond Plaza',
+    'VCB: -55,000 VND luc 09/10/2026 14:00. SD: 18,460,000 VND. ND: POS HIGHLANDS COFFEE',
+    'Vietcombank',
+    'CONFIRMED',
+    'BANK_NOTIFICATION',
+    formatTime(26),
+    formatTime(26)
+  );
 }
 
 export { db };

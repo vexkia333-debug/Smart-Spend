@@ -31,15 +31,20 @@ import {
   HandCoins,
   Activity,
   TrendingUp,
-  LineChart as LineChartIcon
+  LineChart as LineChartIcon,
+  Trash2,
+  Coffee,
+  Utensils,
+  RotateCcw
 } from 'lucide-react';
 import './App.css';
 
 const DEFAULT_QUICK_ACTIONS = [
   { id: 'cat_transfer_cash', name: '💵 Rút vào Ví', color: '#06b6d4' },
-  { id: 'cat_food', name: 'Ăn uống & Cà phê', color: '#f59e0b' },
-  { id: 'cat_shopping', name: 'Mua sắm & Siêu thị', color: '#ec4899' },
-  { id: 'cat_transport', name: 'Di chuyển & Xăng xe', color: '#3b82f6' },
+  { id: 'cat_food', name: '🍜 Cơm & Đồ ăn', color: '#f59e0b' },
+  { id: 'cat_drink', name: '☕ Cà phê & Đồ uống', color: '#d97706' },
+  { id: 'cat_shopping', name: '🛍️ Mua sắm & Siêu thị', color: '#ec4899' },
+  { id: 'cat_transport', name: '🚗 Di chuyển & Xăng xe', color: '#3b82f6' },
   { id: 'cat_loan', name: '🤝 Cho vay', color: '#ec4899' }
 ];
 
@@ -725,11 +730,11 @@ export default function App() {
   const [newCatColor, setNewCatColor] = useState('#10b981');
   const [isAddingCat, setIsAddingCat] = useState(false);
 
-  // Reset Modal States
+  // Reset History Modal States
   const [showResetModal, setShowResetModal] = useState(false);
-  const [cleanAccName, setCleanAccName] = useState('Agribank Plus');
-  const [cleanBalance, setCleanBalance] = useState('0');
-  const [isResetting, setIsResetting] = useState(false);
+  const [resetOption, setResetOption] = useState('clear_only'); // 'clear_only' | 'restore_demo'
+  const [resetBalancesCheckbox, setResetBalancesCheckbox] = useState(false);
+  const [isResettingTx, setIsResettingTx] = useState(false);
 
   // Theme effect
   useEffect(() => {
@@ -767,6 +772,10 @@ export default function App() {
     eventSource.addEventListener('TRANSACTION_IGNORED', () => {
       fetchStats();
       fetchTransactions();
+    });
+
+    eventSource.addEventListener('TRANSACTIONS_CLEARED', () => {
+      fetchInitialData();
     });
 
     eventSource.addEventListener('DATA_RESET', () => {
@@ -991,6 +1000,36 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Reset / Xóa dữ liệu lịch sử giao dịch
+  const handleResetTransactions = async () => {
+    setIsResettingTx(true);
+    try {
+      const res = await fetch('/api/transactions/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resetBalances: resetBalancesCheckbox,
+          restoreDemo: resetOption === 'restore_demo'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi reset giao dịch');
+
+      setShowResetModal(false);
+      await fetchInitialData();
+      confetti({
+        particleCount: 50,
+        spread: 70,
+        origin: { y: 0.7 },
+        colors: ['#38bdf8', '#10b981', '#f59e0b']
+      });
+    } catch (err) {
+      alert('Lỗi: ' + err.message);
+    } finally {
+      setIsResettingTx(false);
     }
   };
 
@@ -1964,11 +2003,22 @@ export default function App() {
       {/* TAB 3: ALL TRANSACTIONS */}
       {activeTab === 'transactions' && (
         <div className="glass-panel" style={{ padding: '24px' }}>
-          <div className="section-header" style={{ flexWrap: 'wrap', gap: '14px' }}>
-            <h3 className="section-title">
-              <Layers size={22} color="#38bdf8" />
-              Lịch sử giao dịch ({filteredTransactions.length})
-            </h3>
+          <div className="section-header" style={{ flexWrap: 'wrap', gap: '14px', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>
+                <Layers size={22} color="#38bdf8" />
+                Lịch sử giao dịch ({filteredTransactions.length})
+              </h3>
+              <button
+                type="button"
+                className="btn btn-reset-tx"
+                onClick={() => setShowResetModal(true)}
+                title="Xóa / Đặt lại lịch sử giao dịch"
+              >
+                <Trash2 size={15} />
+                <span>Reset lịch sử</span>
+              </button>
+            </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <input
@@ -2005,105 +2055,188 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                    onClick={() => setTxSortOrder((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
-                    title="Nhấn để đổi thứ tự sắp xếp thời gian"
-                  >
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      Thời gian
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          color: '#38bdf8',
-                          background: 'rgba(56, 189, 248, 0.14)',
-                          border: '1px solid rgba(56, 189, 248, 0.3)',
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          fontWeight: 600
-                        }}
+          {filteredTransactions.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <Layers size={28} />
+              </div>
+              <h4>Không có giao dịch nào phù hợp</h4>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                Hãy thử thay đổi bộ lọc hoặc thêm giao dịch mới.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* DESKTOP TABLE VIEW (HIỂN THỊ KHI MÀN HÌNH >= 768px) */}
+              <div className="desktop-tx-table">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => setTxSortOrder((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
+                        title="Nhấn để đổi thứ tự sắp xếp thời gian"
                       >
-                        {txSortOrder === 'DESC' ? '↓ Gần nhất' : '↑ Cũ nhất'}
-                      </span>
-                    </span>
-                  </th>
-                  <th>Ngân hàng</th>
-                  <th>Nội dung</th>
-                  <th>Số tiền</th>
-                  <th>Danh mục</th>
-                  <th>Trạng thái</th>
-                  <th>Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          Thời gian
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              color: '#38bdf8',
+                              background: 'rgba(56, 189, 248, 0.14)',
+                              border: '1px solid rgba(56, 189, 248, 0.3)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 600
+                            }}
+                          >
+                            {txSortOrder === 'DESC' ? '↓ Gần nhất' : '↑ Cũ nhất'}
+                          </span>
+                        </span>
+                      </th>
+                      <th>Ngân hàng</th>
+                      <th>Nội dung</th>
+                      <th>Số tiền</th>
+                      <th>Danh mục</th>
+                      <th>Trạng thái</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTransactions.map((tx) => (
+                      <tr key={tx.id}>
+                        <td style={{ color: 'var(--text-dim)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                          {formatTxTime(tx.transaction_time, tx.created_at)}
+                        </td>
+                        <td>
+                          <span className="pending-bank-badge">{tx.bank_name || 'Ngân hàng'}</span>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{tx.description}</td>
+                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          <span className={tx.type === 'INCOME' ? 'stat-value income' : 'stat-value expense'} style={{ fontSize: '1rem' }}>
+                            {tx.type === 'EXPENSE' ? '-' : '+'}
+                            {formatVND(tx.amount)}
+                          </span>
+                        </td>
+                        <td>
+                          {tx.category_name ? (
+                            <span
+                              className="badge"
+                              style={{
+                                background: `${tx.category_color}22`,
+                                color: tx.category_color,
+                                border: `1px solid ${tx.category_color}55`
+                              }}
+                            >
+                              ● {tx.category_name}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: '0.82rem' }}>
+                              Chưa gắn thẻ
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {tx.status === 'PENDING' && (
+                            <span className="badge badge-pending">Cần bổ sung</span>
+                          )}
+                          {tx.status === 'CONFIRMED' && (
+                            <span className="badge badge-confirmed">Đã chọn</span>
+                          )}
+                          {tx.status === 'IGNORED' && (
+                            <span className="badge badge-ignored">Bỏ qua</span>
+                          )}
+                        </td>
+                        <td>
+                          {tx.status === 'PENDING' ? (
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '4px 10px', fontSize: '0.78rem' }}
+                              onClick={() => {
+                                setActiveTab('pending');
+                              }}
+                            >
+                              Phân loại ngay
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Đã xử lý</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBILE CARDS VIEW (DỮ LIỆU CHUYỂN THÀNH KHỐI TRÊN MOBILE ĐỂ DỄ THEO DÕI) */}
+              <div className="mobile-tx-cards">
                 {filteredTransactions.map((tx) => (
-                  <tr key={tx.id}>
-                    <td style={{ color: 'var(--text-dim)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                      {formatTxTime(tx.transaction_time, tx.created_at)}
-                    </td>
-                    <td>
-                      <span className="pending-bank-badge">{tx.bank_name || 'Ngân hàng'}</span>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{tx.description}</td>
-                    <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      <span className={tx.type === 'INCOME' ? 'stat-value income' : 'stat-value expense'} style={{ fontSize: '1rem' }}>
-                        {tx.type === 'EXPENSE' ? '-' : '+'}
-                        {formatVND(tx.amount)}
-                      </span>
-                    </td>
-                    <td>
-                      {tx.category_name ? (
-                        <span
-                          className="badge"
-                          style={{
-                            background: `${tx.category_color}22`,
-                            color: tx.category_color,
-                            border: `1px solid ${tx.category_color}55`
-                          }}
-                        >
-                          ● {tx.category_name}
+                  <div key={tx.id} className="mobile-tx-card">
+                    <div className="mobile-tx-card-header">
+                      <div className="mobile-tx-card-meta">
+                        <span className="pending-bank-badge">{tx.bank_name || 'Ngân hàng'}</span>
+                        <span className="mobile-tx-time">
+                          {formatTxTime(tx.transaction_time, tx.created_at)}
                         </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-dim)', fontStyle: 'italic', fontSize: '0.82rem' }}>
-                          Chưa gắn thẻ
+                      </div>
+                      <div className="mobile-tx-status">
+                        {tx.status === 'PENDING' && (
+                          <span className="badge badge-pending">Cần bổ sung</span>
+                        )}
+                        {tx.status === 'CONFIRMED' && (
+                          <span className="badge badge-confirmed">Đã chọn</span>
+                        )}
+                        {tx.status === 'IGNORED' && (
+                          <span className="badge badge-ignored">Bỏ qua</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mobile-tx-card-body">
+                      <div className="mobile-tx-desc">{tx.description}</div>
+                      <div className="mobile-tx-amount-row">
+                        <span className={`mobile-tx-amount ${tx.type === 'INCOME' ? 'income' : 'expense'}`}>
+                          {tx.type === 'EXPENSE' ? '-' : '+'}
+                          {formatVND(tx.amount)}
                         </span>
-                      )}
-                    </td>
-                    <td>
-                      {tx.status === 'PENDING' && (
-                        <span className="badge badge-pending">Cần bổ sung</span>
-                      )}
-                      {tx.status === 'CONFIRMED' && (
-                        <span className="badge badge-confirmed">Đã chọn</span>
-                      )}
-                      {tx.status === 'IGNORED' && (
-                        <span className="badge badge-ignored">Bỏ qua</span>
-                      )}
-                    </td>
-                    <td>
+                      </div>
+                    </div>
+
+                    <div className="mobile-tx-card-footer">
+                      <div className="mobile-tx-category">
+                        {tx.category_name ? (
+                          <span
+                            className="badge"
+                            style={{
+                              background: `${tx.category_color}22`,
+                              color: tx.category_color,
+                              border: `1px solid ${tx.category_color}55`
+                            }}
+                          >
+                            ● {tx.category_name}
+                          </span>
+                        ) : (
+                          <span className="mobile-tx-uncat">Chưa gắn thẻ</span>
+                        )}
+                      </div>
+
                       {tx.status === 'PENDING' ? (
                         <button
                           className="btn btn-primary"
-                          style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                          onClick={() => {
-                            setActiveTab('pending');
-                          }}
+                          style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                          onClick={() => setActiveTab('pending')}
                         >
                           Phân loại ngay
                         </button>
                       ) : (
-                        <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Đã xử lý</span>
+                        <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>Đã xử lý</span>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -2752,6 +2885,109 @@ export default function App() {
             <div style={{ marginTop: '22px', display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RESET LỊCH SỬ GIAO DỊCH */}
+      {showResetModal && (
+        <div className="reset-modal-overlay" onClick={() => !isResettingTx && setShowResetModal(false)}>
+          <div className="reset-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="reset-modal-header">
+              <div className="reset-modal-title">
+                <Trash2 size={20} color="#fb7185" />
+                <span>Reset Lịch Sử Giao Dịch</span>
+              </div>
+              <button
+                className="prompt-close"
+                onClick={() => !isResettingTx && setShowResetModal(false)}
+                disabled={isResettingTx}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="reset-modal-body">
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Hành động này cho phép bạn làm sạch lịch sử để bắt đầu ghi chép chi tiêu mới, hoặc khôi phục dữ liệu mẫu để trải nghiệm.
+              </p>
+
+              <div
+                className={`reset-option-card ${resetOption === 'clear_only' ? 'selected' : ''}`}
+                onClick={() => setResetOption('clear_only')}
+              >
+                <input
+                  type="radio"
+                  name="resetOption"
+                  checked={resetOption === 'clear_only'}
+                  onChange={() => setResetOption('clear_only')}
+                  style={{ marginTop: '3px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div className="reset-option-title">🗑️ Xóa sạch toàn bộ lịch sử giao dịch</div>
+                  <div className="reset-option-desc">
+                    Xóa sạch các bản ghi thu / chi và thông báo cũ. Danh mục và tài khoản liên kết vẫn được giữ nguyên.
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={`reset-option-card ${resetOption === 'restore_demo' ? 'selected' : ''}`}
+                onClick={() => setResetOption('restore_demo')}
+              >
+                <input
+                  type="radio"
+                  name="resetOption"
+                  checked={resetOption === 'restore_demo'}
+                  onChange={() => setResetOption('restore_demo')}
+                  style={{ marginTop: '3px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div className="reset-option-title">🔄 Khôi phục dữ liệu demo mẫu ban đầu</div>
+                  <div className="reset-option-desc">
+                    Tái lập bộ dữ liệu mẫu (các giao dịch cơm, bún bò, cà phê Highlands, lương, tiền điện...) đã phân loại sẵn.
+                  </div>
+                </div>
+              </div>
+
+              <label className="reset-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={resetBalancesCheckbox}
+                  onChange={(e) => setResetBalancesCheckbox(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span>Đồng thời đặt lại số dư tất cả tài khoản/ví về 0 VNĐ</span>
+              </label>
+            </div>
+
+            <div className="reset-modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowResetModal(false)}
+                disabled={isResettingTx}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleResetTransactions}
+                disabled={isResettingTx}
+                style={{ minWidth: '135px' }}
+              >
+                {isResettingTx ? (
+                  <>
+                    <RefreshCw size={15} className="spin" /> Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} /> Xác nhận Reset
+                  </>
+                )}
               </button>
             </div>
           </div>
