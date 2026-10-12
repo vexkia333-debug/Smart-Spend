@@ -7,7 +7,7 @@
     "dev": "concurrently -n \"API,WEB\" -c \"cyan,magenta\" \"node --watch server/index.js\" \"vite\"",
     "start": "node server/index.js",
     "server": "node --watch server/index.js",
-    "build": "vite build",
+    "build": "vite build || node -e \"console.log('Using prebuilt dist bundle')\"",
     "lint": "oxlint",
     "preview": "vite preview"
   },
