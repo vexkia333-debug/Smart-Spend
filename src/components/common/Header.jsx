@@ -69,23 +69,25 @@ export default function Header({
             </button>
           </div>
 
-          {/* Nút Cài đặt hệ thống & Webhook */}
-          <button
-            className="theme-toggle-btn"
-            onClick={onOpenSettings}
-            title="Cài đặt kết nối MacroDroid & Google AI"
-          >
-            <Settings size={18} />
-          </button>
+          <div className="header-utility-btns">
+            {/* Nút Cài đặt hệ thống & Webhook */}
+            <button
+              className="theme-toggle-btn"
+              onClick={onOpenSettings}
+              title="Cài đặt kết nối MacroDroid & Google AI"
+            >
+              <Settings size={18} />
+            </button>
 
-          {/* Nút chuyển giao diện Sáng / Tối */}
-          <button
-            className="theme-toggle-btn"
-            onClick={toggleTheme}
-            title={`Chuyển sang giao diện ${theme === 'dark' ? 'Sáng' : 'Tối'}`}
-          >
-            {theme === 'dark' ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#3b82f6" />}
-          </button>
+            {/* Nút chuyển giao diện Sáng / Tối */}
+            <button
+              className="theme-toggle-btn"
+              onClick={toggleTheme}
+              title={`Chuyển sang giao diện ${theme === 'dark' ? 'Sáng' : 'Tối'}`}
+            >
+              {theme === 'dark' ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#3b82f6" />}
+            </button>
+          </div>
         </div>
       </header>
 

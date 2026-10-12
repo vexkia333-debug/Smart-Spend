@@ -58,6 +58,12 @@
   gap: 12px;
 }
 
+.header-utility-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Time Filter Bar */
 .time-filter-bar {
   display: inline-flex;
@@ -556,22 +562,39 @@
   justify-content: center;
 }
 
-/* Google-Prompt Style Notification Overlay / Modal */
-.google-prompt-overlay {
+/* Google-Prompt Centered Modal Dialog */
+.prompt-modal-backdrop {
   position: fixed;
-  bottom: 28px;
-  right: 28px;
+  inset: 0;
   z-index: 9999;
-  width: 420px;
-  max-width: calc(100vw - 36px);
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.25s ease;
+}
+
+:root[data-theme="light"] .prompt-modal-backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.google-prompt-overlay {
+  position: relative;
+  width: 440px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 22px;
-  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.2);
   overflow: hidden;
-  animation: slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .prompt-header {
@@ -1236,72 +1259,91 @@ input[type="number"] {
   animation: slideDown 0.3s ease;
 }
 
-/* Mobile Responsive Optimization for AI Card & Modals */
+/* Mobile Responsive Optimization for Header, AI Card & Modals */
 @media (max-width: 640px) {
-  .ai-smart-card {
-    padding: 16px;
-    margin-bottom: 16px;
+  .app-container {
+    padding: 12px 12px 80px 12px;
   }
 
-  .ai-header-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+  .app-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "logo utils"
+      "filter filter";
+    padding: 12px 14px;
+    gap: 12px 10px;
+    margin-bottom: 18px;
   }
 
-  .ai-title {
-    font-size: 0.95rem;
+  .logo-group {
+    grid-area: logo;
+    min-width: 0;
+    gap: 10px;
   }
 
-  .ai-key-badge {
+  .logo-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+  }
+
+  .logo-text h1 {
+    font-size: 1.25rem;
+  }
+
+  .logo-text p {
     font-size: 0.72rem;
-    padding: 4px 10px;
-    align-self: flex-start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 175px;
   }
 
-  .ai-input-row {
-    flex-direction: column;
-    align-items: stretch;
+  .header-actions {
+    display: contents;
+  }
+
+  .header-utility-btns {
+    grid-area: utils;
+    display: flex;
+    align-items: center;
     gap: 8px;
+    justify-self: end;
   }
 
-  .ai-text-input {
+  .theme-toggle-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+  }
+
+  .time-filter-bar {
+    grid-area: filter;
     width: 100%;
-    font-size: 0.88rem;
-    padding: 11px 14px;
+    display: flex;
     box-sizing: border-box;
+    padding: 3px;
+    margin-top: 2px;
   }
 
-  .ai-submit-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 11px 16px;
-    font-size: 0.88rem;
-    box-sizing: border-box;
+  .time-filter-btn {
+    flex: 1;
+    text-align: center;
+    padding: 6px 2px;
+    font-size: 0.76rem;
+    white-space: nowrap;
   }
 
-  .ai-chips-row {
-    gap: 6px;
-    margin-top: 6px;
-  }
-
-  .ai-chip-label {
-    width: 100%;
-    margin-bottom: 2px;
-  }
-
-  .ai-chip {
-    padding: 4px 10px;
-    font-size: 0.75rem;
+  .prompt-modal-backdrop {
+    padding: 12px;
   }
 
   .google-prompt-overlay {
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    width: auto;
+    width: 100%;
     max-width: 100%;
-    border-radius: 18px;
+    max-height: 92vh;
+    border-radius: 20px;
   }
 
   .prompt-amount {
