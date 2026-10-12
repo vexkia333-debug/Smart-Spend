@@ -382,6 +382,159 @@
   color: #0f172a;
 }
 
+/* Pending Tab AI Section */
+.pending-ai-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(139, 92, 246, 0.07);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: 4px 0;
+}
+
+:root[data-theme="light"] .pending-ai-section {
+  background: #fbf8ff;
+  border-color: rgba(139, 92, 246, 0.25);
+}
+
+.pending-ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pending-ai-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #c084fc;
+  letter-spacing: 0.02em;
+}
+
+:root[data-theme="light"] .pending-ai-label {
+  color: #7c3aed;
+}
+
+.pending-ai-fill-raw {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pending-ai-fill-raw:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .pending-ai-fill-raw {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+:root[data-theme="light"] .pending-ai-fill-raw:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.pending-ai-form {
+  width: 100%;
+}
+
+.pending-ai-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: var(--radius-md);
+  padding: 4px 6px 4px 12px;
+  transition: all var(--transition-fast);
+}
+
+:root[data-theme="light"] .pending-ai-input-wrap {
+  background: #ffffff;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.pending-ai-input-wrap:focus-within {
+  border-color: #a855f7;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.3);
+  background: rgba(15, 23, 42, 0.95);
+}
+
+:root[data-theme="light"] .pending-ai-input-wrap:focus-within {
+  border-color: #7c3aed;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
+  background: #ffffff;
+}
+
+.pending-ai-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-main);
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.pending-ai-input::placeholder {
+  color: var(--text-dim);
+}
+
+:root[data-theme="light"] .pending-ai-input {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .pending-ai-input::placeholder {
+  color: #94a3b8;
+}
+
+.btn-pending-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.btn-pending-ai:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.btn-pending-ai:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+:root[data-theme="light"] .btn-pending-ai {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #ffffff;
+}
+
 /* Empty State */
 .empty-state {
   padding: 48px 24px;
@@ -605,6 +758,102 @@
 .prompt-skip-btn:hover {
   color: #fff;
   text-decoration: underline;
+}
+
+/* Light Theme Overrides for Google-Prompt Overlay */
+:root[data-theme="light"] .google-prompt-overlay {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.16), 0 0 25px rgba(14, 165, 233, 0.18);
+}
+
+:root[data-theme="light"] .prompt-header {
+  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="light"] .prompt-badge {
+  color: #0284c7;
+}
+
+:root[data-theme="light"] .prompt-close {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .prompt-close:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="light"] .prompt-bank-name {
+  color: #334155;
+}
+
+:root[data-theme="light"] .prompt-amount.expense {
+  color: #e11d48;
+}
+
+:root[data-theme="light"] .prompt-amount.income {
+  color: #059669;
+}
+
+:root[data-theme="light"] .prompt-desc {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .prompt-question {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .prompt-cat-btn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme="light"] .prompt-cat-btn:hover {
+  background: #ffffff;
+  border-color: #38bdf8;
+  color: #0284c7;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.18);
+}
+
+:root[data-theme="light"] .prompt-divider {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .prompt-divider::before,
+:root[data-theme="light"] .prompt-divider::after {
+  background: #cbd5e1;
+}
+
+:root[data-theme="light"] .prompt-ai-input-wrap {
+  background: #f5f3ff;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+:root[data-theme="light"] .prompt-ai-input-wrap:focus-within {
+  border-color: #7c3aed;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.2);
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .prompt-ai-input {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .prompt-ai-input::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-theme="light"] .prompt-skip-btn {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .prompt-skip-btn:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* Two-column layout */
@@ -1054,6 +1303,19 @@
   .prompt-cat-btn {
     padding: 9px 10px;
     font-size: 0.8rem;
+  }
+
+  .pending-ai-input-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .btn-pending-ai {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 14px;
   }
 }
 

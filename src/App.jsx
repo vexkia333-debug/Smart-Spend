@@ -259,31 +259,59 @@ export default function App() {
     }
   };
 
-  // Phân loại bằng AI trực tiếp trong Prompt nổi
-  const handlePromptAiCategorize = async (txId) => {
-    if (!promptAiText.trim()) return;
+  // Phân loại bằng AI cho bất kỳ giao dịch nào (dùng chung cho Popup và Tab Cần bổ sung)
+  const handleAiCategorizeTx = async (txId, text, amount) => {
+    const trimmed = (text || '').trim();
+    if (!trimmed) {
+      alert('Vui lòng nhập nội dung dòng tiền để AI phân loại');
+      return false;
+    }
     if (!hasGeminiKey) {
       setShowApiKeyModal(true);
-      return;
+      return false;
     }
-    setIsPromptAiAnalyzing(true);
     try {
+      const promptText = amount
+        ? `${trimmed} (khoản tiền: ${amount}đ)`
+        : trimmed;
+
       const res = await fetch('/api/ai/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: `${promptAiText} (khoản tiền: ${livePrompt?.transaction?.amount || ''}đ)`,
+          text: promptText,
           autoSave: false
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi phân tích AI');
 
-      await handleCategorize(txId, data.parsed.categoryId, data.parsed.description || promptAiText);
-      setLivePrompt(null);
-      setPromptAiText('');
+      await handleCategorize(
+        txId,
+        data.parsed.categoryId,
+        data.parsed.description || trimmed
+      );
+      return true;
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Lỗi phân loại AI');
+      return false;
+    }
+  };
+
+  // Phân loại bằng AI trực tiếp trong Prompt nổi
+  const handlePromptAiCategorize = async (txId) => {
+    if (!promptAiText.trim()) return;
+    setIsPromptAiAnalyzing(true);
+    try {
+      const success = await handleAiCategorizeTx(
+        txId,
+        promptAiText,
+        livePrompt?.transaction?.amount
+      );
+      if (success) {
+        setLivePrompt(null);
+        setPromptAiText('');
+      }
     } finally {
       setIsPromptAiAnalyzing(false);
     }
@@ -755,6 +783,9 @@ export default function App() {
           handleCategorize={handleCategorize}
           handleIgnore={handleIgnore}
           handleSimulate={handleSimulate}
+          onAiCategorize={handleAiCategorizeTx}
+          hasGeminiKey={hasGeminiKey}
+          onOpenApiKeyModal={() => setShowApiKeyModal(true)}
         />
       )}
 
