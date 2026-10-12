@@ -21,3 +21,23 @@ export const formatCompactVND = (v) => {
   if (v >= 1000) return `${Math.round(v / 1000)}k`;
   return '0đ';
 };
+
+/**
+ * Định dạng số với dấu phẩy ngăn cách hàng nghìn (1000000 -> 1,000,000)
+ */
+export const formatNumberWithCommas = (val) => {
+  if (val === undefined || val === null || val === '') return '';
+  const clean = String(val).replace(/\D/g, '');
+  if (!clean) return '';
+  return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+/**
+ * Chuyển chuỗi có dấu phẩy thành số thực tế (1,000,000 -> 1000000)
+ */
+export const parseNumberFromCommas = (val) => {
+  if (val === undefined || val === null || val === '') return 0;
+  const clean = String(val).replace(/,/g, '').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Banknote, X } from 'lucide-react';
-import { formatVND } from '../../utils/formatters.js';
+import { formatVND, formatNumberWithCommas, parseNumberFromCommas } from '../../utils/formatters.js';
 
 export default function ReconcileModal({
   isOpen,
@@ -14,6 +14,16 @@ export default function ReconcileModal({
   handleSubmit
 }) {
   if (!isOpen || !account) return null;
+
+  const handleAmountChange = (e) => {
+    const raw = e.target.value;
+    if (!raw) {
+      setReconcileAmount('');
+      return;
+    }
+    const formatted = formatNumberWithCommas(raw);
+    setReconcileAmount(formatted);
+  };
 
   return (
     <div
@@ -91,11 +101,12 @@ export default function ReconcileModal({
           <div className="form-group">
             <label className="form-label">Số tiền thực tế đếm được (VNĐ):</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               className="form-input"
               value={reconcileAmount}
-              onChange={(e) => setReconcileAmount(e.target.value)}
-              placeholder="Ví dụ: 350000"
+              onChange={handleAmountChange}
+              placeholder="Ví dụ: 350,000"
               autoFocus
               required
             />
@@ -103,29 +114,27 @@ export default function ReconcileModal({
 
           {/* Live difference calculation */}
           {(() => {
-            const target = parseFloat(reconcileAmount);
-            if (!isNaN(target)) {
-              const diff = target - (account.balance || 0);
-              const isPos = diff > 0;
-              const isNeg = diff < 0;
-              return (
-                <div
-                  className={`reconcile-diff-box ${
-                    isPos ? 'positive' : isNeg ? 'negative' : 'zero'
-                  }`}
-                >
-                  <span>Chênh lệch:</span>
-                  <span>
-                    {diff === 0
-                      ? '0 ₫ (Khớp tuyệt đối)'
-                      : `${isPos ? '+' : ''}${formatVND(diff)} (${
-                          isPos ? 'Dôi dư tiền' : 'Hụt tiền'
-                        })`}
-                  </span>
-                </div>
-              );
-            }
-            return null;
+            if (reconcileAmount === '' || reconcileAmount === undefined || reconcileAmount === null) return null;
+            const target = parseNumberFromCommas(reconcileAmount);
+            const diff = target - (account.balance || 0);
+            const isPos = diff > 0;
+            const isNeg = diff < 0;
+            return (
+              <div
+                className={`reconcile-diff-box ${
+                  isPos ? 'positive' : isNeg ? 'negative' : 'zero'
+                }`}
+              >
+                <span>Chênh lệch:</span>
+                <span>
+                  {diff === 0
+                    ? '0 ₫ (Khớp tuyệt đối)'
+                    : `${isPos ? '+' : ''}${formatVND(diff)} (${
+                        isPos ? 'Dôi dư tiền' : 'Hụt tiền'
+                      })`}
+                </span>
+              </div>
+            );
           })()}
 
           <div className="form-group" style={{ marginTop: '14px' }}>

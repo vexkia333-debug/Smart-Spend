@@ -20,7 +20,7 @@ import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
 
 // Utilities & Constants
-import { formatVND, formatTxTime } from './utils/formatters.js';
+import { formatVND, formatTxTime, formatNumberWithCommas } from './utils/formatters.js';
 import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
 
@@ -487,7 +487,7 @@ export default function App() {
   const handleReconcileSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!reconcileAccount) return;
-    const amountNum = parseFloat(reconcileAmount);
+    const amountNum = parseFloat(String(reconcileAmount).replace(/,/g, ''));
     if (isNaN(amountNum) || amountNum < 0) {
       alert('Vui lòng nhập số tiền thực tế hợp lệ (từ 0 trở lên)');
       return;
@@ -807,7 +807,7 @@ export default function App() {
           totalBalance={stats.totalBalance}
           onReconcile={(acc) => {
             setReconcileAccount(acc);
-            setReconcileAmount(String(acc.balance || 0));
+            setReconcileAmount(formatNumberWithCommas(acc.balance || 0));
             setReconcileReason(
               acc.id === 'acc_cash' ? 'Kiểm kê ví tiền mặt' : 'Điều chỉnh số dư tài khoản'
             );
