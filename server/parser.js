@@ -18,38 +18,34 @@ export function parseBankNotification(text, title = '') {
   let description = cleanText;
   let balance = null;
 
-  // 1. Nhận diện Ngân hàng
-  const upper = cleanText.toUpperCase();
-  if (upper.includes('AGRIBANK') || upper.includes('AGRI') || upper.includes('VARB')) {
-    bankName = 'Agribank';
-    bankCode = 'AGRI';
-  } else if (upper.includes('VCB') || upper.includes('VIETCOMBANK')) {
-    bankName = 'Vietcombank';
-    bankCode = 'VCB';
-  } else if (upper.includes('TCB') || upper.includes('TECHCOMBANK')) {
-    bankName = 'Techcombank';
-    bankCode = 'TCB';
-  } else if (upper.includes('VIETTEL') || upper.includes('VTMONEY') || upper.includes('VIETTELPAY')) {
-    bankName = 'Viettel Money';
-    bankCode = 'VTM';
-  } else if (upper.includes('MBBANK') || upper.includes('MB BANK') || upper.includes('MB ')) {
-    bankName = 'MB Bank';
-    bankCode = 'MB';
-  } else if (upper.includes('MOMO')) {
-    bankName = 'MoMo';
-    bankCode = 'MOMO';
-  } else if (upper.includes('ACB')) {
-    bankName = 'ACB';
-    bankCode = 'ACB';
-  } else if (upper.includes('VPBANK') || upper.includes('VPB')) {
-    bankName = 'VPBank';
-    bankCode = 'VPB';
-  } else if (upper.includes('BIDV')) {
-    bankName = 'BIDV';
-    bankCode = 'BIDV';
-  } else if (upper.includes('TPBANK') || upper.includes('TPB')) {
-    bankName = 'TPBank';
-    bankCode = 'TPB';
+  // 1. Nhận diện Ngân hàng: Ưu tiên App Title / Header nếu có để tránh nhầm lẫn khi nội dung chứa tên ngân hàng đối tác
+  const titleUpper = (title || '').toUpperCase();
+  const contentUpper = cleanText.toUpperCase();
+
+  function detectBank(str) {
+    if (!str) return null;
+    if (str.includes('VIETTEL') || str.includes('VTMONEY') || str.includes('VIETTELPAY')) return { bankName: 'Viettel Money', bankCode: 'VTM' };
+    if (str.includes('TCB') || str.includes('TECHCOMBANK')) return { bankName: 'Techcombank', bankCode: 'TCB' };
+    if (str.includes('AGRIBANK') || str.includes('AGRI') || str.includes('VARB')) return { bankName: 'Agribank', bankCode: 'AGRI' };
+    if (str.includes('VCB') || str.includes('VIETCOMBANK')) return { bankName: 'Vietcombank', bankCode: 'VCB' };
+    if (str.includes('MBBANK') || str.includes('MB BANK') || str.includes('MB ')) return { bankName: 'MB Bank', bankCode: 'MB' };
+    if (str.includes('MOMO')) return { bankName: 'MoMo', bankCode: 'MOMO' };
+    if (str.includes('ACB')) return { bankName: 'ACB', bankCode: 'ACB' };
+    if (str.includes('VPBANK') || str.includes('VPB')) return { bankName: 'VPBank', bankCode: 'VPB' };
+    if (str.includes('BIDV')) return { bankName: 'BIDV', bankCode: 'BIDV' };
+    if (str.includes('TPBANK') || str.includes('TPB')) return { bankName: 'TPBank', bankCode: 'TPB' };
+    return null;
+  }
+
+  const detectedFromTitle = detectBank(titleUpper);
+  const detectedFromContent = detectBank(contentUpper);
+
+  if (detectedFromTitle) {
+    bankName = detectedFromTitle.bankName;
+    bankCode = detectedFromTitle.bankCode;
+  } else if (detectedFromContent) {
+    bankName = detectedFromContent.bankName;
+    bankCode = detectedFromContent.bankCode;
   }
 
   // 2. Xác định Loại: Thu (+) hay Chi (-)
