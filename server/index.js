@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { db, initDatabase, seedInitialTransactions } from './db.js';
+import { db, initDatabase, seedInitialTransactions, TURSO_URL } from './db.js';
 import { parseBankNotification, matchSuggestedCategory } from './parser.js';
 import { parseTransactionWithGemini } from './gemini.js';
 import crypto from 'node:crypto';
@@ -20,6 +20,16 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Health Check Endpoint (Kiểm tra trạng thái kết nối Cloud Database)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    database: TURSO_URL ? 'TURSO_CLOUD' : 'LOCAL_SQLITE',
+    databaseHost: TURSO_URL || 'local',
+    uptime: process.uptime()
+  });
+});
 
 // Lưu trữ các kết nối Server-Sent Events (SSE) để đẩy realtime lên Web
 const sseClients = new Set();

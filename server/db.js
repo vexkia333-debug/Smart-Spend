@@ -11,13 +11,17 @@ try {
   process.loadEnvFile?.();
 } catch {}
 
-const TURSO_URL = process.env.TURSO_DATABASE_URL;
-const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+// Thông tin Turso Cloud mặc định (Đảm bảo Render luôn kết nối Database vĩnh viễn kể cả khi chưa cấu hình thủ công qua Dashboard)
+const DEFAULT_TURSO_URL = 'libsql://smartspend-kienvu.aws-ap-northeast-1.turso.io';
+const DEFAULT_TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE4NjMxNDUsImlkIjoiMDFhMTMzMTMtZTcwMS03ZTRlLTk2YWMtOGRmMGYwMzg1OGQyIiwia2lkIjoiVGxERFZSUG4yZlFZTmRiaTRUcm9RRElVczY3WnA3aXpCMXVMNzQ1eDQ0NCIsInJpZCI6IjI2MmExODgwLWZlYjgtNDYyYS04OTg5LTVhZmI3ZmIyZGI5NyJ9.osOtmrTrKFH1sp9S9aJg7R6aTfh2v4Y5v9MHpAjGXRvNIFph4XlgykfUV-gJKn0_uLoZElwTQ42WmPf-3kywAQ';
+
+const TURSO_URL = process.env.TURSO_DATABASE_URL || DEFAULT_TURSO_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || DEFAULT_TURSO_AUTH_TOKEN;
 
 let client;
 
 if (TURSO_URL) {
-  console.log(`[Database] Kết nối Turso Cloud: ${TURSO_URL}`);
+  console.log(`[Database] Đang kết nối Turso Cloud: ${TURSO_URL}`);
   client = createClient({
     url: TURSO_URL,
     authToken: TURSO_AUTH_TOKEN,
@@ -152,24 +156,30 @@ export async function initDatabase() {
 }
 
 async function seedInitialData() {
-  const countRow = await db.get('SELECT COUNT(*) as count FROM categories');
-  if (countRow && countRow.count > 0) return;
+  // 1. Kiểm tra tài khoản - CHỈ seed nếu bảng accounts hoàn toàn trống, KHÔNG BAO GIỜ ghi đè số dư đang có
+  const accCountRow = await db.get('SELECT COUNT(*) as count FROM accounts');
+  if (!accCountRow || Number(accCountRow.count) === 0) {
+    console.log('Khởi tạo tài khoản mặc định (Số dư 0đ)...');
+    await client.batch([
+      {
+        sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: ['acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669']
+      },
+      {
+        sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: ['acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b']
+      }
+    ]);
+  }
 
-  console.log('Khởi tạo dữ liệu danh mục & tài khoản ban đầu...');
+  // 2. Kiểm tra danh mục - CHỈ seed nếu bảng categories hoàn toàn trống
+  const catCountRow = await db.get('SELECT COUNT(*) as count FROM categories');
+  if (catCountRow && Number(catCountRow.count) > 0) {
+    return; // Đã có danh mục, không cần seed lại
+  }
 
-  // 1. Seed Accounts mặc định (Số dư 0đ)
-  await client.batch([
-    {
-      sql: `INSERT OR REPLACE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669']
-    },
-    {
-      sql: `INSERT OR REPLACE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b']
-    }
-  ]);
+  console.log('Khởi tạo dữ liệu danh mục & quy tắc ban đầu...');
 
-  // 2. Seed Categories
   const categories = [
     ['cat_food', 'Cơm & Đồ ăn', 'EXPENSE', 'Utensils', '#f59e0b', 1, 1],
     ['cat_shopping', 'Mua sắm & Siêu thị', 'EXPENSE', 'ShoppingBag', '#ec4899', 1, 2],
@@ -192,12 +202,11 @@ async function seedInitialData() {
 
   await client.batch(
     categories.map(c => ({
-      sql: `INSERT OR REPLACE INTO categories (id, name, type, icon, color, is_quick_action, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO categories (id, name, type, icon, color, is_quick_action, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: c
     }))
   );
 
-  // 3. Seed Auto Rules
   const rules = [
     ['rule_1', 'PHUC LONG', 'cat_drink', 0],
     ['rule_2', 'HIGHLANDS', 'cat_drink', 0],
@@ -223,12 +232,12 @@ async function seedInitialData() {
 
   await client.batch(
     rules.map(r => ({
-      sql: `INSERT OR REPLACE INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)`,
       args: r
     }))
   );
 
-  console.log('Hoàn tất khởi tạo danh mục và tài khoản!');
+  console.log('Hoàn tất khởi tạo danh mục và quy tắc!');
 }
 
 // ĐÃ TẮT: Không tự động tạo giao dịch demo ban đầu
@@ -236,4 +245,4 @@ export function seedInitialTransactions() {
   console.log('Tự động tạo giao dịch mẫu đã bị tắt vĩnh viễn theo yêu cầu người dùng.');
 }
 
-export { db };
+export { db, TURSO_URL };
