@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 // Tự động load .env nếu có
 try {
   process.loadEnvFile?.();
-} catch {}
+} catch { }
 
 // Thông tin Turso Cloud mặc định (Đảm bảo Render luôn kết nối Database vĩnh viễn kể cả khi chưa cấu hình thủ công qua Dashboard)
 const DEFAULT_TURSO_URL = 'libsql://smartspend-kienvu.aws-ap-northeast-1.turso.io';
@@ -163,7 +163,7 @@ async function seedInitialData() {
     await client.batch([
       {
         sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: ['acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669']
+        args: ['acc_primary', 'Agribank Plus', 'AGRI', '7901205294347', 0, 'VND', 'landmark', '#059669']
       },
       {
         sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

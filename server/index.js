@@ -356,17 +356,39 @@ app.post('/api/webhook/quick-categorize', async (req, res) => {
 // 5. WEBHOOK NHẬN BIẾN ĐỘNG TỪ ĐIỆN THOẠI (MacroDroid / Tasker / Android Agent)
 app.post('/api/webhook/bank-notification', async (req, res) => {
   try {
-    const { content, title = '', timestamp, source = 'BANK_NOTIFICATION', appName = '', app_name = '' } = req.body;
+    console.log('[Webhook Incoming]', JSON.stringify(req.body));
+    const rawContent = req.body.content || req.body.text || req.body.body || req.body.message || req.body.notification || req.body.not_text || '';
+    const rawTitle = req.body.title || req.body.appName || req.body.app_name || req.body.not_title || '';
+    const { timestamp, source = 'BANK_NOTIFICATION' } = req.body;
+
+    const content = rawContent || rawTitle;
 
     if (!content) {
+      console.warn('[Webhook Warning] Content is empty:', req.body);
       return res.status(400).json({ error: 'Nội dung thông báo (content) là bắt buộc' });
     }
 
-    const effectiveTitle = title || appName || app_name || '';
+    const effectiveTitle = rawTitle;
 
     // 1. Phân tích nội dung qua Parser
     const parsed = parseBankNotification(content, effectiveTitle);
     const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
+
+    // Ghi nhật ký webhook vào notification_logs
+    try {
+      await db.prepare(`
+        INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
+        VALUES (?, ?, ?, ?, ?, 'SENT')
+      `).run(
+        'log_' + crypto.randomUUID().slice(0, 8),
+        txId,
+        effectiveTitle || parsed.bankName,
+        content,
+        JSON.stringify({ bankCode: parsed.bankCode, amount: parsed.amount, type: parsed.type, balance: parsed.balance })
+      );
+    } catch (e) {
+      console.error('Lỗi ghi notification_logs:', e.message);
+    }
 
     // 2. Tìm tài khoản tương ứng theo bankCode
     let account = await db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
@@ -579,6 +601,16 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     });
   } catch (err) {
     console.error('Webhook error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API Xem nhật ký Webhook (Hỗ trợ chẩn đoán từ xa)
+app.get('/api/webhook/logs', async (req, res) => {
+  try {
+    const logs = await db.prepare('SELECT * FROM notification_logs ORDER BY created_at DESC LIMIT 20').all();
+    res.json(logs);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
