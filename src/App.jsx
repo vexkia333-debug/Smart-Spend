@@ -857,7 +857,6 @@ export default function App() {
         toggleTheme={toggleTheme}
         timeFilter={timeFilter}
         setTimeFilter={setTimeFilter}
-        onOpenSettings={() => setShowSettingsModal(true)}
         onLockApp={handleLockApp}
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}

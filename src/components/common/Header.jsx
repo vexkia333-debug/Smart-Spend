@@ -126,15 +126,6 @@ export default function Header({
               <Lock size={17} color="#94a3b8" />
             </button>
 
-            {/* Nút Cài đặt hệ thống & Webhook */}
-            <button
-              className="theme-toggle-btn"
-              onClick={onOpenSettings}
-              title="Cài đặt kết nối MacroDroid & Google AI"
-            >
-              <Settings size={18} />
-            </button>
-
             {/* Nút chuyển giao diện Sáng / Tối */}
             <button
               className="theme-toggle-btn"
