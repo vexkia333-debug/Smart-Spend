@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, '..', 'dist');
 
 // Khởi tạo Database
-initDatabase();
+await initDatabase();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,36 +52,36 @@ app.get('/api/events', (req, res) => {
 });
 
 // 1. Thống kê tổng quan (Stats)
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', async (req, res) => {
   try {
-    const totalBalanceRow = db.prepare('SELECT SUM(balance) as total FROM accounts').get();
-    const pendingCountRow = db.prepare("SELECT COUNT(*) as count FROM transactions WHERE status = 'PENDING'").get();
+    const totalBalanceRow = await db.prepare('SELECT SUM(balance) as total FROM accounts').get();
+    const pendingCountRow = await db.prepare("SELECT COUNT(*) as count FROM transactions WHERE status = 'PENDING'").get();
 
     // Loại trừ chuyển tiền nội bộ (Rút tiền vào Ví) khỏi tổng chi tiêu để không bị tính trùng
-    const monthlyExpenseRow = db.prepare(`
+    const monthlyExpenseRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE type = 'EXPENSE' AND status != 'IGNORED' AND (category_id != 'cat_transfer_cash' OR category_id IS NULL)
     `).get();
 
-    const monthlyIncomeRow = db.prepare(`
+    const monthlyIncomeRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE type = 'INCOME' AND status != 'IGNORED'
     `).get();
 
     // Khoản tiền đang cho vay (Loans given)
-    const totalLoansRow = db.prepare(`
+    const totalLoansRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE category_id = 'cat_loan' AND status != 'IGNORED'
     `).get();
 
     // Khoản tiền nợ đã thu hồi (Debt collected)
-    const totalDebtCollectedRow = db.prepare(`
+    const totalDebtCollectedRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE category_id = 'cat_debt_collect' AND status != 'IGNORED'
     `).get();
 
     // Thống kê chi tiêu theo từng danh mục
-    const categoryStats = db.prepare(`
+    const categoryStats = await db.prepare(`
       SELECT 
         c.id, c.name, c.color, c.icon,
         COALESCE(SUM(t.amount), 0) as total_amount,
@@ -108,7 +108,7 @@ app.get('/api/stats', (req, res) => {
 });
 
 // 2. Danh sách giao dịch (Transactions)
-app.get('/api/transactions', (req, res) => {
+app.get('/api/transactions', async (req, res) => {
   try {
     const { status, type, search } = req.query;
     let query = `
@@ -142,7 +142,7 @@ app.get('/api/transactions', (req, res) => {
 
     query += ' ORDER BY t.created_at DESC LIMIT 100';
 
-    const transactions = db.prepare(query).all(...params);
+    const transactions = await db.prepare(query).all(...params);
     res.json(transactions);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -150,24 +150,24 @@ app.get('/api/transactions', (req, res) => {
 });
 
 // 3. Phân loại giao dịch (Categorize Transaction)
-app.patch('/api/transactions/:id/categorize', (req, res) => {
+app.patch('/api/transactions/:id/categorize', async (req, res) => {
   try {
     const { id } = req.params;
     let { category_id, description } = req.body;
 
-    const existingTx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    const existingTx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
     if (!existingTx) {
       return res.status(404).json({ error: 'Giao dịch không tồn tại' });
     }
 
     // Nếu chọn danh mục "Rút tiền vào Ví (ATM)" và trước đó chưa phải
     if (category_id === 'cat_transfer_cash' && existingTx.category_id !== 'cat_transfer_cash') {
-      let cashAcc = db.prepare("SELECT id FROM accounts WHERE id = 'acc_cash'").get();
+      let cashAcc = await db.prepare("SELECT id FROM accounts WHERE id = 'acc_cash'").get();
       if (!cashAcc) {
-        db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
+        await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
       }
-      db.prepare("UPDATE accounts SET balance = balance + ? WHERE id = 'acc_cash'").run(existingTx.amount);
-      const updatedCash = db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+      await db.prepare("UPDATE accounts SET balance = balance + ? WHERE id = 'acc_cash'").run(existingTx.amount);
+      const updatedCash = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
       broadcastEvent('ACCOUNT_UPDATED', updatedCash);
 
       if (!description || !description.trim()) {
@@ -187,10 +187,10 @@ app.patch('/api/transactions/:id/categorize', (req, res) => {
           WHERE id = ?
         `);
     
-    stmt.run(category_id, ...(description ? [description, id] : [id]));
+    await stmt.run(category_id, ...(description ? [description, id] : [id]));
 
     // Lấy thông tin giao dịch cập nhật
-    const updatedTx = db.prepare(`
+    const updatedTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -207,10 +207,10 @@ app.patch('/api/transactions/:id/categorize', (req, res) => {
 });
 
 // 4. Bỏ qua giao dịch (Ignore)
-app.patch('/api/transactions/:id/ignore', (req, res) => {
+app.patch('/api/transactions/:id/ignore', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare(`
+    await db.prepare(`
       UPDATE transactions 
       SET status = 'IGNORED', updated_at = datetime('now', 'localtime')
       WHERE id = ?
@@ -224,22 +224,22 @@ app.patch('/api/transactions/:id/ignore', (req, res) => {
 });
 
 // Endpoint Xóa toàn bộ dữ liệu mẫu, thiết lập tài khoản thật
-app.post('/api/reset-data', (req, res) => {
+app.post('/api/reset-data', async (req, res) => {
   try {
     const { initialBalance = 0, accountName = 'Agribank Plus', bankCode = 'AGRI' } = req.body;
 
-    db.exec(`
+    await db.exec(`
       DELETE FROM transactions;
       DELETE FROM notification_logs;
       DELETE FROM accounts;
     `);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
       VALUES ('acc_primary', ?, ?, '****8888', ?, 'VND', 'landmark', '#059669')
     `).run(accountName, bankCode, parseFloat(initialBalance) || 0);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
       VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')
     `).run();
@@ -256,17 +256,17 @@ app.post('/api/reset-data', (req, res) => {
 });
 
 // Endpoint Xóa / Đặt lại lịch sử giao dịch (Transaction History Reset)
-app.post('/api/transactions/clear', (req, res) => {
+app.post('/api/transactions/clear', async (req, res) => {
   try {
     const { resetBalances = false, restoreDemo = false } = req.body || {};
 
-    db.exec(`
+    await db.exec(`
       DELETE FROM notification_logs;
       DELETE FROM transactions;
     `);
 
     if (resetBalances) {
-      db.exec(`UPDATE accounts SET balance = 0;`);
+      await db.exec(`UPDATE accounts SET balance = 0;`);
     }
 
     if (restoreDemo) {
@@ -288,12 +288,12 @@ app.post('/api/transactions/clear', (req, res) => {
 });
 
 // Endpoint phân loại nhanh giao dịch mới nhất (Dành riêng cho Hộp thoại nổi MacroDroid / Notification Action Buttons)
-app.post('/api/webhook/quick-categorize', (req, res) => {
+app.post('/api/webhook/quick-categorize', async (req, res) => {
   try {
     const { category_id, category_name } = req.body;
     
     // Tìm giao dịch PENDING gần nhất
-    const pendingTx = db.prepare(`
+    const pendingTx = await db.prepare(`
       SELECT * FROM transactions 
       WHERE status = 'PENDING' 
       ORDER BY created_at DESC 
@@ -306,7 +306,7 @@ app.post('/api/webhook/quick-categorize', (req, res) => {
 
     let targetCatId = category_id;
     if (!targetCatId && category_name) {
-      const cat = db.prepare(`
+      const cat = await db.prepare(`
         SELECT id FROM categories 
         WHERE LOWER(name) LIKE LOWER(?) 
         LIMIT 1
@@ -318,13 +318,13 @@ app.post('/api/webhook/quick-categorize', (req, res) => {
       targetCatId = 'cat_food';
     }
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE transactions 
       SET category_id = ?, status = 'CONFIRMED', confirmed_at = datetime('now', 'localtime'), updated_at = datetime('now', 'localtime')
       WHERE id = ?
     `).run(targetCatId, pendingTx.id);
 
-    const updatedTx = db.prepare(`
+    const updatedTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -344,7 +344,7 @@ app.post('/api/webhook/quick-categorize', (req, res) => {
 });
 
 // 5. WEBHOOK NHẬN BIẾN ĐỘNG TỪ ĐIỆN THOẠI (MacroDroid / Tasker / Android Agent)
-app.post('/api/webhook/bank-notification', (req, res) => {
+app.post('/api/webhook/bank-notification', async (req, res) => {
   try {
     const { content, title = '', timestamp, source = 'BANK_NOTIFICATION', appName = '', app_name = '' } = req.body;
 
@@ -359,21 +359,21 @@ app.post('/api/webhook/bank-notification', (req, res) => {
     const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
 
     // 2. Tìm tài khoản tương ứng theo bankCode
-    let account = db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
+    let account = await db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
     if (!account) {
       if (parsed.bankCode === 'AGRI') {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
-          VALUES ('acc_agri', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')
+          VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')
         `).run();
-        account = { id: 'acc_agri' };
+        account = { id: 'acc_primary' };
       } else {
-        account = db.prepare('SELECT id FROM accounts LIMIT 1').get();
+        account = await db.prepare('SELECT id FROM accounts LIMIT 1').get();
       }
     }
 
     // 3. Tìm quy tắc tự động
-    const rules = db.prepare('SELECT * FROM auto_rules').all();
+    const rules = await db.prepare('SELECT * FROM auto_rules').all();
     const suggested = matchSuggestedCategory(parsed.description, rules);
 
     let categoryId = null;
@@ -411,12 +411,12 @@ app.post('/api/webhook/bank-notification', (req, res) => {
     }
 
     // 4. Lưu giao dịch vào DB
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       txId,
-      account?.id || 'acc_vcb',
+      account?.id || 'acc_primary',
       categoryId,
       parsed.amount,
       parsed.type,
@@ -432,14 +432,14 @@ app.post('/api/webhook/bank-notification', (req, res) => {
     // 5. Cập nhật số dư tài khoản
     const targetAccountId = account?.id || 'acc_primary';
     if (parsed.balance !== null && parsed.balance !== undefined && !isNaN(parsed.balance)) {
-      db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(parsed.balance, targetAccountId);
+      await db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(parsed.balance, targetAccountId);
     } else if (parsed.type === 'EXPENSE') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAccountId);
+      await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAccountId);
     } else {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAccountId);
+      await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAccountId);
     }
 
-    const newTx = db.prepare(`
+    const newTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -448,7 +448,7 @@ app.post('/api/webhook/bank-notification', (req, res) => {
     `).get(txId);
 
     // 6. Danh sách nút bấm nhanh cho thông báo tương tác (Quick Actions)
-    const quickCategories = db.prepare(`
+    const quickCategories = await db.prepare(`
       SELECT id, name, icon, color FROM categories 
       WHERE type = ? AND is_quick_action = 1 
       ORDER BY sort_order ASC LIMIT 4
@@ -476,7 +476,7 @@ app.post('/api/webhook/bank-notification', (req, res) => {
 });
 
 // 6. API Giả lập thông báo ngân hàng (Dành cho việc test nhanh trên Web)
-app.post('/api/simulate/notification', (req, res) => {
+app.post('/api/simulate/notification', async (req, res) => {
   const { bank = 'VCB', type = 'EXPENSE', amount = 85000, desc = 'QR TT Phuc Long Coffee Landmark 81' } = req.body;
 
   let simulatedRaw = '';
@@ -496,19 +496,19 @@ app.post('/api/simulate/notification', (req, res) => {
   // Gọi trực tiếp logic webhook
   const parsed = parseBankNotification(simulatedRaw);
   const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
-  const account = db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(bank) || db.prepare('SELECT id FROM accounts LIMIT 1').get();
+  const account = (await db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(bank)) || (await db.prepare('SELECT id FROM accounts LIMIT 1').get());
 
-  const rules = db.prepare('SELECT * FROM auto_rules').all();
+  const rules = await db.prepare('SELECT * FROM auto_rules').all();
   const suggested = matchSuggestedCategory(desc, rules);
 
   const txTime = now.toISOString().replace('T', ' ').slice(0, 19);
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time)
     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 'PENDING', 'BANK_NOTIFICATION', ?)
   `).run(
     txId,
-    account?.id || 'acc_vcb',
+    account?.id || 'acc_primary',
     parsed.amount,
     parsed.type,
     parsed.description,
@@ -517,14 +517,14 @@ app.post('/api/simulate/notification', (req, res) => {
     txTime
   );
 
-  const newTx = db.prepare(`
+  const newTx = await db.prepare(`
     SELECT t.*, a.name as account_name, a.bank_code
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     WHERE t.id = ?
   `).get(txId);
 
-  const quickCategories = db.prepare(`
+  const quickCategories = await db.prepare(`
     SELECT id, name, icon, color FROM categories 
     WHERE type = ? AND is_quick_action = 1 
     ORDER BY sort_order ASC LIMIT 4
@@ -544,21 +544,21 @@ app.post('/api/simulate/notification', (req, res) => {
 });
 
 // 7. Danh mục (Categories)
-app.get('/api/categories', (req, res) => {
+app.get('/api/categories', async (req, res) => {
   try {
-    const categories = db.prepare('SELECT * FROM categories ORDER BY sort_order ASC, name ASC').all();
+    const categories = await db.prepare('SELECT * FROM categories ORDER BY sort_order ASC, name ASC').all();
     res.json(categories);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/categories', (req, res) => {
+app.post('/api/categories', async (req, res) => {
   try {
     const { name, type = 'EXPENSE', icon = 'Tag', color = '#10b981', is_quick_action = 1 } = req.body;
     if (!name) return res.status(400).json({ error: 'Tên danh mục là bắt buộc' });
     const id = 'cat_' + Date.now();
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO categories (id, name, type, icon, color, is_quick_action, sort_order)
       VALUES (?, ?, ?, ?, ?, ?, 99)
     `).run(id, name, type, icon, color, is_quick_action ? 1 : 0);
@@ -569,9 +569,9 @@ app.post('/api/categories', (req, res) => {
 });
 
 // 8. Tài khoản (Accounts)
-app.get('/api/accounts', (req, res) => {
+app.get('/api/accounts', async (req, res) => {
   try {
-    const accounts = db.prepare('SELECT * FROM accounts ORDER BY balance DESC').all();
+    const accounts = await db.prepare('SELECT * FROM accounts ORDER BY balance DESC').all();
     res.json(accounts);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -579,7 +579,7 @@ app.get('/api/accounts', (req, res) => {
 });
 
 // Điều chỉnh số dư / Kiểm kê Ví (Reconciliation)
-app.post('/api/accounts/:id/adjust-balance', (req, res) => {
+app.post('/api/accounts/:id/adjust-balance', async (req, res) => {
   try {
     const { id } = req.params;
     const { actualBalance, reason = 'Kiểm kê số dư' } = req.body;
@@ -588,11 +588,11 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
       return res.status(400).json({ error: 'Số tiền thực tế không hợp lệ' });
     }
 
-    let account = db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
+    let account = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
     if (!account) {
       if (id === 'acc_cash') {
-        db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
-        account = db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
+        await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
+        account = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
       } else {
         return res.status(404).json({ error: 'Tài khoản không tồn tại' });
       }
@@ -607,7 +607,7 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
     const curMin = String(now.getMinutes()).padStart(2, '0');
     const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
 
-    db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(targetBalance, id);
+    await db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(targetBalance, id);
 
     let createdTx = null;
     if (Math.abs(diff) >= 1) {
@@ -619,7 +619,7 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
         ? `${reason} (Dôi dư +${formattedDiff})`
         : `${reason} (Hụt tiền -${formattedDiff})`;
 
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
       `).run(
@@ -635,7 +635,7 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
         txTime
       );
 
-      createdTx = db.prepare(`
+      createdTx = await db.prepare(`
         SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
@@ -646,7 +646,7 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
       broadcastEvent('TRANSACTION_CREATED', createdTx);
     }
 
-    const updatedAccount = db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
+    const updatedAccount = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
     broadcastEvent('ACCOUNT_UPDATED', updatedAccount);
 
     res.json({
@@ -662,9 +662,9 @@ app.post('/api/accounts/:id/adjust-balance', (req, res) => {
 });
 
 // 9. Quy tắc tự động (Auto Rules)
-app.get('/api/rules', (req, res) => {
+app.get('/api/rules', async (req, res) => {
   try {
-    const rules = db.prepare(`
+    const rules = await db.prepare(`
       SELECT r.*, c.name as category_name, c.color as category_color, c.icon as category_icon
       FROM auto_rules r
       JOIN categories c ON r.category_id = c.id
@@ -676,14 +676,14 @@ app.get('/api/rules', (req, res) => {
   }
 });
 
-app.post('/api/rules', (req, res) => {
+app.post('/api/rules', async (req, res) => {
   try {
     const { keyword, category_id, is_auto_apply = 0 } = req.body;
     if (!keyword || !category_id) {
       return res.status(400).json({ error: 'Keyword và category_id là bắt buộc' });
     }
     const ruleId = 'rule_' + Date.now();
-    db.prepare('INSERT INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)').run(
+    await db.prepare('INSERT INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, ?)').run(
       ruleId,
       keyword.toUpperCase().trim(),
       category_id,
@@ -696,9 +696,9 @@ app.post('/api/rules', (req, res) => {
 });
 
 // 10. Cài đặt hệ thống & API Key
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', async (req, res) => {
   try {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+    const row = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
     const hasKey = Boolean(row && row.value);
     const maskedKey = hasKey ? row.value.slice(0, 6) + '...' + row.value.slice(-4) : '';
     res.json({ hasGeminiKey: hasKey, maskedKey });
@@ -707,14 +707,14 @@ app.get('/api/settings', (req, res) => {
   }
 });
 
-app.post('/api/settings/gemini-key', (req, res) => {
+app.post('/api/settings/gemini-key', async (req, res) => {
   try {
     const { apiKey } = req.body;
     if (!apiKey || !apiKey.trim()) {
-      db.prepare("DELETE FROM settings WHERE key = 'gemini_api_key'").run();
+      await db.prepare("DELETE FROM settings WHERE key = 'gemini_api_key'").run();
       return res.json({ success: true, hasGeminiKey: false, message: 'Đã xóa API Key' });
     }
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO settings (key, value, updated_at) 
       VALUES ('gemini_api_key', ?, datetime('now', 'localtime'))
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
@@ -732,13 +732,13 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Vui lòng nhập nội dung chi tiêu' });
     }
-    const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+    const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
     const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(400).json({ error: 'Chưa cấu hình API Key. Vui lòng bấm vào nút thiết lập API Key của Google AI Studio (miễn phí).' });
     }
 
-    const categories = db.prepare('SELECT id, name, type FROM categories').all();
+    const categories = await db.prepare('SELECT id, name, type FROM categories').all();
     const parsed = await parseTransactionWithGemini(text, categories, apiKey, { forceCash });
 
     if (autoSave) {
@@ -752,27 +752,27 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
       const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
 
       // Đảm bảo có cả tài khoản ngân hàng và ví tiền mặt
-      let bankAcc = db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
+      let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
       if (!bankAcc) {
-        db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')").run();
-        bankAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc_primary'").get();
+        await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')").run();
+        bankAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_primary'").get();
       }
 
-      let cashAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+      let cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
       if (!cashAcc) {
-        db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
-        cashAcc = db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+        await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
+        cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
       }
 
       // TRƯỜNG HỢP 1: Rút tiền mặt (Bank -> Cash)
       if (parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash') {
         const sourceAcc = bankAcc;
         // Trừ tài khoản ngân hàng
-        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, sourceAcc.id);
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, sourceAcc.id);
         // Cộng vào ví tiền mặt
-        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, cashAcc.id);
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, cashAcc.id);
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
           VALUES (?, ?, 'cat_transfer_cash', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
         `).run(
@@ -786,13 +786,13 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
           txTime
         );
 
-        broadcastEvent('ACCOUNT_UPDATED', db.prepare('SELECT * FROM accounts WHERE id = ?').get(sourceAcc.id));
-        broadcastEvent('ACCOUNT_UPDATED', db.prepare('SELECT * FROM accounts WHERE id = ?').get(cashAcc.id));
+        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(sourceAcc.id));
+        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(cashAcc.id));
       } else {
         // TRƯỜNG HỢP 2: Chi tiêu hoặc Thu nhập thông thường
         const targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
         `).run(
@@ -809,15 +809,15 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         );
 
         if (parsed.type === 'EXPENSE') {
-          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAcc.id);
+          await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAcc.id);
         } else {
-          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAcc.id);
+          await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAcc.id);
         }
 
-        broadcastEvent('ACCOUNT_UPDATED', db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAcc.id));
+        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAcc.id));
       }
 
-      const createdTx = db.prepare(`
+      const createdTx = await db.prepare(`
         SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id

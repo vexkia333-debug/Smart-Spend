@@ -13,3 +13,7 @@ services:
         value: 10000
       - key: NODE_OPTIONS
         value: --experimental-sqlite
+      - key: TURSO_DATABASE_URL
+        value: libsql://smartspend-kienvu.aws-ap-northeast-1.turso.io
+      - key: TURSO_AUTH_TOKEN
+        value: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE4NjMxNDUsImlkIjoiMDFhMTMzMTMtZTcwMS03ZTRlLTk2YWMtOGRmMGYwMzg1OGQyIiwia2lkIjoiVGxERFZSUG4yZlFZTmRiaTRUcm9RRElVczY3WnA3aXpCMXVMNzQ1eDQ0NCIsInJpZCI6IjI2MmExODgwLWZlYjgtNDYyYS04OTg5LTVhZmI3ZmIyZGI5NyJ9.osOtmrTrKFH1sp9S9aJg7R6aTfh2v4Y5v9MHpAjGXRvNIFph4XlgykfUV-gJKn0_uLoZElwTQ42WmPf-3kywAQ
