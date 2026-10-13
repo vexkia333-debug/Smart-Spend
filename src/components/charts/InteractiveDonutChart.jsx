@@ -4,7 +4,7 @@ import { PieChart as PieChartIcon } from 'lucide-react';
 export default function InteractiveDonutChart({ categories = [], totalExpense = 0, formatVND, activeCatId, onHoverCat }) {
   const [internalHoveredCat, setInternalHoveredCat] = useState(null);
 
-  const activeCategories = categories.filter((c) => c.total_amount > 0 && c.id !== 'cat_transfer_cash');
+  const activeCategories = categories.filter((c) => c.total_amount > 0 && !c.id.startsWith('cat_transfer_'));
   const sumAmount = activeCategories.reduce((s, c) => s + c.total_amount, 0) || totalExpense || 1;
 
   const hoveredCat = activeCatId !== undefined

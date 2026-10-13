@@ -636,7 +636,7 @@ export default function App() {
           (t) =>
             t.type === 'EXPENSE' &&
             t.status !== 'IGNORED' &&
-            t.category_id !== 'cat_transfer_cash'
+            !t.category_id?.startsWith('cat_transfer_')
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -645,7 +645,12 @@ export default function App() {
   const displayedIncome = useMemo(
     () =>
       timeFilteredTransactions
-        .filter((t) => t.type === 'INCOME' && t.status !== 'IGNORED')
+        .filter(
+          (t) =>
+            t.type === 'INCOME' &&
+            t.status !== 'IGNORED' &&
+            !t.category_id?.startsWith('cat_transfer_')
+        )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
   );
@@ -678,7 +683,7 @@ export default function App() {
         t.type === 'EXPENSE' &&
         t.status !== 'IGNORED' &&
         t.category_id &&
-        t.category_id !== 'cat_transfer_cash'
+        !t.category_id?.startsWith('cat_transfer_')
       ) {
         if (!map[t.category_id]) {
           map[t.category_id] = {
@@ -715,7 +720,7 @@ export default function App() {
           if (
             t.type !== 'EXPENSE' ||
             t.status !== 'CONFIRMED' ||
-            t.category_id === 'cat_transfer_cash'
+            t.category_id?.startsWith('cat_transfer_')
           )
             return false;
           const txDate = parseTxDate(t.transaction_time, t.created_at);

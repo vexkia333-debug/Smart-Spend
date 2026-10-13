@@ -35,9 +35,9 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
         const txKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
 
         if (txKey === dateKey) {
-          if (t.type === 'INCOME') {
+          if (t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_')) {
             income += t.amount || 0;
-          } else if (t.type === 'EXPENSE' && t.category_id !== 'cat_transfer_cash') {
+          } else if (t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_')) {
             expense += t.amount || 0;
           }
         }

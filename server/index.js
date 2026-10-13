@@ -394,16 +394,91 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
       }
     }
 
-    // 3. Tìm quy tắc tự động
-    const rules = await db.prepare('SELECT * FROM auto_rules').all();
-    const suggested = matchSuggestedCategory(parsed.description, rules);
+    const targetAccountId = account?.id || 'acc_primary';
 
+    // 3. Tự động phát hiện & khớp lệnh chuyển tiền nội bộ (Smart Internal Transfer Pairing)
+    const oppositeType = parsed.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
+    let isInternalTransfer = false;
     let categoryId = null;
     let status = 'PENDING';
+    let suggested = null;
 
-    if (suggested && suggested.isAutoApply) {
-      categoryId = suggested.categoryId;
+    // Tìm giao dịch đối ứng (cùng số tiền, đối lập loại Thu/Chi, thuộc tài khoản khác của bạn, trong vòng 15 phút gần đây)
+    const partnerTx = await db.prepare(`
+      SELECT t.*, a.name as account_name
+      FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.amount = ?
+        AND t.type = ?
+        AND t.account_id != ?
+        AND (t.category_id IS NULL OR t.category_id LIKE 'cat_transfer_%' OR t.status = 'PENDING')
+        AND datetime(t.created_at) >= datetime('now', '-15 minutes')
+      ORDER BY t.created_at DESC
+      LIMIT 1
+    `).get(parsed.amount, oppositeType, targetAccountId);
+
+    if (partnerTx) {
+      isInternalTransfer = true;
+      categoryId = parsed.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
       status = 'CONFIRMED';
+
+      const partnerAccName = partnerTx.account_name || 'Tài khoản phụ';
+      parsed.description = parsed.type === 'EXPENSE'
+        ? `Chuyển tiền sang ${partnerAccName}`
+        : `Nhận tiền từ ${partnerAccName}`;
+
+      // Tự động CONFIRMED giao dịch đối tác trước đó
+      const partnerCatId = partnerTx.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
+      const curAccName = account?.name || 'Tài khoản của bạn';
+      const partnerDesc = partnerTx.type === 'EXPENSE'
+        ? `Chuyển tiền sang ${curAccName}`
+        : `Nhận tiền từ ${curAccName}`;
+
+      await db.prepare(`
+        UPDATE transactions
+        SET category_id = ?, status = 'CONFIRMED', description = ?, confirmed_at = COALESCE(confirmed_at, datetime('now', 'localtime')), updated_at = datetime('now', 'localtime')
+        WHERE id = ?
+      `).run(partnerCatId, partnerDesc, partnerTx.id);
+
+      const updatedPartner = await db.prepare(`
+        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.id = ?
+      `).get(partnerTx.id);
+
+      if (updatedPartner) {
+        broadcastEvent('TRANSACTION_UPDATED', updatedPartner);
+      }
+    } else {
+      // Nếu chưa có giao dịch đối ứng, kiểm tra xem nội dung thông báo có từ khóa chuyển sang tài khoản khác của chính mình không
+      const allOtherAccounts = await db.prepare('SELECT id, name, bank_code FROM accounts WHERE id != ?').all(targetAccountId);
+      const descUpper = (parsed.description || content || '').toUpperCase();
+      const mentionedAcc = allOtherAccounts.find(a => 
+        descUpper.includes(a.bank_code) || 
+        descUpper.includes(a.name.toUpperCase()) ||
+        (a.bank_code === 'TCB' && descUpper.includes('TECHCOMBANK')) ||
+        (a.bank_code === 'VTM' && (descUpper.includes('VIETTEL') || descUpper.includes('VTMONEY') || descUpper.includes('VIETTELPAY'))) ||
+        (a.bank_code === 'AGRI' && descUpper.includes('AGRIBANK'))
+      );
+
+      if (mentionedAcc) {
+        categoryId = parsed.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
+        suggested = { categoryId, isAutoApply: true, keyword: mentionedAcc.name };
+        status = 'CONFIRMED';
+        parsed.description = parsed.type === 'EXPENSE'
+          ? `Chuyển tiền sang ${mentionedAcc.name}`
+          : `Nhận tiền từ ${mentionedAcc.name}`;
+      } else {
+        // Kiểm tra Auto Rules thông thường
+        const rules = await db.prepare('SELECT * FROM auto_rules').all();
+        suggested = matchSuggestedCategory(parsed.description, rules);
+        if (suggested && suggested.isAutoApply) {
+          categoryId = suggested.categoryId;
+          status = 'CONFIRMED';
+        }
+      }
     }
 
     const now = new Date();
@@ -438,7 +513,7 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       txId,
-      account?.id || 'acc_primary',
+      targetAccountId,
       categoryId,
       parsed.amount,
       parsed.type,
@@ -452,7 +527,6 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     );
 
     // 5. Cập nhật số dư tài khoản
-    const targetAccountId = account?.id || 'acc_primary';
     if (parsed.balance !== null && parsed.balance !== undefined && !isNaN(parsed.balance)) {
       await db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(parsed.balance, targetAccountId);
     } else if (parsed.type === 'EXPENSE') {
@@ -474,27 +548,34 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
       WHERE t.id = ?
     `).get(txId);
 
-    // 6. Danh sách nút bấm nhanh cho thông báo tương tác (Quick Actions)
-    const quickCategories = await db.prepare(`
-      SELECT id, name, icon, color FROM categories 
-      WHERE type = ? AND is_quick_action = 1 
-      ORDER BY sort_order ASC LIMIT 4
-    `).all(parsed.type);
+    // 6. Gửi realtime prompt tới tất cả client (Web + Điện thoại)
+    let quickCategories = [];
+    if (status === 'PENDING') {
+      quickCategories = await db.prepare(`
+        SELECT id, name, icon, color FROM categories 
+        WHERE type = ? AND is_quick_action = 1 
+        ORDER BY sort_order ASC LIMIT 4
+      `).all(parsed.type);
 
-    // Gửi realtime prompt tới tất cả client (Web + Điện thoại)
-    broadcastEvent('NEW_TRANSACTION_PROMPT', {
-      transaction: newTx,
-      suggestedCategoryId: suggested?.categoryId || null,
-      quickActions: quickCategories
-    });
+      broadcastEvent('NEW_TRANSACTION_PROMPT', {
+        transaction: newTx,
+        suggestedCategoryId: suggested?.categoryId || null,
+        quickActions: quickCategories
+      });
+    } else {
+      broadcastEvent('TRANSACTION_CREATED', newTx);
+    }
 
     res.json({
       success: true,
       transactionId: txId,
+      isInternalTransfer,
       parsed,
       status,
       quickActions: quickCategories,
-      message: status === 'PENDING' ? 'Giao dịch đã được lưu và đang chờ bạn phân loại' : 'Đã tự động phân loại'
+      message: isInternalTransfer
+        ? '⚡ Đã tự động khớp lệnh chuyển tiền giữa các tài khoản của bạn'
+        : (status === 'PENDING' ? 'Giao dịch đã được lưu và đang chờ bạn phân loại' : 'Đã tự động phân loại')
     });
   } catch (err) {
     console.error('Webhook error:', err);
@@ -830,7 +911,55 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
       }
 
-      // TRƯỜNG HỢP 1: Rút tiền mặt (Bank -> Cash)
+      // TRƯỜNG HỢP 1: Chuyển tiền nội bộ giữa các tài khoản ngân hàng / ví
+      if (parsed.wallet === 'INTERNAL_TRANSFER' || parsed.categoryId === 'cat_transfer_internal') {
+        const allAccs = await db.prepare('SELECT * FROM accounts').all();
+        let srcAcc = allAccs.find(a => parsed.sourceBank && (a.name.toLowerCase().includes(parsed.sourceBank.toLowerCase()) || a.bank_code.toLowerCase() === parsed.sourceBank.toLowerCase())) || bankAcc;
+        let dstAcc = allAccs.find(a => parsed.targetBank && (a.name.toLowerCase().includes(parsed.targetBank.toLowerCase()) || a.bank_code.toLowerCase() === parsed.targetBank.toLowerCase()) && a.id !== srcAcc.id);
+        
+        if (!dstAcc) {
+          dstAcc = allAccs.find(a => a.id !== srcAcc.id && a.id !== 'acc_cash') || allAccs.find(a => a.id !== srcAcc.id) || cashAcc;
+        }
+
+        // Trừ tài khoản nguồn
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, srcAcc.id);
+        // Cộng tài khoản đích
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, dstAcc.id);
+
+        const txIdOut = txId;
+        const txIdIn = 'tx_' + crypto.randomUUID().slice(0, 8);
+
+        // Giao dịch 1: Chuyển đi
+        await db.prepare(`
+          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+          VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+        `).run(txIdOut, srcAcc.id, parsed.amount, `Chuyển tiền sang ${dstAcc.name}`, text, srcAcc.name, txTime, txTime);
+
+        // Giao dịch 2: Nhận vào
+        await db.prepare(`
+          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+          VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+        `).run(txIdIn, dstAcc.id, parsed.amount, `Nhận tiền từ ${srcAcc.name}`, text, dstAcc.name, txTime, txTime);
+
+        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(srcAcc.id));
+        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(dstAcc.id));
+        broadcastEvent('TRANSACTION_CREATED', await db.prepare(`
+          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id WHERE t.id = ?
+        `).get(txIdOut));
+        broadcastEvent('TRANSACTION_CREATED', await db.prepare(`
+          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id WHERE t.id = ?
+        `).get(txIdIn));
+
+        return res.json({
+          success: true,
+          message: `⚡ Đã chuyển thành công ${new Intl.NumberFormat('vi-VN').format(parsed.amount)} ₫ từ ${srcAcc.name} sang ${dstAcc.name}`,
+          parsed
+        });
+      }
+
+      // TRƯỜNG HỢP 2: Rút tiền mặt (Bank -> Cash)
       if (parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash') {
         const sourceAcc = bankAcc;
         // Trừ tài khoản ngân hàng

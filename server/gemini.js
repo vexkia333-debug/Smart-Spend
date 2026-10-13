@@ -57,11 +57,14 @@ QUY TẮC PHÂN TÍCH & PHÂN LOẠI DANH MỤC THÔNG MINH:
        }
 
 4. wallet:
-   - "TRANSFER_TO_CASH": Khi rút tiền mặt từ thẻ/ngân hàng về ví (ví dụ: "rút tiền mặt 2tr", "rút atm 500k").
+   - "INTERNAL_TRANSFER": Khi chuyển tiền giữa các tài khoản ngân hàng hoặc ví với nhau (ví dụ: "chuyển 500k từ Agribank sang Techcombank", "bắn 200k từ TCB sang Viettel Money", "nạp 100k Viettel Money từ Agri").
+   - "TRANSFER_TO_CASH": Khi rút tiền mặt từ thẻ/ngân hàng về ví tiền mặt (ví dụ: "rút tiền mặt 2tr", "rút atm 500k").
    - "CASH": Khi câu nói có từ "tiền mặt", "ví", "tiền túi", "trả mặt", hoặc chi tiêu vặt (gửi xe, mua rau, trà đá, bánh mì) hoặc options.forceCash = true.
    - "BANK": Khi chuyển khoản, quét mã QR ngân hàng, hoặc mặc định nếu không nhắc đến tiền mặt.
-5. description: Tên khoản chi hoặc thu rõ ràng, lịch sự. Ví dụ: "Ăn bún bò", "Cho Nam vay tiền", "Mua thức ăn cho mèo", "Tập gym tháng 10".
-6. bankName: Tên ngân hàng nếu phát hiện (ví dụ: "Agribank", "Vietcombank"...), nếu không có thì để null.
+5. sourceBank: Tên ngân hàng/ví nguồn nếu là chuyển khoản (ví dụ: "Agribank", "Techcombank", "Viettel Money").
+6. targetBank: Tên ngân hàng/ví nhận nếu là chuyển khoản (ví dụ: "Techcombank", "Viettel Money", "Agribank").
+7. description: Tên khoản chi hoặc thu rõ ràng, lịch sự. Ví dụ: "Ăn bún bò", "Cho Nam vay tiền", "Mua thức ăn cho mèo", "Tập gym tháng 10".
+8. bankName: Tên ngân hàng nếu phát hiện (ví dụ: "Agribank", "Techcombank", "Viettel Money"...), nếu không có thì để null.
 
 Trả về DUY NHẤT một đối tượng JSON hợp lệ theo định dạng:
 {
@@ -75,7 +78,9 @@ Trả về DUY NHẤT một đối tượng JSON hợp lệ theo định dạng:
     "color": string
   } | null,
   "description": string,
-  "wallet": "CASH" | "BANK" | "TRANSFER_TO_CASH",
+  "wallet": "CASH" | "BANK" | "TRANSFER_TO_CASH" | "INTERNAL_TRANSFER",
+  "sourceBank": string | null,
+  "targetBank": string | null,
   "borrower": string | null,
   "bankName": string | null,
   "reasoning": string
@@ -132,9 +137,13 @@ function formatParsedResult(data, userText, options) {
         color: String(parsed.newCategory.color || '#ec4899').trim()
       } : null,
       description: parsed.description || userText,
-      wallet: parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash'
-        ? 'TRANSFER_TO_CASH'
-        : (isCashExplicit ? 'CASH' : (parsed.wallet || 'BANK')),
+      wallet: parsed.wallet === 'INTERNAL_TRANSFER'
+        ? 'INTERNAL_TRANSFER'
+        : (parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash'
+            ? 'TRANSFER_TO_CASH'
+            : (isCashExplicit ? 'CASH' : (parsed.wallet || 'BANK'))),
+      sourceBank: parsed.sourceBank || null,
+      targetBank: parsed.targetBank || null,
       borrower: parsed.borrower || null,
       bankName: parsed.bankName || null,
       reasoning: parsed.reasoning || 'Tự động phân loại bởi Gemini AI'
