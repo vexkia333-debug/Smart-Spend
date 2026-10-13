@@ -377,6 +377,18 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
           VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')
         `).run();
         account = { id: 'acc_primary' };
+      } else if (parsed.bankCode === 'TCB') {
+        await db.prepare(`
+          INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
+          VALUES ('acc_tcb', 'Techcombank', 'TCB', 'Tài khoản Techcombank', 0, 'VND', 'credit-card', '#dc2626')
+        `).run();
+        account = { id: 'acc_tcb' };
+      } else if (parsed.bankCode === 'VTM') {
+        await db.prepare(`
+          INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
+          VALUES ('acc_vtm', 'Viettel Money', 'VTM', 'Ví Viettel Money', 0, 'VND', 'smartphone', '#e11d48')
+        `).run();
+        account = { id: 'acc_vtm' };
       } else {
         account = await db.prepare('SELECT id FROM accounts LIMIT 1').get();
       }
@@ -447,6 +459,11 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
       await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAccountId);
     } else {
       await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAccountId);
+    }
+
+    const updatedAccount = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAccountId);
+    if (updatedAccount) {
+      broadcastEvent('ACCOUNT_UPDATED', updatedAccount);
     }
 
     const newTx = await db.prepare(`
@@ -839,7 +856,11 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(cashAcc.id));
       } else {
         // TRƯỜNG HỢP 2: Chi tiêu hoặc Thu nhập thông thường
-        const targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
+        let targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
+        if (parsed.bankName && parsed.wallet !== 'CASH') {
+          const matchedAcc = await db.prepare("SELECT * FROM accounts WHERE LOWER(name) LIKE ? OR LOWER(bank_code) = ?").get(`%${parsed.bankName.toLowerCase()}%`, parsed.bankName.toLowerCase());
+          if (matchedAcc) targetAcc = matchedAcc;
+        }
 
         await db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)

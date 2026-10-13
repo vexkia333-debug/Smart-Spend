@@ -144,7 +144,7 @@ export default function SettingsModal({
           </h4>
           <ol style={{ paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <li>
-              <strong>Trigger:</strong> Chọn <em>Thông báo (Notification)</em> $\rightarrow$ Chọn Agribank Plus (hoặc app ngân hàng bạn dùng).
+              <strong>Trigger:</strong> Chọn <em>Thông báo (Notification)</em> $\rightarrow$ Chọn các ứng dụng bạn muốn theo dõi (Agribank Plus, Techcombank, Viettel Money...).
             </li>
             <li>
               <strong>Action:</strong> Chọn <em>HTTP Request (POST)</em> $\rightarrow$ Dán Webhook URL ở trên.
@@ -155,11 +155,15 @@ export default function SettingsModal({
 {`{
   "content": "[notification_text]",
   "title": "[notification_title]",
+  "appName": "[notification_app_name]",
   "timestamp": "[hour]:[minute] [day]-[month]-[year]"
 }`}
               </div>
             </li>
           </ol>
+          <div style={{ marginTop: '10px', padding: '8px 12px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '6px', fontSize: '0.8rem', color: '#7dd3fc' }}>
+            💡 <strong>Đa tài khoản:</strong> Bạn có thể chọn cùng lúc cả 3 app trong 1 Trigger MacroDroid hoặc tạo từng Macro riêng. Hệ thống tự động phân loại giao dịch vào đúng từng tài khoản & ví tương ứng!
+          </div>
         </div>
 
         <div style={{ marginTop: '22px', display: 'flex', justifyContent: 'flex-end' }}>

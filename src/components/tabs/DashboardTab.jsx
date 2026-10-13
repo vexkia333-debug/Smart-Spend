@@ -276,18 +276,18 @@ export default function DashboardTab({
                         color: acc.color || '#10b981'
                       }}
                     >
-                      {acc.id === 'acc_cash' ? '💵' : '🏦'}
+                      {acc.id === 'acc_cash' ? '💵' : acc.bank_code === 'VTM' ? '📱' : '🏦'}
                     </div>
                     <div className="account-info">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <h4>{acc.name}</h4>
-                        <span className={`acc-type-pill ${acc.id === 'acc_cash' ? 'cash' : 'bank'}`}>
-                          {acc.id === 'acc_cash' ? 'Tiền mặt' : 'Ngân hàng'}
+                        <span className={`acc-type-pill ${acc.id === 'acc_cash' ? 'cash' : acc.bank_code === 'VTM' ? 'ewallet' : 'bank'}`}>
+                          {acc.id === 'acc_cash' ? 'Tiền mặt' : acc.bank_code === 'VTM' ? 'Ví điện tử' : 'Ngân hàng'}
                         </span>
                       </div>
                       <p>
                         {acc.account_number ||
-                          (acc.id === 'acc_cash' ? 'Tiền mặt trong ví' : 'Tài khoản chính')}
+                          (acc.id === 'acc_cash' ? 'Tiền mặt trong ví' : acc.bank_code === 'VTM' ? 'Ví điện tử Viettel' : 'Tài khoản chính')}
                       </p>
                     </div>
                   </div>

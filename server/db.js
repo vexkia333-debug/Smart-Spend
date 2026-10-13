@@ -172,7 +172,17 @@ async function seedInitialData() {
     ]);
   }
 
-  // 2. Kiểm tra danh mục - CHỈ seed nếu bảng categories hoàn toàn trống
+  // Đảm bảo có sẵn các tài khoản phụ nếu chưa có (Techcombank & Viettel Money)
+  await client.batch([
+    {
+      sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: ['acc_tcb', 'Techcombank', 'TCB', 'Tài khoản Techcombank', 0, 'VND', 'credit-card', '#dc2626']
+    },
+    {
+      sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: ['acc_vtm', 'Viettel Money', 'VTM', 'Ví Viettel Money', 0, 'VND', 'smartphone', '#e11d48']
+    }
+  ]);
   const catCountRow = await db.get('SELECT COUNT(*) as count FROM categories');
   if (catCountRow && Number(catCountRow.count) > 0) {
     return; // Đã có danh mục, không cần seed lại

@@ -29,6 +29,9 @@ export function parseBankNotification(text, title = '') {
   } else if (upper.includes('TCB') || upper.includes('TECHCOMBANK')) {
     bankName = 'Techcombank';
     bankCode = 'TCB';
+  } else if (upper.includes('VIETTEL') || upper.includes('VTMONEY') || upper.includes('VIETTELPAY')) {
+    bankName = 'Viettel Money';
+    bankCode = 'VTM';
   } else if (upper.includes('MBBANK') || upper.includes('MB BANK') || upper.includes('MB ')) {
     bankName = 'MB Bank';
     bankCode = 'MB';
@@ -50,9 +53,9 @@ export function parseBankNotification(text, title = '') {
   }
 
   // 2. Xác định Loại: Thu (+) hay Chi (-)
-  if (/[+]|nhan duoc|cong tien|nhan tien|chuyen vao|tang/i.test(cleanText)) {
+  if (/[+]|nhan duoc|cong tien|nhan tien|chuyen vao|tang|nap thanh cong|nap vao|nhan tu/i.test(cleanText)) {
     type = 'INCOME';
-  } else if (/[-]|thanh toan|chuyen di|tru tien|rut tien|giam/i.test(cleanText)) {
+  } else if (/[-]|thanh toan|chuyen di|chuyen tien|tru tien|rut tien|giam|mua/i.test(cleanText)) {
     type = 'EXPENSE';
   }
 
