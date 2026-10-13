@@ -177,17 +177,14 @@ function seedInitialData() {
 
   console.log('Seeding initial data...');
 
-  // 1. Seed Accounts
+  // 1. Seed Accounts mặc định (Số dư 0đ để bắt đầu sử dụng thực tế)
   const insertAccount = db.prepare(`
     INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertAccount.run('acc_vcb', 'Vietcombank DigiBank', 'VCB', '****9821', 18450000, 'VND', 'landmark', '#10b981');
-  insertAccount.run('acc_tcb', 'Techcombank Mobile', 'TCB', '****4567', 35200000, 'VND', 'credit-card', '#ef4444');
-  insertAccount.run('acc_mb', 'MB Bank', 'MB', '****1102', 8600000, 'VND', 'shield-check', '#3b82f6');
-  insertAccount.run('acc_momo', 'Ví MoMo', 'MOMO', '098****321', 1250000, 'VND', 'wallet', '#ec4899');
-  insertAccount.run('acc_cash', 'Tiền mặt', 'CASH', '', 2500000, 'VND', 'coins', '#f59e0b');
+  insertAccount.run('acc_agri', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669');
+  insertAccount.run('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'coins', '#f59e0b');
 
   // 2. Seed Categories
   const insertCategory = db.prepare(`
@@ -236,8 +233,9 @@ function seedInitialData() {
   insertRule.run('rule_8', 'TIEN DIEN', 'cat_bills', 1);
   insertRule.run('rule_9', 'LUONG THANG', 'cat_salary', 1);
 
-  seedInitialTransactions();
-  console.log('Seeding completed successfully!');
+  // ĐÃ TẮT: Không tự động tạo giao dịch demo ban đầu
+  // seedInitialTransactions();
+  console.log('Seeding initial categories & clean accounts completed!');
 }
 
 export function seedInitialTransactions() {
