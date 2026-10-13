@@ -52,6 +52,55 @@ app.use('/api/webhook/bank-notification', express.text({ type: '*/*' }), (req, r
 
 app.use(express.json());
 
+// Cấu hình mã PIN bảo vệ hệ thống
+const APP_PIN = process.env.APP_PIN || '014205';
+const AUTH_TOKEN = crypto.createHmac('sha256', APP_PIN).update('smartspend_vault_secret_salt').digest('hex');
+
+// Endpoint xác thực mã PIN
+app.post('/api/auth/verify-pin', (req, res) => {
+  const { pin } = req.body || {};
+  if (!pin) {
+    return res.status(400).json({ success: false, error: 'Vui lòng nhập mã PIN' });
+  }
+  if (String(pin).trim() === APP_PIN) {
+    return res.json({ success: true, token: AUTH_TOKEN, message: 'Xác thực thành công' });
+  }
+  return res.status(401).json({ success: false, error: 'Mã PIN không chính xác' });
+});
+
+app.get('/api/auth/check', (req, res) => {
+  const token = req.headers['x-pin-token'] || 
+                (req.headers.authorization && req.headers.authorization.replace('Bearer ', '')) ||
+                req.query.token;
+  const isUnlocked = (token === AUTH_TOKEN || token === APP_PIN);
+  res.json({ requiresPin: true, isUnlocked });
+});
+
+// Middleware bảo vệ API bằng mã PIN
+const requirePinAuth = (req, res, next) => {
+  // Miễn trừ các route công khai: auth, health check, webhook nhận thông báo từ MacroDroid
+  if (
+    req.path.startsWith('/api/auth') ||
+    req.path === '/api/health' ||
+    req.path.startsWith('/api/webhook') ||
+    !req.path.startsWith('/api')
+  ) {
+    return next();
+  }
+
+  const token = req.headers['x-pin-token'] || 
+                (req.headers.authorization && req.headers.authorization.replace('Bearer ', '')) ||
+                req.query.token;
+
+  if (token === AUTH_TOKEN || token === APP_PIN) {
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Yêu cầu mã PIN bảo mật để truy cập dữ liệu' });
+};
+
+app.use(requirePinAuth);
+
 // Health Check Endpoint (Kiểm tra trạng thái kết nối Cloud Database)
 app.get('/api/health', (req, res) => {
   res.json({

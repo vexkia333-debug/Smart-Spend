@@ -18,6 +18,7 @@ import ResetTransactionsModal from './components/modals/ResetTransactionsModal.j
 import ReconcileModal from './components/modals/ReconcileModal.jsx';
 import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
+import PinLockScreen from './components/modals/PinLockScreen.jsx';
 
 // Utilities & Constants
 import {
@@ -93,6 +94,48 @@ export default function App() {
   const [resetBalancesCheckbox, setResetBalancesCheckbox] = useState(false);
   const [isResettingTx, setIsResettingTx] = useState(false);
 
+  // PIN Lock Security
+  const [authToken, setAuthToken] = useState(() => {
+    return localStorage.getItem('smartspend_pin_token') || sessionStorage.getItem('smartspend_pin_token') || '';
+  });
+  const [isLocked, setIsLocked] = useState(() => {
+    const saved = localStorage.getItem('smartspend_pin_token') || sessionStorage.getItem('smartspend_pin_token');
+    return !saved;
+  });
+
+  const authFetch = async (url, options = {}) => {
+    const currentToken = authToken || localStorage.getItem('smartspend_pin_token') || sessionStorage.getItem('smartspend_pin_token') || '';
+    const headers = {
+      ...(options.headers || {}),
+      'x-pin-token': currentToken
+    };
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      localStorage.removeItem('smartspend_pin_token');
+      sessionStorage.removeItem('smartspend_pin_token');
+      setAuthToken('');
+      setIsLocked(true);
+    }
+    return res;
+  };
+
+  const handleUnlock = (token, remember) => {
+    if (remember) {
+      localStorage.setItem('smartspend_pin_token', token);
+    } else {
+      sessionStorage.setItem('smartspend_pin_token', token);
+    }
+    setAuthToken(token);
+    setIsLocked(false);
+  };
+
+  const handleLockApp = () => {
+    localStorage.removeItem('smartspend_pin_token');
+    sessionStorage.removeItem('smartspend_pin_token');
+    setAuthToken('');
+    setIsLocked(true);
+  };
+
   // Webhook URL
   const webhookUrl = `${window.location.origin}/api/webhook/bank-notification`;
 
@@ -108,9 +151,12 @@ export default function App() {
 
   // 1. Load initial data & SSE setup
   useEffect(() => {
+    if (isLocked) return;
+
     fetchInitialData();
 
-    const eventSource = new EventSource('/api/events');
+    const currentToken = authToken || localStorage.getItem('smartspend_pin_token') || sessionStorage.getItem('smartspend_pin_token') || '';
+    const eventSource = new EventSource(`/api/events?token=${encodeURIComponent(currentToken)}`);
 
     eventSource.addEventListener('NEW_TRANSACTION_PROMPT', (event) => {
       try {
@@ -149,7 +195,7 @@ export default function App() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [isLocked, authToken]);
 
   const fetchInitialData = async () => {
     await Promise.all([
@@ -164,7 +210,7 @@ export default function App() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
+      const res = await authFetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
         setHasGeminiKey(data.hasGeminiKey);
@@ -177,7 +223,7 @@ export default function App() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats');
+      const res = await authFetch('/api/stats');
       if (res.ok) setStats(await res.json());
     } catch (e) {
       console.error(e);
@@ -186,7 +232,7 @@ export default function App() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch('/api/transactions');
+      const res = await authFetch('/api/transactions');
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
@@ -211,7 +257,7 @@ export default function App() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await authFetch('/api/categories');
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
@@ -224,7 +270,7 @@ export default function App() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch('/api/accounts');
+      const res = await authFetch('/api/accounts');
       if (res.ok) setAccounts(await res.json());
     } catch (e) {
       console.error(e);
@@ -233,7 +279,7 @@ export default function App() {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch('/api/rules');
+      const res = await authFetch('/api/rules');
       if (res.ok) setRules(await res.json());
     } catch (e) {
       console.error(e);
@@ -247,7 +293,7 @@ export default function App() {
       if (customDesc) payload.description = customDesc;
       if (partnerAccountId) payload.partner_account_id = partnerAccountId;
 
-      const res = await fetch(`/api/transactions/${txId}/categorize`, {
+      const res = await authFetch(`/api/transactions/${txId}/categorize`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -290,7 +336,7 @@ export default function App() {
         ? `${trimmed} (khoản tiền: ${amount}đ)`
         : trimmed;
 
-      const res = await fetch('/api/ai/parse-transaction', {
+      const res = await authFetch('/api/ai/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -339,7 +385,7 @@ export default function App() {
   // Bỏ qua giao dịch
   const handleIgnore = async (txId) => {
     try {
-      await fetch(`/api/transactions/${txId}/ignore`, { method: 'PATCH' });
+      await authFetch(`/api/transactions/${txId}/ignore`, { method: 'PATCH' });
       if (livePrompt && livePrompt.transaction.id === txId) {
         setLivePrompt(null);
       }
@@ -353,7 +399,7 @@ export default function App() {
   // Mô phỏng bắn thông báo
   const handleSimulate = async () => {
     try {
-      const res = await fetch('/api/simulate/notification', {
+      const res = await authFetch('/api/simulate/notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -379,7 +425,7 @@ export default function App() {
     e.preventDefault();
     if (!newKeyword || !newRuleCat) return;
     try {
-      const res = await fetch('/api/rules', {
+      const res = await authFetch('/api/rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -403,7 +449,7 @@ export default function App() {
     if (!newCatName) return;
     setIsAddingCat(true);
     try {
-      const res = await fetch('/api/categories', {
+      const res = await authFetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -431,7 +477,7 @@ export default function App() {
     if (!apiKeyInput.trim()) return;
     setIsSavingKey(true);
     try {
-      const res = await fetch('/api/settings/api-key', {
+      const res = await authFetch('/api/settings/api-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: apiKeyInput })
@@ -466,7 +512,7 @@ export default function App() {
     setIsAnalyzingAi(true);
     setAiMessage(null);
     try {
-      const res = await fetch('/api/ai/parse-transaction', {
+      const res = await authFetch('/api/ai/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -522,7 +568,7 @@ export default function App() {
 
     setIsSubmittingReconcile(true);
     try {
-      const res = await fetch(`/api/accounts/${reconcileAccount.id}/adjust-balance`, {
+      const res = await authFetch(`/api/accounts/${reconcileAccount.id}/adjust-balance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -556,7 +602,7 @@ export default function App() {
   const handleResetTransactions = async () => {
     setIsResettingTx(true);
     try {
-      const res = await fetch('/api/transactions/clear', {
+      const res = await authFetch('/api/transactions/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -799,6 +845,10 @@ export default function App() {
       });
   }, [transactions, timeFilter, customStartDate, customEndDate, filterStatus, filterType, searchQuery, txSortOrder]);
 
+  if (isLocked) {
+    return <PinLockScreen onUnlock={handleUnlock} />;
+  }
+
   return (
     <div className="app-container">
       {/* Header & Quick AI Input */}
@@ -808,6 +858,7 @@ export default function App() {
         timeFilter={timeFilter}
         setTimeFilter={setTimeFilter}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onLockApp={handleLockApp}
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}
         onOpenApiKeyModal={() => setShowApiKeyModal(true)}

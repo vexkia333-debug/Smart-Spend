@@ -8,7 +8,8 @@ import {
   Key,
   Bot,
   CheckCircle2,
-  Calendar
+  Calendar,
+  Lock
 } from 'lucide-react';
 import CustomDatePopover from './CustomDatePopover.jsx';
 
@@ -18,6 +19,7 @@ export default function Header({
   timeFilter,
   setTimeFilter,
   onOpenSettings,
+  onLockApp,
   hasGeminiKey,
   maskedKey,
   onOpenApiKeyModal,
@@ -115,6 +117,15 @@ export default function Header({
           </div>
 
           <div className="header-utility-btns">
+            {/* Nút Khóa màn hình (PIN Lock) */}
+            <button
+              className="theme-toggle-btn"
+              onClick={onLockApp}
+              title="Khóa ứng dụng (Yêu cầu mã PIN 014205 khi mở lại)"
+            >
+              <Lock size={17} color="#94a3b8" />
+            </button>
+
             {/* Nút Cài đặt hệ thống & Webhook */}
             <button
               className="theme-toggle-btn"
