@@ -18,7 +18,6 @@ import ResetTransactionsModal from './components/modals/ResetTransactionsModal.j
 import ReconcileModal from './components/modals/ReconcileModal.jsx';
 import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
-import CustomDateModal from './components/modals/CustomDateModal.jsx';
 
 // Utilities & Constants
 import {
@@ -51,7 +50,7 @@ export default function App() {
   const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY' | 'CUSTOM'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
+  const [showCustomDatePopover, setShowCustomDatePopover] = useState(false);
   const [hoveredCatId, setHoveredCatId] = useState(null);
 
   // AI Assistant States (Google AI Studio)
@@ -794,9 +793,12 @@ export default function App() {
         isAnalyzingAi={isAnalyzingAi}
         handleAnalyzeAi={handleAnalyzeAi}
         aiMessage={aiMessage}
-        onOpenCustomDateModal={() => setShowCustomDateModal(true)}
         customStartDate={customStartDate}
         customEndDate={customEndDate}
+        onApplyCustomDate={handleApplyCustomDate}
+        onResetTimeFilter={handleResetTimeFilter}
+        showCustomDatePopover={showCustomDatePopover}
+        setShowCustomDatePopover={setShowCustomDatePopover}
       />
 
       {/* Navigation Tabs */}
@@ -872,7 +874,10 @@ export default function App() {
           onNavigateToPending={() => setActiveTab('pending')}
           timeFilter={timeFilter}
           timeLabel={timeLabel}
-          onOpenCustomDateModal={() => setShowCustomDateModal(true)}
+          onOpenCustomDateModal={() => {
+            setShowCustomDatePopover(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onResetTimeFilter={handleResetTimeFilter}
         />
       )}
@@ -951,15 +956,6 @@ export default function App() {
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}
         onOpenApiKeyModal={() => setShowApiKeyModal(true)}
-      />
-
-      <CustomDateModal
-        isOpen={showCustomDateModal}
-        onClose={() => setShowCustomDateModal(false)}
-        startDate={customStartDate}
-        endDate={customEndDate}
-        onApply={handleApplyCustomDate}
-        onReset={handleResetTimeFilter}
       />
     </div>
   );
