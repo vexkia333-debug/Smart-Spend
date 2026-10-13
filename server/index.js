@@ -751,6 +751,45 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
     const categories = await db.prepare('SELECT id, name, type FROM categories').all();
     const parsed = await parseTransactionWithGemini(text, categories, apiKey, { forceCash });
 
+    // Tự động tạo danh mục mới nếu AI phát hiện chi tiêu thuộc lĩnh vực mới
+    let createdCategory = null;
+    let targetCatId = parsed.categoryId;
+
+    if (parsed.isNewCategory && parsed.newCategory?.name) {
+      const catName = parsed.newCategory.name.trim();
+      const existingCat = await db.prepare('SELECT * FROM categories WHERE LOWER(name) = LOWER(?)').get(catName);
+      if (existingCat) {
+        targetCatId = existingCat.id;
+      } else {
+        const newCatId = 'cat_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        const catIcon = parsed.newCategory.icon || 'Tag';
+        const catColor = parsed.newCategory.color || '#ec4899';
+
+        await db.prepare(`
+          INSERT INTO categories (id, name, type, icon, color, is_quick_action, sort_order)
+          VALUES (?, ?, ?, ?, ?, 1, 99)
+        `).run(newCatId, catName, parsed.type, catIcon, catColor);
+
+        targetCatId = newCatId;
+        createdCategory = {
+          id: newCatId,
+          name: catName,
+          type: parsed.type,
+          icon: catIcon,
+          color: catColor,
+          is_quick_action: 1,
+          sort_order: 99
+        };
+
+        broadcastEvent('CATEGORY_CREATED', createdCategory);
+      }
+    }
+
+    if (!targetCatId) {
+      targetCatId = parsed.type === 'INCOME' ? 'cat_other_income' : 'cat_other_expense';
+    }
+    parsed.categoryId = targetCatId;
+
     if (autoSave) {
       const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
       const now = new Date();
@@ -840,12 +879,15 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
       return res.json({
         success: true,
         parsed,
+        createdCategory,
         transaction: createdTx,
-        message: `Đã phân loại: ${createdTx.category_name} (${parsed.reasoning})`
+        message: createdCategory
+          ? `✨ Đã tự động tạo danh mục mới "${createdCategory.name}" và ghi nhận thành công!`
+          : `Đã phân loại: ${createdTx.category_name} (${parsed.reasoning})`
       });
     }
 
-    res.json({ success: true, parsed });
+    res.json({ success: true, parsed, createdCategory });
   } catch (err) {
     console.error('Gemini error:', err);
     res.status(500).json({ error: err.message });

@@ -133,6 +133,11 @@ export default function App() {
       fetchTransactions();
     });
 
+    eventSource.addEventListener('CATEGORY_CREATED', () => {
+      fetchCategories();
+      fetchStats();
+    });
+
     eventSource.addEventListener('TRANSACTIONS_CLEARED', () => {
       fetchInitialData();
     });
@@ -293,6 +298,10 @@ export default function App() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi phân tích AI');
+
+      if (data.createdCategory) {
+        await fetchCategories();
+      }
 
       await handleCategorize(
         txId,
@@ -467,14 +476,22 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi phân tích AI');
 
+      if (data.createdCategory) {
+        await fetchCategories();
+      }
+
       setAiMessage(
-        `✨ Đã ghi nhận: ${data.transaction.category_name} - ${formatVND(
-          data.transaction.amount
-        )} (${data.parsed.reasoning})`
+        data.createdCategory
+          ? `✨ Đã tự động tạo danh mục mới "${data.createdCategory.name}" & ghi nhận: ${formatVND(
+              data.transaction.amount
+            )}!`
+          : `✨ Đã ghi nhận: ${data.transaction.category_name} - ${formatVND(
+              data.transaction.amount
+            )} (${data.parsed.reasoning})`
       );
       setAiInputText('');
       setAiIsCash(true);
-      await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts()]);
+      await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts(), fetchCategories()]);
 
       confetti({
         particleCount: 50,
