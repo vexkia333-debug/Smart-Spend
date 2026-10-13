@@ -40,7 +40,7 @@ export default function Header({
       <header className="app-header glass-panel">
         <div className="logo-group">
           <div className="logo-icon">
-            <Wallet size={24} color="#ffffff" />
+            <img src="/logo.png" alt="SmartSpend" className="logo-img" />
           </div>
           <div className="logo-text">
             <h1>SmartSpend</h1>
