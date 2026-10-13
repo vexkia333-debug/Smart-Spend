@@ -241,10 +241,11 @@ export default function App() {
   };
 
   // Phân loại giao dịch
-  const handleCategorize = async (txId, categoryId, customDesc) => {
+  const handleCategorize = async (txId, categoryId, customDesc, partnerAccountId) => {
     try {
       const payload = { category_id: categoryId };
       if (customDesc) payload.description = customDesc;
+      if (partnerAccountId) payload.partner_account_id = partnerAccountId;
 
       const res = await fetch(`/api/transactions/${txId}/categorize`, {
         method: 'PATCH',
@@ -266,6 +267,7 @@ export default function App() {
 
         fetchStats();
         fetchTransactions();
+        fetchAccounts();
       }
     } catch (e) {
       console.error(e);
@@ -929,6 +931,7 @@ export default function App() {
       <LivePromptOverlay
         livePrompt={livePrompt}
         categories={categories}
+        accounts={accounts}
         handleCategorize={handleCategorize}
         promptAiText={promptAiText}
         setPromptAiText={setPromptAiText}

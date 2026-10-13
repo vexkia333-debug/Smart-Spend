@@ -668,7 +668,14 @@
   font-size: 1.5rem;
   font-weight: 800;
   font-family: var(--font-display);
-  color: #fb7185;
+}
+
+.prompt-amount.expense {
+  color: #fb7185 !important;
+}
+
+.prompt-amount.income {
+  color: #34d399 !important;
 }
 
 .prompt-desc {
@@ -833,11 +840,11 @@
 }
 
 :root[data-theme="light"] .prompt-amount.expense {
-  color: #e11d48;
+  color: #e11d48 !important;
 }
 
 :root[data-theme="light"] .prompt-amount.income {
-  color: #059669;
+  color: #059669 !important;
 }
 
 :root[data-theme="light"] .prompt-desc {

@@ -194,7 +194,7 @@ app.get('/api/transactions', async (req, res) => {
 app.patch('/api/transactions/:id/categorize', async (req, res) => {
   try {
     const { id } = req.params;
-    let { category_id, description } = req.body;
+    let { category_id, description, partner_account_id } = req.body;
 
     const existingTx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
     if (!existingTx) {
@@ -213,6 +213,71 @@ app.patch('/api/transactions/:id/categorize', async (req, res) => {
 
       if (!description || !description.trim()) {
         description = 'Rút tiền vào Ví Tiền Mặt';
+      }
+    }
+
+    // Xử lý chuyển tiền nội bộ giữa các tài khoản nếu có partner_account_id
+    if (partner_account_id && partner_account_id !== existingTx.account_id) {
+      const partnerAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(partner_account_id);
+      const curAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(existingTx.account_id);
+
+      if (partnerAcc && curAcc) {
+        const partnerTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
+        if (existingTx.type === 'INCOME') {
+          // Tiền vào tài khoản này => Trừ tiền ở tài khoản chuyển đi
+          await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(existingTx.amount, partner_account_id);
+          const partnerDesc = `Chuyển tiền sang ${curAcc.name}`;
+          await db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
+          `).run(
+            partnerTxId,
+            partner_account_id,
+            existingTx.amount,
+            partnerDesc,
+            `Chuyển tiền nội bộ sang ${curAcc.name}`,
+            partnerAcc.name,
+            existingTx.transaction_time || new Date().toISOString()
+          );
+          if (!description || !description.trim()) {
+            description = `Nhận tiền từ ${partnerAcc.name}`;
+          }
+        } else {
+          // Tiền ra khỏi tài khoản này => Cộng tiền vào tài khoản nhận
+          await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(existingTx.amount, partner_account_id);
+          const partnerDesc = `Nhận tiền từ ${curAcc.name}`;
+          await db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
+          `).run(
+            partnerTxId,
+            partner_account_id,
+            existingTx.amount,
+            partnerDesc,
+            `Nhận tiền nội bộ từ ${curAcc.name}`,
+            partnerAcc.name,
+            existingTx.transaction_time || new Date().toISOString()
+          );
+          if (!description || !description.trim()) {
+            description = `Chuyển tiền sang ${partnerAcc.name}`;
+          }
+        }
+
+        const updatedPartnerAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(partner_account_id);
+        if (updatedPartnerAcc) {
+          broadcastEvent('ACCOUNT_UPDATED', updatedPartnerAcc);
+        }
+
+        const partnerTx = await db.prepare(`
+          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+          FROM transactions t
+          LEFT JOIN categories c ON t.category_id = c.id
+          LEFT JOIN accounts a ON t.account_id = a.id
+          WHERE t.id = ?
+        `).get(partnerTxId);
+        if (partnerTx) {
+          broadcastEvent('TRANSACTION_CREATED', partnerTx);
+        }
       }
     }
 
@@ -449,6 +514,33 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
 
     const targetAccountId = account?.id || 'acc_primary';
 
+    // Chuẩn bị thời gian giao dịch
+    const now = new Date();
+    const curDay = String(now.getDate()).padStart(2, '0');
+    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const curYear = String(now.getFullYear());
+    const curHour = String(now.getHours()).padStart(2, '0');
+    const curMin = String(now.getMinutes()).padStart(2, '0');
+
+    let txTime = timestamp;
+    if (txTime && typeof txTime === 'string') {
+      txTime = txTime
+        .replace(/\{day_of_month\}|\[day_of_month\]/gi, curDay)
+        .replace(/\{day\}|\[day\]/gi, curDay)
+        .replace(/\{month\}|\[month\]/gi, curMonth)
+        .replace(/\{year\}|\[year\]/gi, curYear)
+        .replace(/\{hour\}|\[hour\]/gi, curHour)
+        .replace(/\{minute\}|\[minute\]/gi, curMin)
+        .replace(/tháng\s+/gi, '')
+        .trim();
+
+      if (txTime.includes('{') || txTime.includes('[')) {
+        txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+      }
+    } else {
+      txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+    }
+
     // 3. Tự động phát hiện & khớp lệnh chuyển tiền nội bộ (Smart Internal Transfer Pairing)
     const oppositeType = parsed.type === 'INCOME' ? 'EXPENSE' : 'INCOME';
     let isInternalTransfer = false;
@@ -507,22 +599,128 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     } else {
       // Nếu chưa có giao dịch đối ứng, kiểm tra xem nội dung thông báo có từ khóa chuyển sang tài khoản khác của chính mình không
       const allOtherAccounts = await db.prepare('SELECT id, name, bank_code FROM accounts WHERE id != ?').all(targetAccountId);
-      const descUpper = (parsed.description || content || '').toUpperCase();
+      const descUpper = (parsed.description || '').toUpperCase();
+      const rawUpper = (content || '').toUpperCase();
+      const combinedUpper = `${descUpper} ${rawUpper}`;
+
       const mentionedAcc = allOtherAccounts.find(a => 
-        descUpper.includes(a.bank_code) || 
-        descUpper.includes(a.name.toUpperCase()) ||
-        (a.bank_code === 'TCB' && descUpper.includes('TECHCOMBANK')) ||
-        (a.bank_code === 'VTM' && (descUpper.includes('VIETTEL') || descUpper.includes('VTMONEY') || descUpper.includes('VIETTELPAY'))) ||
-        (a.bank_code === 'AGRI' && descUpper.includes('AGRIBANK'))
+        combinedUpper.includes(a.bank_code) || 
+        combinedUpper.includes(a.name.toUpperCase()) ||
+        (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
+        (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
+        (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
       );
 
+      // Kiểm tra chuyển khoản từ chính chủ (VU HA KIEN)
+      const isOwnerTransfer = combinedUpper.includes('VU HA KIEN') || combinedUpper.includes('KIEN VU');
+
       if (mentionedAcc) {
+        isInternalTransfer = true;
         categoryId = parsed.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
         suggested = { categoryId, isAutoApply: true, keyword: mentionedAcc.name };
         status = 'CONFIRMED';
+        const curAccName = account?.name || 'Tài khoản chính';
         parsed.description = parsed.type === 'EXPENSE'
           ? `Chuyển tiền sang ${mentionedAcc.name}`
           : `Nhận tiền từ ${mentionedAcc.name}`;
+
+        // Tự động tạo đối ứng cho mentionedAcc để cả 2 tài khoản đều cập nhật chuẩn số dư
+        try {
+          const partnerTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
+          if (parsed.type === 'INCOME') {
+            await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, mentionedAcc.id);
+            await db.prepare(`
+              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+              VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
+            `).run(
+              partnerTxId,
+              mentionedAcc.id,
+              parsed.amount,
+              `Chuyển tiền sang ${curAccName}`,
+              `Tự động trừ tiền khi chuyển nội bộ sang ${curAccName}`,
+              mentionedAcc.name,
+              txTime
+            );
+          } else {
+            await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, mentionedAcc.id);
+            await db.prepare(`
+              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+              VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
+            `).run(
+              partnerTxId,
+              mentionedAcc.id,
+              parsed.amount,
+              `Nhận tiền từ ${curAccName}`,
+              `Tự động cộng tiền khi chuyển nội bộ từ ${curAccName}`,
+              mentionedAcc.name,
+              txTime
+            );
+          }
+          const updatedMentioned = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(mentionedAcc.id);
+          if (updatedMentioned) broadcastEvent('ACCOUNT_UPDATED', updatedMentioned);
+        } catch (e) {
+          console.error('Lỗi tự động tạo paired transaction cho mentionedAcc:', e.message);
+        }
+      } else if (isOwnerTransfer && parsed.type === 'INCOME') {
+        // Tên người chuyển là chính chủ VU HA KIEN nhưng trong remark không có tên ngân hàng nguồn
+        // Tự động tìm tài khoản ngân hàng nguồn:
+        // 1. Tìm trong 24h gần nhất xem có tài khoản nào vừa giao dịch cùng số tiền không
+        const recentReverseTx = await db.prepare(`
+          SELECT t.*, a.name as account_name, a.id as acc_id
+          FROM transactions t
+          JOIN accounts a ON t.account_id = a.id
+          WHERE t.amount = ?
+            AND t.account_id != ?
+            AND t.account_id != 'acc_cash'
+            AND datetime(t.created_at) >= datetime('now', '-24 hours')
+          ORDER BY t.created_at DESC
+          LIMIT 1
+        `).get(parsed.amount, targetAccountId);
+
+        let inferredAcc = null;
+        if (recentReverseTx) {
+          inferredAcc = { id: recentReverseTx.acc_id, name: recentReverseTx.account_name };
+        } else {
+          const otherBankAccs = allOtherAccounts.filter(a => a.id !== 'acc_cash');
+          if (otherBankAccs.length === 1) {
+            inferredAcc = otherBankAccs[0];
+          } else {
+            inferredAcc = otherBankAccs.find(a => a.bank_code === 'TCB') || otherBankAccs[0];
+          }
+        }
+
+        if (inferredAcc) {
+          isInternalTransfer = true;
+          categoryId = 'cat_transfer_in';
+          suggested = { categoryId, isAutoApply: true, keyword: inferredAcc.name };
+          status = 'CONFIRMED';
+          parsed.description = `Nhận tiền từ ${inferredAcc.name} (VU HA KIEN)`;
+
+          try {
+            const partnerTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
+            const curAccName = account?.name || 'Tài khoản chính';
+            await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, inferredAcc.id);
+            await db.prepare(`
+              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+              VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
+            `).run(
+              partnerTxId,
+              inferredAcc.id,
+              parsed.amount,
+              `Chuyển tiền sang ${curAccName}`,
+              `Tự động nhận diện chuyển tiền nội bộ từ ${inferredAcc.name} (VU HA KIEN)`,
+              inferredAcc.name,
+              txTime
+            );
+            const updatedInferred = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(inferredAcc.id);
+            if (updatedInferred) broadcastEvent('ACCOUNT_UPDATED', updatedInferred);
+          } catch (e) {
+            console.error('Lỗi tự động tạo paired transaction cho inferredAcc:', e.message);
+          }
+        } else {
+          categoryId = 'cat_transfer_in';
+          suggested = { categoryId, isAutoApply: false, keyword: 'Chuyển tiền nội bộ' };
+        }
       } else {
         // Kiểm tra Auto Rules thông thường
         const rules = await db.prepare('SELECT * FROM auto_rules').all();
@@ -532,32 +730,6 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
           status = 'CONFIRMED';
         }
       }
-    }
-
-    const now = new Date();
-    const curDay = String(now.getDate()).padStart(2, '0');
-    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const curYear = String(now.getFullYear());
-    const curHour = String(now.getHours()).padStart(2, '0');
-    const curMin = String(now.getMinutes()).padStart(2, '0');
-
-    let txTime = timestamp;
-    if (txTime && typeof txTime === 'string') {
-      txTime = txTime
-        .replace(/\{day_of_month\}|\[day_of_month\]/gi, curDay)
-        .replace(/\{day\}|\[day\]/gi, curDay)
-        .replace(/\{month\}|\[month\]/gi, curMonth)
-        .replace(/\{year\}|\[year\]/gi, curYear)
-        .replace(/\{hour\}|\[hour\]/gi, curHour)
-        .replace(/\{minute\}|\[minute\]/gi, curMin)
-        .replace(/tháng\s+/gi, '')
-        .trim();
-
-      if (txTime.includes('{') || txTime.includes('[')) {
-        txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
-      }
-    } else {
-      txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
     }
 
     // 4. Lưu giao dịch vào DB
