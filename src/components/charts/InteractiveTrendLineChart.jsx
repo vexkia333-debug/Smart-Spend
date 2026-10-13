@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { LineChart as LineChartIcon } from 'lucide-react';
-import { formatCompactVND } from '../../utils/formatters.js';
+import { formatCompactVND, parseTxDate } from '../../utils/formatters.js';
 
 export default function InteractiveTrendLineChart({ transactions = [], formatVND }) {
   const [rangeDays, setRangeDays] = useState(14); // 7 | 14 | 30
@@ -30,15 +30,8 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
 
       transactions.forEach((t) => {
         if (t.status === 'IGNORED') return;
-        let txDate;
-        if (t.created_at && t.created_at.includes('-')) {
-          txDate = new Date(t.created_at.replace(' ', 'T'));
-        } else if (t.transaction_time && t.transaction_time.includes('-')) {
-          txDate = new Date(t.transaction_time.replace(' ', 'T'));
-        } else {
-          return;
-        }
-        txDate.setHours(0, 0, 0, 0);
+        const txDate = parseTxDate(t.transaction_time, t.created_at);
+        if (!txDate || isNaN(txDate.getTime())) return;
         const txKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
 
         if (txKey === dateKey) {

@@ -49,16 +49,24 @@ export const parseTxDate = (timeStr, createdAt) => {
   const raw = timeStr || createdAt;
   if (!raw) return new Date();
 
+  // Nếu đã là Date object
+  if (raw instanceof Date) {
+    return !isNaN(raw.getTime()) ? raw : new Date();
+  }
+
+  const rawStr = String(raw).trim();
+
   // Kiểm tra định dạng ngày Việt Nam: DD/MM/YYYY (hoặc HH:mm DD/MM/YYYY)
-  const dmyMatch = String(raw).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const dmyMatch = rawStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (dmyMatch) {
     const day = parseInt(dmyMatch[1], 10);
     const month = parseInt(dmyMatch[2], 10) - 1;
     const year = parseInt(dmyMatch[3], 10);
-    const hmMatch = String(raw).match(/(\d{1,2}):(\d{1,2})/);
+    const hmMatch = rawStr.match(/(\d{1,2}):(\d{1,2})/);
     const hour = hmMatch ? parseInt(hmMatch[1], 10) : 0;
     const min = hmMatch ? parseInt(hmMatch[2], 10) : 0;
-    return new Date(year, month, day, hour, min);
+    const result = new Date(year, month, day, hour, min);
+    if (!isNaN(result.getTime())) return result;
   }
 
   // Định dạng ISO hoặc YYYY-MM-DD HH:mm:ss
@@ -68,9 +76,9 @@ export const parseTxDate = (timeStr, createdAt) => {
     if (!isNaN(d.getTime())) return d;
   }
 
-  if (createdAt) {
-    const d = new Date(String(createdAt).replace(' ', 'T'));
-    if (!isNaN(d.getTime())) return d;
+  if (createdAt && createdAt !== timeStr) {
+    const fallback = parseTxDate(createdAt);
+    if (!isNaN(fallback.getTime())) return fallback;
   }
 
   return new Date();
@@ -81,7 +89,8 @@ export const parseTxDate = (timeStr, createdAt) => {
  */
 export const formatDateInput = (date) => {
   if (!date) return '';
-  const d = new Date(date);
+  const d = date instanceof Date ? date : parseTxDate(date);
+  if (!d || isNaN(d.getTime())) return '';
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');

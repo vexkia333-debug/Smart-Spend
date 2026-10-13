@@ -706,7 +706,7 @@ export default function App() {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       d.setHours(0, 0, 0, 0);
-      const dayStr = d.toISOString().split('T')[0];
+      const dayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const label =
         i === 0 ? 'Hôm nay' : i === 1 ? 'Hôm qua' : `${d.getDate()}/${d.getMonth() + 1}`;
 
@@ -718,9 +718,10 @@ export default function App() {
             t.category_id === 'cat_transfer_cash'
           )
             return false;
-          const txDate = new Date(t.transaction_time || t.created_at);
-          txDate.setHours(0, 0, 0, 0);
-          return txDate.toISOString().split('T')[0] === dayStr;
+          const txDate = parseTxDate(t.transaction_time, t.created_at);
+          if (!txDate || isNaN(txDate.getTime())) return false;
+          const txDayStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
+          return txDayStr === dayStr;
         })
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
