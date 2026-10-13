@@ -550,7 +550,8 @@ export default function App() {
 
       setTimeout(() => setAiMessage(null), 8000);
     } catch (err) {
-      alert(err.message);
+      setAiMessage(`⚠️ ${err.message || 'Máy chủ AI đang bận, vui lòng thử lại sau giây lát'}`);
+      setTimeout(() => setAiMessage(null), 8000);
     } finally {
       setIsAnalyzingAi(false);
     }
