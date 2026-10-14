@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { db, initDatabase, seedInitialTransactions, TURSO_URL } from './db.js';
-import { parseBankNotification, matchSuggestedCategory } from './parser.js';
+import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } from './parser.js';
 import { parseTransactionWithGemini } from './gemini.js';
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -646,24 +646,36 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
         broadcastEvent('TRANSACTION_UPDATED', updatedPartner);
       }
     } else {
-      // Nếu chưa có giao dịch đối ứng, kiểm tra xem nội dung thông báo có từ khóa chuyển sang tài khoản khác của chính mình không
+      // Nếu chưa có giao dịch đối ứng, phân tích sâu người gửi và người nhận
+      const transferInfo = extractTransferInfo(content, parsed.description);
       const allOtherAccounts = await db.prepare('SELECT id, name, bank_code FROM accounts WHERE id != ?').all(targetAccountId);
       const descUpper = (parsed.description || '').toUpperCase();
       const rawUpper = (content || '').toUpperCase();
       const combinedUpper = `${descUpper} ${rawUpper}`;
 
-      const mentionedAcc = allOtherAccounts.find(a => 
-        combinedUpper.includes(a.bank_code) || 
-        combinedUpper.includes(a.name.toUpperCase()) ||
-        (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
-        (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
-        (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
-      );
+      // Người gửi là chính chủ VU HA KIEN khi và chỉ khi:
+      // 1. Phân tích thấy người gửi là VU HA KIEN
+      // 2. Hoặc chuỗi có "VU HA KIEN chuyen" VÀ KHÔNG có người khác đứng tên người gửi (như DOAN TRANG THAO)
+      const isOwnerSender = transferInfo.isSenderOwner;
+      const isExplicitThirdParty = Boolean(transferInfo.senderName && !transferInfo.isSenderOwner);
 
-      // Kiểm tra chuyển khoản từ chính chủ (VU HA KIEN)
-      const isOwnerTransfer = combinedUpper.includes('VU HA KIEN') || combinedUpper.includes('KIEN VU');
+      // Chỉ xét chuyển khoản nội bộ nếu:
+      // - Giao dịch là CHI (EXPENSE) sang tài khoản khác của chính mình
+      // - Hoặc giao dịch là THU (INCOME) nhưng người gửi PHẢI là chính mình (KHÔNG PHẢI người thứ 3)
+      const isPotentialInternal = parsed.type === 'EXPENSE' || (parsed.type === 'INCOME' && isOwnerSender && !isExplicitThirdParty);
 
-      if (mentionedAcc) {
+      let mentionedAcc = null;
+      if (isPotentialInternal) {
+        mentionedAcc = allOtherAccounts.find(a => 
+          combinedUpper.includes(a.bank_code) || 
+          combinedUpper.includes(a.name.toUpperCase()) ||
+          (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
+          (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
+          (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
+        );
+      }
+
+      if (mentionedAcc && isPotentialInternal) {
         isInternalTransfer = true;
         categoryId = parsed.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
         suggested = { categoryId, isAutoApply: true, keyword: mentionedAcc.name };
@@ -710,73 +722,35 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
         } catch (e) {
           console.error('Lỗi tự động tạo paired transaction cho mentionedAcc:', e.message);
         }
-      } else if (isOwnerTransfer && parsed.type === 'INCOME') {
-        // Tên người chuyển là chính chủ VU HA KIEN nhưng trong remark không có tên ngân hàng nguồn
-        // Tự động tìm tài khoản ngân hàng nguồn:
-        // 1. Tìm trong 24h gần nhất xem có tài khoản nào vừa giao dịch cùng số tiền không
-        const recentReverseTx = await db.prepare(`
-          SELECT t.*, a.name as account_name, a.id as acc_id
-          FROM transactions t
-          JOIN accounts a ON t.account_id = a.id
-          WHERE t.amount = ?
-            AND t.account_id != ?
-            AND t.account_id != 'acc_cash'
-            AND datetime(t.created_at) >= datetime('now', '-24 hours')
-          ORDER BY t.created_at DESC
-          LIMIT 1
-        `).get(parsed.amount, targetAccountId);
-
-        let inferredAcc = null;
-        if (recentReverseTx) {
-          inferredAcc = { id: recentReverseTx.acc_id, name: recentReverseTx.account_name };
-        } else {
-          const otherBankAccs = allOtherAccounts.filter(a => a.id !== 'acc_cash');
-          if (otherBankAccs.length === 1) {
-            inferredAcc = otherBankAccs[0];
-          } else {
-            inferredAcc = otherBankAccs.find(a => a.bank_code === 'TCB') || otherBankAccs[0];
-          }
-        }
-
-        if (inferredAcc) {
-          isInternalTransfer = true;
-          categoryId = 'cat_transfer_in';
-          suggested = { categoryId, isAutoApply: true, keyword: inferredAcc.name };
-          status = 'CONFIRMED';
-          parsed.description = `Nhận tiền từ ${inferredAcc.name} (VU HA KIEN)`;
-
-          try {
-            const partnerTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
-            const curAccName = account?.name || 'Tài khoản chính';
-            await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, inferredAcc.id);
-            await db.prepare(`
-              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-              VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
-            `).run(
-              partnerTxId,
-              inferredAcc.id,
-              parsed.amount,
-              `Chuyển tiền sang ${curAccName}`,
-              `Tự động nhận diện chuyển tiền nội bộ từ ${inferredAcc.name} (VU HA KIEN)`,
-              inferredAcc.name,
-              txTime
-            );
-            const updatedInferred = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(inferredAcc.id);
-            if (updatedInferred) broadcastEvent('ACCOUNT_UPDATED', updatedInferred);
-          } catch (e) {
-            console.error('Lỗi tự động tạo paired transaction cho inferredAcc:', e.message);
-          }
-        } else {
-          categoryId = 'cat_transfer_in';
-          suggested = { categoryId, isAutoApply: false, keyword: 'Chuyển tiền nội bộ' };
-        }
+      } else if (isOwnerSender && parsed.type === 'INCOME' && !isExplicitThirdParty) {
+        // Tên người chuyển là chính chủ VU HA KIEN nhưng trong remark không có tên ngân hàng nguồn cụ thể
+        // Tuyệt đối KHÔNG tự ý suy đoán và trừ tiền tài khoản khác. Đưa về PENDING để người dùng xác nhận nếu muốn.
+        categoryId = 'cat_transfer_in';
+        suggested = { categoryId, isAutoApply: false, keyword: 'Chuyển tiền nội bộ' };
+        parsed.description = `Nhận chuyển tiền nội bộ (VU HA KIEN)`;
+        status = 'PENDING';
       } else {
-        // Kiểm tra Auto Rules thông thường
+        // Giao dịch từ bên thứ 3 chuyển tới hoặc chi tiêu thông thường
+        if (parsed.type === 'INCOME' && isExplicitThirdParty) {
+          const sender = transferInfo.senderName;
+          const remark = transferInfo.remark;
+          parsed.description = remark && remark.length > 3
+            ? `${sender}: ${remark}`
+            : `Nhận tiền từ ${sender}`;
+        }
+
+        // Kiểm tra Auto Rules và từ khóa trả nợ / thu tiền
         const rules = await db.prepare('SELECT * FROM auto_rules').all();
-        suggested = matchSuggestedCategory(parsed.description, rules);
+        suggested = matchSuggestedCategory(combinedUpper, rules);
         if (suggested && suggested.isAutoApply) {
           categoryId = suggested.categoryId;
           status = 'CONFIRMED';
+        } else if (suggested) {
+          categoryId = suggested.categoryId;
+          status = 'PENDING';
+        } else if (parsed.type === 'INCOME') {
+          categoryId = 'cat_other_income';
+          status = 'PENDING';
         }
       }
     }

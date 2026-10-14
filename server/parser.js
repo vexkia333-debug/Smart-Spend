@@ -81,11 +81,8 @@ export function parseBankNotification(text, title = '') {
   }
 
   // 5. Bóc tách nội dung giao dịch (ND / Noi dung giao dich / Ref)
-  let descMatch = cleanText.match(/\b(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+(.*?)(?:\s*(?:\.|$|\bSD\b|\bSo du\b|\bSố dư\b))/i);
+  let descMatch = cleanText.match(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+([\s\S]*?)(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i);
   if (!descMatch || !descMatch[1].trim()) {
-    descMatch = cleanText.match(/\b(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+(.*)$/i);
-  }
-  if (!descMatch) {
     descMatch = cleanText.match(/\b(?:tai|cho)[:\s]+(.*?)(?:\.|$)/i);
   }
 
@@ -107,6 +104,57 @@ export function parseBankNotification(text, title = '') {
 }
 
 /**
+ * Bóc tách chi tiết thông tin người gửi, người nhận, lời nhắn từ giao dịch ngân hàng
+ */
+export function extractTransferInfo(content, rawDesc = '') {
+  const full = `${content} ${rawDesc}`;
+  const upper = full.toUpperCase();
+  let senderName = null;
+  let receiverName = null;
+  let remark = null;
+
+  // 1. Cú pháp Napas/VietQR liên ngân hàng: CT tu <STK> <SENDER> (tai <BANK>) toi <STK> <RECEIVER> (tai <BANK>)
+  const tuToiMatch = full.match(/(?:CT\s+)?tu\s+(?:[0-9]+\s+)?([A-Za-zÀ-ỹ\s]+?)(?:\s+tai\s+[A-Za-z0-9\s]+?)?\s+toi\s+(?:[0-9]+\s+)?([A-Za-zÀ-ỹ\s]+?)(?:\s+tai|\.|$)/i);
+  if (tuToiMatch) {
+    senderName = tuToiMatch[1].trim();
+    receiverName = tuToiMatch[2].trim();
+  }
+
+  // 2. Cú pháp [NAME] chuyen tien / chuyen khoan
+  if (!senderName) {
+    const chuyenMatch = full.match(/(?:^|[.;\n])\s*([A-Za-zÀ-ỹ\s]{3,30})\s+chuyen(?:\s+tien|\s+khoan|\.|\s*$)/i);
+    if (chuyenMatch) {
+      senderName = chuyenMatch[1].trim();
+    }
+  }
+
+  // 3. Trích xuất lời nhắn giao dịch (Remark)
+  const ndMatch = full.match(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+(.*?)(?:\s*(?:\bSD\b|\bSo du\b|\bSố dư\b|$))/i);
+  const rawND = ndMatch ? ndMatch[1].trim() : (rawDesc || full);
+  const dotParts = rawND.split('.').map(p => p.trim()).filter(Boolean);
+  for (const part of dotParts) {
+    if (/^[0-9]+$/.test(part)) continue;
+    if (/^(?:MBVCB|VCB|TCB|IBFT|FT[0-9]+)/i.test(part)) continue;
+    if (/^CT\s+tu/i.test(part)) continue;
+    if (/^Số dư/i.test(part)) continue;
+    if (part.length >= 3) {
+      remark = part;
+      break;
+    }
+  }
+
+  const isSenderOwner = senderName
+    ? (senderName.toUpperCase().includes('VU HA KIEN') || senderName.toUpperCase().includes('KIEN VU'))
+    : (upper.includes('VU HA KIEN CHUYEN') || upper.includes('KIEN VU CHUYEN'));
+
+  const isReceiverOwner = receiverName
+    ? (receiverName.toUpperCase().includes('VU HA KIEN') || receiverName.toUpperCase().includes('KIEN VU'))
+    : false;
+
+  return { senderName, receiverName, remark, isSenderOwner, isReceiverOwner };
+}
+
+/**
  * Gợi ý danh mục dựa trên từ khóa trong nội dung
  */
 export function matchSuggestedCategory(description, rules = []) {
@@ -120,5 +168,16 @@ export function matchSuggestedCategory(description, rules = []) {
       };
     }
   }
+
+  // Nhận diện tự động các mẫu câu phổ biến về trả nợ / trả tiền ăn
+  if (/TRA TIEN|TRA NO|TRA HO|TIEN AN|TIEN COM|TRA LAI|REIMBURSE|HOAN TIEN|THAO TRA|\bTRA\b/i.test(descUpper)) {
+    return {
+      categoryId: 'cat_debt_collect',
+      isAutoApply: true,
+      keyword: 'Trả tiền / Thu nợ'
+    };
+  }
+
   return null;
 }
+
