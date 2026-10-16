@@ -86,37 +86,40 @@ export default function EditTransactionModal({
         style={{
           width: '100%',
           maxWidth: '520px',
-          background: 'rgba(15, 23, 42, 0.96)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '20px',
           padding: '24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
-          backdropFilter: 'blur(20px)'
+          boxShadow: 'var(--shadow-card)',
+          backdropFilter: 'blur(20px)',
+          color: 'var(--text-main)'
         }}
       >
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '12px',
                 background: 'rgba(56, 189, 248, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              <Edit3 size={18} color="#38bdf8" />
+              <Edit3 size={19} color="var(--accent-cyan)" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Chỉnh sửa giao dịch</h3>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Cập nhật chi tiết số tiền, danh mục hoặc tài khoản
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>Chỉnh sửa giao dịch</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Cập nhật chi tiết số tiền, phân loại hoặc tài khoản
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             style={{
               background: 'transparent',
@@ -126,14 +129,14 @@ export default function EditTransactionModal({
               padding: '6px'
             }}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Loại giao dịch (Thu / Chi) */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
               Loại giao dịch
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -141,13 +144,13 @@ export default function EditTransactionModal({
                 type="button"
                 onClick={() => setType('EXPENSE')}
                 style={{
-                  padding: '9px',
-                  borderRadius: '10px',
-                  border: type === 'EXPENSE' ? '1px solid #f43f5e' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: type === 'EXPENSE' ? 'rgba(244, 63, 94, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                  color: type === 'EXPENSE' ? '#fb7185' : 'var(--text-dim)',
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: type === 'EXPENSE' ? '1px solid var(--accent-rose)' : '1px solid var(--border-subtle)',
+                  background: type === 'EXPENSE' ? 'var(--accent-rose-glow)' : 'var(--bg-input)',
+                  color: type === 'EXPENSE' ? 'var(--accent-rose)' : 'var(--text-dim)',
                   fontWeight: 700,
-                  fontSize: '0.85rem',
+                  fontSize: '0.86rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
@@ -158,13 +161,13 @@ export default function EditTransactionModal({
                 type="button"
                 onClick={() => setType('INCOME')}
                 style={{
-                  padding: '9px',
-                  borderRadius: '10px',
-                  border: type === 'INCOME' ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: type === 'INCOME' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                  color: type === 'INCOME' ? '#34d399' : 'var(--text-dim)',
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: type === 'INCOME' ? '1px solid var(--accent-emerald)' : '1px solid var(--border-subtle)',
+                  background: type === 'INCOME' ? 'var(--accent-emerald-glow)' : 'var(--bg-input)',
+                  color: type === 'INCOME' ? 'var(--accent-emerald)' : 'var(--text-dim)',
                   fontWeight: 700,
-                  fontSize: '0.85rem',
+                  fontSize: '0.86rem',
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
@@ -177,8 +180,8 @@ export default function EditTransactionModal({
           {/* Số tiền & Tài khoản */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
-                <DollarSign size={14} color="#38bdf8" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
+                <DollarSign size={14} color="var(--accent-cyan)" />
                 Số tiền (VNĐ)
               </label>
               <input
@@ -187,13 +190,11 @@ export default function EditTransactionModal({
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                className="form-input"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
                   fontSize: '0.95rem',
                   fontWeight: 700,
                   boxSizing: 'border-box'
@@ -203,20 +204,18 @@ export default function EditTransactionModal({
             </div>
 
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
-                <CreditCard size={14} color="#a855f7" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
+                <CreditCard size={14} color="var(--accent-purple)" />
                 Nguồn tiền
               </label>
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
+                className="form-select"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: '10px',
-                  background: '#1e293b',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
                   fontSize: '0.88rem',
                   boxSizing: 'border-box'
                 }}
@@ -232,7 +231,7 @@ export default function EditTransactionModal({
 
           {/* Nội dung giao dịch */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
               Nội dung mô tả
             </label>
             <input
@@ -240,13 +239,11 @@ export default function EditTransactionModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="VD: Tiền đi nhậu, Ăn trưa..."
+              className="form-input"
               style={{
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#fff',
                 fontSize: '0.9rem',
                 boxSizing: 'border-box'
               }}
@@ -257,20 +254,18 @@ export default function EditTransactionModal({
           {/* Danh mục & Thời gian */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
-                <Tag size={14} color="#ec4899" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
+                <Tag size={14} color="var(--accent-rose)" />
                 Danh mục
               </label>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
+                className="form-select"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: '10px',
-                  background: '#1e293b',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
                   fontSize: '0.88rem',
                   boxSizing: 'border-box'
                 }}
@@ -285,8 +280,8 @@ export default function EditTransactionModal({
             </div>
 
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '6px' }}>
-                <Calendar size={14} color="#f59e0b" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
+                <Calendar size={14} color="var(--accent-amber)" />
                 Thời gian hiển thị
               </label>
               <input
@@ -294,13 +289,11 @@ export default function EditTransactionModal({
                 value={txTime}
                 onChange={(e) => setTxTime(e.target.value)}
                 placeholder="11:18 16/10/2026"
+                className="form-input"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
                   fontSize: '0.88rem',
                   boxSizing: 'border-box'
                 }}
@@ -309,20 +302,18 @@ export default function EditTransactionModal({
           </div>
 
           {/* Nút hành động */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
             <button
               type="button"
               onClick={handleDelete}
               disabled={isDeleting || isSaving}
+              className="btn btn-danger-soft"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '10px 14px',
+                padding: '9px 14px',
                 borderRadius: '10px',
-                background: 'rgba(244, 63, 94, 0.12)',
-                border: '1px solid rgba(244, 63, 94, 0.3)',
-                color: '#fb7185',
                 fontSize: '0.85rem',
                 fontWeight: 600,
                 cursor: 'pointer'
@@ -337,12 +328,10 @@ export default function EditTransactionModal({
                 type="button"
                 onClick={onClose}
                 disabled={isSaving}
+                className="btn btn-secondary"
                 style={{
-                  padding: '10px 16px',
+                  padding: '9px 16px',
                   borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: 'none',
-                  color: 'var(--text-dim)',
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   cursor: 'pointer'
@@ -353,19 +342,16 @@ export default function EditTransactionModal({
               <button
                 type="submit"
                 disabled={isSaving}
+                className="btn btn-primary"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '10px 18px',
+                  padding: '9px 18px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #059669, #10b981)',
-                  border: 'none',
-                  color: '#fff',
                   fontSize: '0.85rem',
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+                  cursor: 'pointer'
                 }}
               >
                 <Save size={15} />

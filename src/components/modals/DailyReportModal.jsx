@@ -96,14 +96,32 @@ export default function DailyReportModal({
     setIsSubscribingPush(true);
     setTestResult(null);
     try {
-      await subscribeUserToPush(authFetch);
+      const res = await subscribeUserToPush(authFetch);
       await loadPushStatus();
-      setTestResult({
-        success: true,
-        message: '🎉 Đã bật thông báo ứng dụng thành công! Điện thoại của bạn sẽ tự động nhận thông báo báo cáo lúc ' + autoSettings.time + ' mỗi ngày.'
-      });
+      if (res?.isPushServiceIssue) {
+        setTestResult({
+          success: true,
+          isWarning: true,
+          message: res.message
+        });
+      } else {
+        setTestResult({
+          success: true,
+          message: res?.message || '🎉 Đã bật thông báo ứng dụng thành công! Điện thoại của bạn sẽ tự động nhận thông báo báo cáo lúc ' + autoSettings.time + ' mỗi ngày.'
+        });
+      }
     } catch (err) {
-      setTestResult({ success: false, message: '❌ ' + err.message });
+      if (err.message?.toLowerCase().includes('push service error') || err.name === 'AbortError') {
+        localStorage.setItem('smartspend_push_mode', 'BROWSER_LOCAL');
+        await loadPushStatus();
+        setTestResult({
+          success: true,
+          isWarning: true,
+          message: 'Đã cấp quyền thông báo hệ thống! (Máy Xiaomi/MIUI đang chặn ngầm Google FCM; app đã kích hoạt chế độ thông báo trực tiếp & hỗ trợ MacroDroid dự phòng)'
+        });
+      } else {
+        setTestResult({ success: false, message: '❌ ' + err.message });
+      }
     } finally {
       setIsSubscribingPush(false);
     }
@@ -174,12 +192,13 @@ export default function DailyReportModal({
           maxWidth: '720px',
           maxHeight: '90vh',
           overflowY: 'auto',
-          background: 'rgba(15, 23, 42, 0.98)',
-          border: '1px solid rgba(139, 92, 246, 0.35)',
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '24px',
           padding: '24px 28px',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(24px)'
+          boxShadow: 'var(--shadow-card, 0 25px 60px -15px rgba(0, 0, 0, 0.4))',
+          backdropFilter: 'blur(24px)',
+          color: 'var(--text-main)'
         }}
       >
         {/* Header */}
@@ -190,18 +209,18 @@ export default function DailyReportModal({
                 width: '44px',
                 height: '44px',
                 borderRadius: '14px',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3))',
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25))',
                 border: '1px solid rgba(139, 92, 246, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              <Sparkles size={22} color="#c084fc" />
+              <Sparkles size={22} color="var(--accent-purple, #c084fc)" />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#fff' }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
                   Báo cáo tài chính cuối ngày
                 </h3>
                 <span
@@ -245,7 +264,7 @@ export default function DailyReportModal({
           style={{
             display: 'flex',
             gap: '8px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            borderBottom: '1px solid var(--border-subtle)',
             paddingBottom: '12px',
             marginBottom: '18px'
           }}
@@ -254,11 +273,11 @@ export default function DailyReportModal({
             type="button"
             onClick={() => setActiveTab('report')}
             style={{
-              background: activeTab === 'report' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
-              borderColor: activeTab === 'report' ? '#c084fc' : 'transparent',
+              background: activeTab === 'report' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+              borderColor: activeTab === 'report' ? 'var(--accent-purple, #c084fc)' : 'transparent',
               borderWidth: '1px',
               borderStyle: 'solid',
-              color: activeTab === 'report' ? '#c084fc' : 'var(--text-dim)',
+              color: activeTab === 'report' ? 'var(--accent-purple, #a855f7)' : 'var(--text-dim)',
               padding: '7px 14px',
               borderRadius: '10px',
               fontSize: '0.84rem',
@@ -277,11 +296,11 @@ export default function DailyReportModal({
             type="button"
             onClick={() => setActiveTab('automation')}
             style={{
-              background: activeTab === 'automation' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-              borderColor: activeTab === 'automation' ? '#38bdf8' : 'transparent',
+              background: activeTab === 'automation' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              borderColor: activeTab === 'automation' ? 'var(--accent-cyan, #38bdf8)' : 'transparent',
               borderWidth: '1px',
               borderStyle: 'solid',
-              color: activeTab === 'automation' ? '#38bdf8' : 'var(--text-dim)',
+              color: activeTab === 'automation' ? 'var(--accent-cyan, #0284c7)' : 'var(--text-dim)',
               padding: '7px 14px',
               borderRadius: '10px',
               fontSize: '0.84rem',
@@ -306,8 +325,8 @@ export default function DailyReportModal({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '12px',
                 padding: '8px 12px',
                 marginBottom: '18px',
@@ -316,16 +335,14 @@ export default function DailyReportModal({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Calendar size={16} color="#38bdf8" />
+                <Calendar size={16} color="var(--accent-cyan, #38bdf8)" />
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dim)' }}>Ngày xem:</span>
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
+                  className="form-input"
                   style={{
-                    background: '#1e293b',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#fff',
                     padding: '4px 8px',
                     borderRadius: '6px',
                     fontSize: '0.85rem'
@@ -336,7 +353,7 @@ export default function DailyReportModal({
                     style={{
                       background: 'rgba(16, 185, 129, 0.15)',
                       border: '1px solid rgba(16, 185, 129, 0.3)',
-                      color: '#34d399',
+                      color: '#10b981',
                       fontSize: '0.72rem',
                       fontWeight: 600,
                       padding: '2px 8px',
@@ -353,15 +370,16 @@ export default function DailyReportModal({
                   type="button"
                   onClick={() => setSelectedDate(getTodayStr())}
                   style={{
-                    background: selectedDate === getTodayStr() ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
-                    borderColor: selectedDate === getTodayStr() ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                    background: selectedDate === getTodayStr() ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-input)',
+                    borderColor: selectedDate === getTodayStr() ? 'var(--accent-cyan, #38bdf8)' : 'var(--border-subtle)',
                     borderWidth: '1px',
                     borderStyle: 'solid',
-                    color: selectedDate === getTodayStr() ? '#38bdf8' : 'var(--text-dim)',
+                    color: selectedDate === getTodayStr() ? 'var(--accent-cyan, #38bdf8)' : 'var(--text-muted)',
                     padding: '4px 10px',
                     borderRadius: '6px',
                     fontSize: '0.78rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: 600
                   }}
                 >
                   Hôm nay
@@ -376,11 +394,12 @@ export default function DailyReportModal({
                     gap: '4px',
                     background: 'rgba(139, 92, 246, 0.15)',
                     border: '1px solid rgba(139, 92, 246, 0.3)',
-                    color: '#c084fc',
+                    color: 'var(--accent-purple, #c084fc)',
                     padding: '4px 10px',
                     borderRadius: '6px',
                     fontSize: '0.78rem',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontWeight: 600
                   }}
                   title="Kích hoạt Gemini AI phân tích lại toàn diện"
                 >
@@ -392,7 +411,7 @@ export default function DailyReportModal({
 
             {/* Loading state */}
             {isLoading && (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#c084fc' }}>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--accent-purple, #c084fc)' }}>
                 <RefreshCw size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
                 <div style={{ fontWeight: 600 }}>Gemini AI đang rà soát các giao dịch trong ngày...</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -409,7 +428,7 @@ export default function DailyReportModal({
                   borderRadius: '12px',
                   background: 'rgba(244, 63, 94, 0.12)',
                   border: '1px solid rgba(244, 63, 94, 0.3)',
-                  color: '#fb7185',
+                  color: 'var(--accent-rose, #fb7185)',
                   fontSize: '0.9rem',
                   marginBottom: '16px'
                 }}
@@ -425,36 +444,36 @@ export default function DailyReportModal({
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
                   <div
                     style={{
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '14px',
                       padding: '12px'
                     }}
                   >
                     <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tổng thu hôm nay</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
                       +{formatVND(reportData.totalIncome)}
                     </div>
                   </div>
 
                   <div
                     style={{
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '14px',
                       padding: '12px'
                     }}
                   >
                     <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tổng chi hôm nay</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fb7185', marginTop: '4px' }}>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e', marginTop: '4px' }}>
                       -{formatVND(reportData.totalExpense)}
                     </div>
                   </div>
 
                   <div
                     style={{
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
                       borderRadius: '14px',
                       padding: '12px'
                     }}
@@ -464,7 +483,7 @@ export default function DailyReportModal({
                       style={{
                         fontSize: '1.05rem',
                         fontWeight: 800,
-                        color: reportData.netFlow >= 0 ? '#38bdf8' : '#fb923c',
+                        color: reportData.netFlow >= 0 ? 'var(--accent-cyan, #38bdf8)' : 'var(--accent-amber, #fb923c)',
                         marginTop: '4px'
                       }}
                     >
@@ -474,14 +493,14 @@ export default function DailyReportModal({
 
                   <div
                     style={{
-                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15))',
+                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.12))',
                       border: '1px solid rgba(139, 92, 246, 0.3)',
                       borderRadius: '14px',
                       padding: '12px'
                     }}
                   >
-                    <div style={{ fontSize: '0.74rem', color: '#c084fc' }}>Xếp loại AI</div>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--accent-purple, #c084fc)' }}>Xếp loại AI</div>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
                       {ai?.rating || 'Cân đối 👍'}
                     </div>
                   </div>
@@ -490,20 +509,20 @@ export default function DailyReportModal({
                 {/* AI Overview Box */}
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))',
-                    border: '1px solid rgba(139, 92, 246, 0.25)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '16px',
                     padding: '16px',
                     position: 'relative'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <Sparkles size={16} color="#c084fc" />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Sparkles size={16} color="var(--accent-purple, #c084fc)" />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-purple, #c084fc)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       AI Nhận xét & Đánh giá tổng quan
                     </span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.55', color: '#e2e8f0' }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.55', color: 'var(--text-main)' }}>
                     {ai?.overview || 'Không có dữ liệu đánh giá.'}
                   </p>
                 </div>
@@ -511,15 +530,15 @@ export default function DailyReportModal({
                 {/* Khoản bất thường & Nghi vấn xếp sai */}
                 <div
                   style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '16px',
                     padding: '16px'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <AlertTriangle size={18} color="#f59e0b" />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>
+                    <AlertTriangle size={18} color="var(--accent-amber, #f59e0b)" />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
                       Phát hiện nghi vấn & Khoản bất thường trong ngày
                     </span>
                   </div>
@@ -530,12 +549,12 @@ export default function DailyReportModal({
                         <div
                           key={idx}
                           style={{
-                            background: 'rgba(245, 158, 11, 0.08)',
-                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            border: '1px solid rgba(245, 158, 11, 0.28)',
                             borderRadius: '10px',
                             padding: '10px 14px',
                             fontSize: '0.85rem',
-                            color: '#fef3c7',
+                            color: 'var(--text-main)',
                             lineHeight: '1.5'
                           }}
                         >
@@ -549,7 +568,7 @@ export default function DailyReportModal({
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        color: '#34d399',
+                        color: '#10b981',
                         fontSize: '0.85rem',
                         padding: '8px 12px',
                         background: 'rgba(16, 185, 129, 0.08)',
@@ -574,8 +593,8 @@ export default function DailyReportModal({
                             <div
                               key={idx}
                               style={{
-                                background: 'rgba(139, 92, 246, 0.08)',
-                                border: '1px solid rgba(139, 92, 246, 0.25)',
+                                background: 'var(--bg-card-solid)',
+                                border: '1px solid var(--border-subtle)',
                                 borderRadius: '10px',
                                 padding: '10px 14px',
                                 display: 'flex',
@@ -586,13 +605,13 @@ export default function DailyReportModal({
                               }}
                             >
                               <div>
-                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                                   {s.txDescription}
                                 </div>
                                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                  Đang phân loại: <span style={{ color: '#fb7185' }}>{s.currentCategory}</span> ➔ Đề xuất: <span style={{ color: '#34d399', fontWeight: 600 }}>{s.suggestedCategory}</span>
+                                  Đang phân loại: <span style={{ color: '#f43f5e' }}>{s.currentCategory}</span> ➔ Đề xuất: <span style={{ color: '#10b981', fontWeight: 600 }}>{s.suggestedCategory}</span>
                                 </div>
-                                <div style={{ fontSize: '0.74rem', color: '#c084fc', marginTop: '2px' }}>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--accent-purple, #c084fc)', marginTop: '2px' }}>
                                   Lý do: {s.reason}
                                 </div>
                               </div>
@@ -630,19 +649,19 @@ export default function DailyReportModal({
                 {ai?.advice && (
                   <div
                     style={{
-                      background: 'rgba(56, 189, 248, 0.06)',
+                      background: 'rgba(56, 189, 248, 0.08)',
                       border: '1px solid rgba(56, 189, 248, 0.25)',
                       borderRadius: '16px',
                       padding: '16px'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <TrendingUp size={16} color="#38bdf8" />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase' }}>
+                      <TrendingUp size={16} color="var(--accent-cyan, #38bdf8)" />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan, #38bdf8)', textTransform: 'uppercase' }}>
                         Lời khuyên tài chính cho ngày mai
                       </span>
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.88rem', lineHeight: '1.5', color: '#f0f9ff' }}>
+                    <p style={{ margin: 0, fontSize: '0.88rem', lineHeight: '1.5', color: 'var(--text-main)' }}>
                       {ai.advice}
                     </p>
                   </div>
@@ -658,7 +677,7 @@ export default function DailyReportModal({
             {/* Card Trạng thái Thông báo Ứng dụng */}
             <div
               style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(56, 189, 248, 0.18))',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.12))',
                 border: '1px solid rgba(16, 185, 129, 0.35)',
                 borderRadius: '18px',
                 padding: '20px',
@@ -674,28 +693,28 @@ export default function DailyReportModal({
                       width: '44px',
                       height: '44px',
                       borderRadius: '14px',
-                      background: 'rgba(16, 185, 129, 0.25)',
+                      background: 'rgba(16, 185, 129, 0.2)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}
                   >
-                    <Smartphone size={22} color="#34d399" />
+                    <Smartphone size={22} color="#10b981" />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       Thông báo ứng dụng trực tiếp
                       {pushStatus.isSubscribed ? (
-                        <span style={{ background: '#10b981', color: '#000', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
+                        <span style={{ background: '#10b981', color: '#fff', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
                           ĐÃ BẬT
                         </span>
                       ) : (
-                        <span style={{ background: '#f59e0b', color: '#000', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
+                        <span style={{ background: '#f59e0b', color: '#fff', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
                           CHƯA BẬT
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                       App tự động đẩy thông báo thẳng về điện thoại của bạn, không cần cài đặt MacroDroid hay công cụ ngoài!
                     </div>
                   </div>
@@ -729,7 +748,7 @@ export default function DailyReportModal({
               </div>
 
               {pushStatus.isSubscribed && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 12px', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 12px', borderRadius: '8px' }}>
                   <CheckCircle size={16} />
                   Thiết bị này đã sẵn sàng nhận thông báo tài chính cuối ngày lúc {autoSettings.time}.
                 </div>
@@ -744,7 +763,7 @@ export default function DailyReportModal({
                   borderRadius: '12px',
                   background: testResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
                   border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
-                  color: testResult.success ? '#34d399' : '#fb7185',
+                  color: testResult.success ? '#10b981' : '#f43f5e',
                   fontSize: '0.85rem'
                 }}
               >
@@ -755,14 +774,14 @@ export default function DailyReportModal({
             {/* Mục Cấu hình giờ kích hoạt */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '16px',
                 padding: '18px'
               }}
             >
-              <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={16} color="#38bdf8" />
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={16} color="var(--accent-cyan, #38bdf8)" />
                 Cài đặt giờ tự động kích hoạt
               </div>
 
@@ -775,13 +794,10 @@ export default function DailyReportModal({
                     type="time"
                     value={autoSettings.time}
                     onChange={(e) => setAutoSettings({ ...autoSettings, time: e.target.value })}
+                    className="form-input"
                     style={{
                       width: '100%',
-                      background: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      borderRadius: '8px',
                       padding: '8px 12px',
-                      color: '#fff',
                       fontSize: '0.9rem'
                     }}
                   />
@@ -798,7 +814,7 @@ export default function DailyReportModal({
                     onChange={(e) => setAutoSettings({ ...autoSettings, enabled: e.target.checked })}
                     style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
                   />
-                  <label htmlFor="enable_daily_report" style={{ fontSize: '0.85rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                  <label htmlFor="enable_daily_report" style={{ fontSize: '0.85rem', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 600 }}>
                     Tự động phân tích & gửi báo cáo mỗi ngày
                   </label>
                 </div>
@@ -817,32 +833,40 @@ export default function DailyReportModal({
               </div>
             </div>
 
-            {/* Hướng dẫn ngắn gọn */}
+            {/* Hướng dẫn nhận thông báo mượt mà trên Xiaomi / MIUI */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
                 borderRadius: '16px',
                 padding: '16px',
                 fontSize: '0.82rem',
-                color: 'var(--text-dim)',
+                color: 'var(--text-muted)',
                 lineHeight: '1.6'
               }}
             >
-              <div style={{ fontWeight: 700, color: '#fff', marginBottom: '6px' }}>
-                💡 Cách thông báo hoạt động trên điện thoại của bạn:
+              <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
+                💡 Hướng dẫn nhận thông báo trên điện thoại Android (Xiaomi / MIUI / POCO):
               </div>
-              <ul style={{ paddingLeft: '18px', margin: 0 }}>
+              <ul style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <li>Nhấn <strong>"Bật thông báo trên máy này"</strong> và chọn <strong>"Cho phép (Allow)"</strong> khi trình duyệt hỏi.</li>
-                <li>Đúng <strong>{autoSettings.time}</strong> mỗi tối, hệ thống sẽ tự động gửi thông báo tóm tắt chi tiêu thẳng lên thanh thông báo của máy.</li>
-                <li>Bạn có thể thêm trang web vào màn hình chính (PWA - <i>Add to Home Screen</i>) để dùng như một ứng dụng cài đặt thực thụ.</li>
+                <li>
+                  <span style={{ color: 'var(--accent-amber, #f59e0b)', fontWeight: 600 }}>Khắc phục lỗi Push Service trên Xiaomi:</span> Nếu gặp thông báo <i>"push service error"</i> do MIUI chặn dịch vụ Google Play chạy ngầm, bạn chỉ cần vào: <strong>Cài đặt máy ➔ Ứng dụng ➔ Chrome ➔ Tiết kiệm pin ➔ Chọn "Không hạn chế"</strong>.
+                </li>
+                <li>
+                  <strong>Phương án dự phòng 100% không bao giờ trễ (MacroDroid Webhook):</strong> Nếu máy tự tắt ứng dụng chạy ngầm, bạn có thể tạo 1 Trigger hẹn giờ 22:00 trong MacroDroid gửi HTTP GET đến:
+                  <div style={{ margin: '6px 0', padding: '6px 10px', background: 'var(--bg-card-solid)', border: '1px solid var(--border-subtle)', borderRadius: '6px', fontFamily: 'monospace', color: 'var(--accent-cyan, #0284c7)', wordBreak: 'break-all' }}>
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/ai/daily-report/notification?format=text` : ''}
+                  </div>
+                  MacroDroid sẽ nhận văn bản tóm tắt và tự bắn thông báo hệ thống lên màn hình khóa mà không cần phụ thuộc vào Google Push!
+                </li>
               </ul>
             </div>
           </div>
         )}
 
         {/* Footer Close */}
-        <div style={{ marginTop: '20px', paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', textAlign: 'right' }}>
+        <div style={{ marginTop: '20px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)', textAlign: 'right' }}>
           <button
             type="button"
             onClick={onClose}

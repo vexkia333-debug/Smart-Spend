@@ -267,15 +267,7 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
         {/* View Mode & Range Controls */}
         <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {/* Chuyển đổi giữa 2 chế độ biểu đồ */}
-          <div
-            style={{
-              display: 'flex',
-              background: 'rgba(255, 255, 255, 0.06)',
-              borderRadius: '10px',
-              padding: '2px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}
-          >
+          <div className="trend-range-tabs">
             <button
               type="button"
               className={`range-tab-btn ${chartMode === 'ACCOUNTS' ? 'active' : ''}`}
@@ -331,8 +323,8 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
           flexWrap: 'wrap',
           gap: '8px',
           padding: '8px 16px',
-          background: 'rgba(255, 255, 255, 0.02)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+          background: 'var(--bg-input)',
+          borderBottom: '1px solid var(--border-subtle)'
         }}
       >
         {chartMode === 'ACCOUNTS' ? (
@@ -354,9 +346,9 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
                     gap: '6px',
                     padding: '4px 10px',
                     borderRadius: '16px',
-                    border: `1px solid ${isActive ? color : 'rgba(255, 255, 255, 0.1)'}`,
-                    background: isActive ? `${color}22` : 'rgba(255, 255, 255, 0.03)',
-                    color: isActive ? '#fff' : 'var(--text-dim)',
+                    border: `1px solid ${isActive ? color : 'var(--border-subtle)'}`,
+                    background: isActive ? `${color}20` : 'transparent',
+                    color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
                     fontSize: '0.78rem',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -420,8 +412,8 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
               <React.Fragment key={acc.id}>
                 {idx > 0 && <div className="summary-pill-divider"></div>}
                 <div className="summary-pill-item">
-                  <span className="summary-pill-label" style={{ color }}>● {acc.name}:</span>
-                  <span className="summary-pill-val" style={{ color }}>{formatVND(totalVol)}</span>
+                  <span className="summary-pill-label" style={{ color, fontWeight: 600 }}>● {acc.name}:</span>
+                  <span className="summary-pill-val">{formatVND(totalVol)}</span>
                 </div>
               </React.Fragment>
             );
@@ -569,18 +561,16 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
                 y1={padTop}
                 x2={activePoint.x}
                 y2={bottomY}
-                stroke="rgba(255, 255, 255, 0.35)"
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
+                className="chart-crosshair-line"
               />
 
               {chartMode === 'OVERVIEW' ? (
                 <>
                   {showIncome && activePoint.income > 0 && (
-                    <circle cx={activePoint.x} cy={activePoint.yIncome} r="5" fill="#10b981" stroke="#fff" strokeWidth="2" />
+                    <circle cx={activePoint.x} cy={activePoint.yIncome} r="5" fill="#10b981" stroke="var(--bg-card-solid, #ffffff)" strokeWidth="2" />
                   )}
                   {showExpense && activePoint.expense > 0 && (
-                    <circle cx={activePoint.x} cy={activePoint.yExpense} r="5" fill="#f43f5e" stroke="#fff" strokeWidth="2" />
+                    <circle cx={activePoint.x} cy={activePoint.yExpense} r="5" fill="#f43f5e" stroke="var(--bg-card-solid, #ffffff)" strokeWidth="2" />
                   )}
                 </>
               ) : (
@@ -589,7 +579,7 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
                   const y = activePoint.accY[acc.id];
                   const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
                   return (
-                    <circle key={acc.id} cx={activePoint.x} cy={y} r="5" fill={color} stroke="#fff" strokeWidth="2" />
+                    <circle key={acc.id} cx={activePoint.x} cy={y} r="5" fill={color} stroke="var(--bg-card-solid, #ffffff)" strokeWidth="2" />
                   );
                 })
               )}
@@ -600,28 +590,30 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
         {/* Hover Tooltip Overlay */}
         {activePoint && (
           <div
-            className="chart-hover-tooltip"
+            className="line-chart-floating-tooltip"
             style={{
-              position: 'absolute',
               left: `${(activePoint.x / width) * 100}%`,
-              top: '12px',
-              transform: activePoint.x > width * 0.65 ? 'translateX(-105%)' : 'translateX(10px)',
-              pointerEvents: 'none',
-              zIndex: 10
+              transform: activePoint.x > width * 0.65 ? 'translateX(-105%)' : 'translateX(10px)'
             }}
           >
-            <div className="tooltip-header">{activePoint.fullDate}</div>
+            <div className="tooltip-header-date">
+              <span>{activePoint.fullDate}</span>
+              {activePoint.isToday && <span className="today-tag">Hôm nay</span>}
+            </div>
 
             {chartMode === 'ACCOUNTS' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+              <div className="tooltip-metrics-list">
                 {displayAccounts.map((acc) => {
                   if (!activeAccountIds.includes(acc.id)) return null;
                   const flow = activePoint.accFlows[acc.id];
                   const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
                   return (
-                    <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '0.8rem' }}>
-                      <span style={{ color }}>● {acc.name}:</span>
-                      <strong style={{ color: flow.total > 0 ? '#fff' : 'var(--text-muted)' }}>
+                    <div key={acc.id} className="tooltip-metric-row">
+                      <span style={{ color, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }}></span>
+                        {acc.name}:
+                      </span>
+                      <strong style={{ color: flow.total > 0 ? 'var(--text-main)' : 'var(--text-muted)' }}>
                         {formatVND(flow.total)}
                       </strong>
                     </div>
@@ -629,26 +621,26 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
                 })}
               </div>
             ) : (
-              <>
+              <div className="tooltip-metrics-list">
                 {showIncome && (
-                  <div className="tooltip-row income">
+                  <div className="tooltip-metric-row income">
                     <span>Thu:</span>
                     <strong>+{formatVND(activePoint.income)}</strong>
                   </div>
                 )}
                 {showExpense && (
-                  <div className="tooltip-row expense">
+                  <div className="tooltip-metric-row expense">
                     <span>Chi:</span>
                     <strong>-{formatVND(activePoint.expense)}</strong>
                   </div>
                 )}
                 {showNet && (
-                  <div className="tooltip-row net">
+                  <div className="tooltip-metric-row net">
                     <span>Dòng tiền:</span>
                     <strong>{activePoint.net >= 0 ? '+' : ''}{formatVND(activePoint.net)}</strong>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}

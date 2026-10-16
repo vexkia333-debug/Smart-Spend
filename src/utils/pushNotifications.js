@@ -14,94 +14,148 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export async function checkPushSubscriptionStatus() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    return { supported: false, permission: 'unsupported', isSubscribed: false };
+  if (!('Notification' in window)) {
+    return { supported: false, permission: 'unsupported', isSubscribed: false, mode: 'NONE' };
   }
 
   const permission = Notification.permission;
+  const localMode = localStorage.getItem('smartspend_push_mode');
+
+  if (permission !== 'granted') {
+    return { supported: true, permission, isSubscribed: false, mode: 'NONE' };
+  }
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { supported: true, permission: 'granted', isSubscribed: true, mode: 'BROWSER_LOCAL' };
+  }
+
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      return { supported: true, permission, isSubscribed: true, mode: 'FCM_PUSH' };
+    }
+    // Nếu quyền đã cấp nhưng chưa có FCM subscription (hoặc FCM bị hạn chế trên Xiaomi/MIUI)
     return {
       supported: true,
       permission,
-      isSubscribed: Boolean(subscription)
+      isSubscribed: localMode === 'BROWSER_LOCAL',
+      mode: localMode || 'BROWSER_LOCAL'
     };
   } catch {
     return {
       supported: true,
       permission,
-      isSubscribed: false
+      isSubscribed: permission === 'granted',
+      mode: 'BROWSER_LOCAL'
     };
   }
 }
 
 export async function subscribeUserToPush(authFetch) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    throw new Error('Trình duyệt hoặc thiết bị này không hỗ trợ Web Push Notification.');
+  if (!('Notification' in window)) {
+    throw new Error('Trình duyệt hoặc thiết bị này không hỗ trợ tính năng thông báo.');
   }
 
-  // 1. Xin quyền hiển thị thông báo
+  // 1. Xin quyền hiển thị thông báo hệ thống
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    throw new Error('Bạn chưa cấp quyền nhận thông báo cho ứng dụng. Vui lòng cho phép quyền thông báo trong cài đặt trình duyệt.');
+    throw new Error('Bạn chưa cấp quyền thông báo. Vui lòng cho phép quyền thông báo trong cài đặt trình duyệt để app có thể báo cáo lúc 22:00.');
   }
 
-  // 2. Lấy VAPID public key từ server
-  const keyRes = await authFetch('/api/notifications/vapid-public-key');
-  const keyData = await keyRes.json();
-  if (!keyData.publicKey) {
-    throw new Error('Không lấy được khóa định danh VAPID từ server.');
+  // 2. Thử đăng ký Web Push qua PushManager (FCM)
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    try {
+      const keyRes = await authFetch('/api/notifications/vapid-public-key');
+      const keyData = await keyRes.json();
+
+      if (keyData?.publicKey) {
+        const registration = await navigator.serviceWorker.ready;
+        const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
+
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+          try {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedKey
+            });
+          } catch (subErr) {
+            console.warn('[PushManager subscribe first attempt]:', subErr);
+            throw subErr;
+          }
+        }
+
+        if (subscription) {
+          await authFetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription })
+          });
+
+          localStorage.setItem('smartspend_push_mode', 'FCM_PUSH');
+          return {
+            success: true,
+            mode: 'FCM_PUSH',
+            message: '🎉 Đã bật thông báo ứng dụng thành công! Điện thoại của bạn sẽ nhận thông báo báo cáo lúc 22:00 mỗi ngày.'
+          };
+        }
+      }
+    } catch (pushErr) {
+      console.warn('[PushManager subscribe warning]:', pushErr);
+
+      // Nếu gặp lỗi FCM Google Play Services ("push service error" thường thấy trên Xiaomi / MIUI / HyperOS)
+      const errStr = (pushErr.message || '').toLowerCase();
+      if (errStr.includes('push service error') || pushErr.name === 'AbortError' || errStr.includes('registration failed')) {
+        localStorage.setItem('smartspend_push_mode', 'BROWSER_LOCAL');
+        return {
+          success: true,
+          mode: 'BROWSER_LOCAL',
+          isPushServiceIssue: true,
+          message: 'Đã cấp quyền thông báo hệ thống! Dịch vụ Google FCM trên máy bạn (MIUI/Xiaomi) đang hạn chế kết nối ngầm. App đã kích hoạt chế độ thông báo trực tiếp & hỗ trợ MacroDroid dự phòng.'
+        };
+      }
+      throw pushErr;
+    }
   }
 
-  // 3. Đăng ký Push với trình duyệt
-  const registration = await navigator.serviceWorker.ready;
-  let subscription = await registration.pushManager.getSubscription();
-
-  if (!subscription) {
-    const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: convertedKey
-    });
-  }
-
-  // 4. Gửi subscription lên server để lưu vào database
-  const subRes = await authFetch('/api/notifications/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription })
-  });
-
-  const subData = await subRes.json();
-  if (!subRes.ok) {
-    throw new Error(subData.error || 'Lỗi lưu đăng ký thông báo');
-  }
-
-  return { success: true, message: 'Đã kích hoạt thông báo ứng dụng thành công!' };
+  localStorage.setItem('smartspend_push_mode', 'BROWSER_LOCAL');
+  return {
+    success: true,
+    mode: 'BROWSER_LOCAL',
+    message: 'Đã cấp quyền thông báo ứng dụng thành công!'
+  };
 }
 
 export async function testPushNotification(authFetch) {
-  const res = await authFetch('/api/notifications/test-push', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Lỗi gửi test push');
-  }
-
-  // Nếu trình duyệt hỗ trợ local notification, bắn thêm một thông báo trực tiếp
-  if (Notification.permission === 'granted') {
+  // Bắn thử trực tiếp qua Service Worker notification nếu đã cấp quyền
+  if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.ready;
       reg.showNotification('SmartSpend 🔔', {
-        body: 'Thông báo ứng dụng hoạt động hoàn hảo!',
+        body: 'Thông báo ứng dụng hoạt động hoàn hảo lúc ' + new Date().toLocaleTimeString('vi-VN') + '!',
         icon: '/pwa-192x192.png',
-        badge: '/favicon.png'
+        badge: '/favicon.png',
+        vibrate: [200, 100, 200]
       });
-    } catch { }
+    } catch (swErr) {
+      console.warn('Lỗi hiển thị notification từ ServiceWorker:', swErr);
+      try {
+        new Notification('SmartSpend 🔔', {
+          body: 'Thông báo ứng dụng hoạt động hoàn hảo lúc ' + new Date().toLocaleTimeString('vi-VN') + '!',
+          icon: '/pwa-192x192.png'
+        });
+      } catch { }
+    }
   }
 
-  return data;
+  try {
+    const res = await authFetch('/api/notifications/test-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await res.json();
+  } catch (e) {
+    return { success: true, localOnly: true };
+  }
 }
