@@ -317,3 +317,154 @@ function fallbackLocalParse(userText, categories = [], options = {}) {
     reasoning: 'Tự động phân loại thông minh (Hệ thống dự phòng)'
   };
 }
+
+/**
+ * Tạo báo cáo tài chính đánh giá cuối ngày bằng Gemini Flash
+ */
+export async function generateDailyAiReport({ date, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {}, apiKey }) {
+  if (!apiKey || !txs.length) return null;
+
+  const txListStr = txs
+    .map((t) => `- [${t.type === 'INCOME' ? '+' : '-'}${t.amount}đ] ${t.category_name || 'Chưa gắn thẻ'}: ${t.description} (TK: ${t.account_name || t.bank_name}, ID: ${t.id})`)
+    .join('\n');
+
+  const prompt = `Bạn là chuyên gia cố vấn tài chính cá nhân thông minh của hệ thống SmartSpend tại Việt Nam.
+Hãy lập BÁO CÁO ĐÁNH GIÁ TÀI CHÍNH CUỐI NGÀY (${date}) dựa trên các giao dịch thực tế của người dùng:
+- TỔNG THU HÔM NAY: ${new Intl.NumberFormat('vi-VN').format(totalIncome)} VNĐ
+- TỔNG CHI HÔM NAY: ${new Intl.NumberFormat('vi-VN').format(totalExpense)} VNĐ
+- DÒNG TIỀN RÒNG: ${new Intl.NumberFormat('vi-VN').format(netFlow)} VNĐ
+
+DANH SÁCH GIAO DỊCH TRONG NGÀY:
+${txListStr}
+
+YÊU CẦU ĐÁNH GIÁ CHUYÊN SÂU:
+1. "rating": Đánh giá mức độ kỷ luật hôm nay: "Rất tốt 🌟" | "Cân đối 👍" | "Cần chú ý ⚠️" | "Chi vượt định mức 🚨".
+2. "overview": Tóm tắt súc tích 1-2 câu về tình hình thu chi và thói quen tiêu dùng trong ngày.
+3. "anomalies": Mảng các chuỗi nhận xét phát hiện điểm bất thường:
+   - Các khoản chi lớn bất thường hoặc chiếm tỷ trọng cao.
+   - Các khoản nghi vấn xếp nhầm danh mục (ví dụ tiền phạt/đền bù bị xếp vào di chuyển, tiền trả nợ bị xếp vào chi tiêu...).
+   - Nếu không có bất thường, trả về mảng có 1 câu khen ngợi kỷ luật tốt.
+4. "advice": 1-2 câu lời khuyên tài chính ngắn gọn, ấm áp cho ngày mai.
+5. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
+   [
+     {
+       "txId": string,
+       "txDescription": string,
+       "currentCategory": string,
+       "suggestedCategory": string,
+       "reason": string
+     }
+   ]
+
+Trả về DUY NHẤT một JSON hợp lệ:
+{
+  "rating": string,
+  "overview": string,
+  "anomalies": [string],
+  "advice": string,
+  "suggestedEdits": [
+    {
+      "txId": string,
+      "txDescription": string,
+      "currentCategory": string,
+      "suggestedCategory": string,
+      "reason": string
+    }
+  ]
+}`;
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        })
+      });
+
+      if (!response.ok) continue;
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+      return JSON.parse(rawText);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Bộ tạo báo cáo cuối ngày dự phòng thông minh (khi offline hoặc không có API Key)
+ */
+export function generateFallbackDailyReport({ date, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {} }) {
+  const anomalies = [];
+  const suggestedEdits = [];
+
+  const expenses = txs.filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'));
+  if (expenses.length > 0) {
+    const sorted = [...expenses].sort((a, b) => b.amount - a.amount);
+    const maxTx = sorted[0];
+    if (maxTx.amount >= 150000) {
+      anomalies.push(`Khoản chi lớn nhất hôm nay là "${maxTx.description}" (${new Intl.NumberFormat('vi-VN').format(maxTx.amount)} ₫).`);
+    }
+  }
+
+  // Quét bất thường về danh mục
+  txs.forEach((t) => {
+    const desc = (t.description || '').toLowerCase();
+    if (t.type === 'EXPENSE' && (desc.includes('đền') || desc.includes('phạt') || desc.includes('mất vé')) && t.category_name?.includes('Di chuyển')) {
+      anomalies.push(`Khoản "${t.description}" (${new Intl.NumberFormat('vi-VN').format(t.amount)} ₫) là đền bù/tiền phạt nhưng đang ở danh mục Di chuyển.`);
+      suggestedEdits.push({
+        txId: t.id,
+        txDescription: t.description,
+        currentCategory: t.category_name,
+        suggestedCategory: 'Chi tiêu khác',
+        reason: 'Tiền phạt/đền bù thuộc nhóm Chi tiêu khác'
+      });
+    }
+    if (t.type === 'INCOME' && (desc.includes('trả') || desc.includes('thu nợ')) && t.category_id?.includes('loan')) {
+      anomalies.push(`Khoản tiền vào "${t.description}" đang bị gán vào mục Cho vay mượn.`);
+      suggestedEdits.push({
+        txId: t.id,
+        txDescription: t.description,
+        currentCategory: t.category_name,
+        suggestedCategory: 'Thu hồi nợ / Nhận tiền trả',
+        reason: 'Khoản tiền nhận về từ người khác trả'
+      });
+    }
+  });
+
+  const rating =
+    totalExpense > totalIncome && totalIncome > 0
+      ? 'Cần chú ý ⚠️'
+      : totalExpense === 0
+      ? 'Xuất sắc 🌟'
+      : 'Cân đối 👍';
+
+  const overview =
+    totalExpense > 0
+      ? `Hôm nay bạn đã chi tiêu ${new Intl.NumberFormat('vi-VN').format(totalExpense)} ₫ qua ${expenses.length} khoản chi${
+          totalIncome > 0 ? ` và thu về ${new Intl.NumberFormat('vi-VN').format(totalIncome)} ₫` : ''
+        }.`
+      : `Hôm nay bạn chưa phát sinh khoản chi tiêu nào. Dòng tiền được giữ vững trọn vẹn!`;
+
+  const advice =
+    totalExpense > 250000
+      ? 'Hôm nay tổng chi tương đối đáng kể. Ngày mai hãy ưu tiên các nhu cầu thiết yếu và giữ vững ngân sách nhé!'
+      : 'Bạn đang quản lý chi tiêu trong ngày rất tốt. Hãy tiếp tục duy trì mức chi tiêu hợp lý này!';
+
+  return {
+    rating,
+    overview,
+    anomalies: anomalies.length > 0 ? anomalies : ['Không phát hiện khoản chi tiêu bất thường hay nghi vấn xếp sai danh mục.'],
+    advice,
+    suggestedEdits
+  };
+}

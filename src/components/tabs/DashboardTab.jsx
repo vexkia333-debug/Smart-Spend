@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, TrendingUp, PieChart as PieChartIcon, Wallet } from 'lucide-react';
+import { Activity, TrendingUp, PieChart as PieChartIcon, Wallet, Sparkles } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
 import { formatVND } from '../../utils/formatters.js';
@@ -19,7 +19,8 @@ export default function DashboardTab({
   setHoveredCatId,
   accounts = [],
   totalBalance = 0,
-  onReconcile
+  onReconcile,
+  onOpenDailyReport
 }) {
   return (
     <div className="dashboard-content-wrapper">
@@ -148,8 +149,90 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* Biểu đồ đường xu hướng Thu - Chi & Dòng tiền */}
-      <InteractiveTrendLineChart transactions={transactions} formatVND={formatVND} />
+      {/* Banner Báo cáo tài chính cuối ngày AI */}
+      <div
+        className="glass-panel"
+        style={{
+          marginBottom: '20px',
+          padding: '16px 20px',
+          borderRadius: '18px',
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.16), rgba(59, 130, 246, 0.12))',
+          border: '1px solid rgba(139, 92, 246, 0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px',
+          boxShadow: '0 8px 24px rgba(139, 92, 246, 0.15)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(139, 92, 246, 0.45)',
+              flexShrink: 0
+            }}
+          >
+            <Sparkles size={22} color="#fff" />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
+                Báo cáo tài chính cuối ngày (AI Briefing)
+              </h4>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  background: 'rgba(139, 92, 246, 0.25)',
+                  color: '#c084fc',
+                  border: '1px solid rgba(139, 92, 246, 0.4)'
+                }}
+              >
+                Trợ lý Gemini
+              </span>
+            </div>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Rà soát mức chi tiêu hôm nay, phát hiện các khoản bất thường và tư vấn chỉnh sửa danh mục kịp thời
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenDailyReport}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 20px',
+            borderRadius: '12px',
+            fontSize: '0.86rem',
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+            border: 'none',
+            color: '#fff',
+            boxShadow: '0 4px 16px rgba(139, 92, 246, 0.4)',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Sparkles size={16} />
+          <span>Xem báo cáo hôm nay</span>
+        </button>
+      </div>
+
+      {/* Biểu đồ đường xu hướng Nguồn tiền & Thu - Chi */}
+      <InteractiveTrendLineChart transactions={transactions} accounts={accounts} formatVND={formatVND} />
 
       <div className="dashboard-columns">
         {/* Cột trái: Phân bổ danh mục chi tiêu với Interactive Donut */}

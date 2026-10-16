@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { db, initDatabase, seedInitialTransactions, TURSO_URL } from './db.js';
 import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } from './parser.js';
-import { parseTransactionWithGemini } from './gemini.js';
+import { parseTransactionWithGemini, generateDailyAiReport, generateFallbackDailyReport } from './gemini.js';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -450,6 +450,99 @@ app.patch('/api/transactions/:id/ignore', async (req, res) => {
 
     broadcastEvent('TRANSACTION_IGNORED', { id });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4.1. Chỉnh sửa thông tin giao dịch (Edit Transaction)
+app.put('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, description, category_id, account_id, type, transaction_time } = req.body;
+
+    const oldTx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    if (!oldTx) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại' });
+    }
+
+    const newAmount = amount !== undefined ? Math.abs(parseFloat(amount)) : oldTx.amount;
+    const newType = type || oldTx.type;
+    const newAccountId = account_id || oldTx.account_id;
+    let newCatId = category_id !== undefined ? category_id : oldTx.category_id;
+    const newDesc = description !== undefined ? description : oldTx.description;
+    const newTime = transaction_time || oldTx.transaction_time;
+
+    // Bảo vệ loại danh mục đúng chuẩn Thu/Chi
+    if (newType === 'INCOME' && (newCatId === 'cat_loan' || newCatId === 'cat_other_expense')) {
+      newCatId = 'cat_debt_collect';
+    }
+
+    // Hoàn trả số dư cũ cho tài khoản cũ (nếu giao dịch đã xác nhận/ảnh hưởng số dư)
+    if (oldTx.status !== 'IGNORED') {
+      if (oldTx.type === 'EXPENSE') {
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
+      } else {
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
+      }
+
+      // Áp dụng số dư mới cho tài khoản mới
+      if (newType === 'EXPENSE') {
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(newAmount, newAccountId);
+      } else {
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(newAmount, newAccountId);
+      }
+    }
+
+    await db.prepare(`
+      UPDATE transactions
+      SET amount = ?, description = ?, category_id = ?, account_id = ?, type = ?, transaction_time = ?, updated_at = datetime('now', 'localtime')
+      WHERE id = ?
+    `).run(newAmount, newDesc, newCatId, newAccountId, newType, newTime, id);
+
+    const updatedTx = await db.prepare(`
+      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+      FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = ?
+    `).get(id);
+
+    broadcastEvent('TRANSACTION_UPDATED', updatedTx);
+    const updatedAcc1 = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(oldTx.account_id);
+    const updatedAcc2 = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(newAccountId);
+    if (updatedAcc1) broadcastEvent('ACCOUNT_UPDATED', updatedAcc1);
+    if (updatedAcc2 && newAccountId !== oldTx.account_id) broadcastEvent('ACCOUNT_UPDATED', updatedAcc2);
+
+    res.json({ success: true, transaction: updatedTx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4.2. Xóa giao dịch (Delete Transaction)
+app.delete('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const oldTx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    if (!oldTx) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại' });
+    }
+
+    // Hoàn trả số dư nếu giao dịch không phải IGNORED
+    if (oldTx.status !== 'IGNORED') {
+      if (oldTx.type === 'EXPENSE') {
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
+      } else {
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
+      }
+    }
+
+    await db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+
+    broadcastEvent('TRANSACTION_DELETED', { id });
+    const updatedAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(oldTx.account_id);
+    if (updatedAcc) broadcastEvent('ACCOUNT_UPDATED', updatedAcc);
+
+    res.json({ success: true, message: 'Đã xóa giao dịch thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1495,6 +1588,102 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
     res.json({ success: true, parsed, createdCategory });
   } catch (err) {
     console.error('Gemini error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12. Báo cáo tài chính đánh giá cuối ngày & Phát hiện bất thường từ Gemini AI
+app.post('/api/ai/daily-report', async (req, res) => {
+  try {
+    const { date } = req.body;
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const curDay = String(now.getDate()).padStart(2, '0');
+    const targetDate = date || `${curYear}-${curMonth}-${curDay}`;
+
+    const [tY, tM, tD] = targetDate.split('-');
+    const pattern1 = `%${tD}/${tM}/${tY}%`;
+    const pattern2 = `${targetDate}%`;
+
+    const txs = await db.prepare(`
+      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE (t.transaction_time LIKE ? OR t.created_at LIKE ?) AND t.status != 'IGNORED'
+      ORDER BY t.created_at ASC
+    `).all(pattern1, pattern2);
+
+    const totalIncome = txs
+      .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_'))
+      .reduce((s, t) => s + (t.amount || 0), 0);
+    const totalExpense = txs
+      .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
+      .reduce((s, t) => s + (t.amount || 0), 0);
+    const netFlow = totalIncome - totalExpense;
+
+    // Cơ cấu chi tiêu theo danh mục
+    const catMap = {};
+    txs
+      .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
+      .forEach((t) => {
+        const cName = t.category_name || 'Khác';
+        catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);
+      });
+
+    // Cơ cấu theo tài khoản
+    const accMap = {};
+    txs.forEach((t) => {
+      const aName = t.account_name || 'Tài khoản khác';
+      if (!accMap[aName]) accMap[aName] = { in: 0, out: 0, count: 0 };
+      accMap[aName].count += 1;
+      if (t.type === 'INCOME') accMap[aName].in += t.amount || 0;
+      else accMap[aName].out += t.amount || 0;
+    });
+
+    const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+    const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
+
+    let aiEvaluation = null;
+
+    if (apiKey && txs.length > 0) {
+      aiEvaluation = await generateDailyAiReport({
+        date: targetDate,
+        txs,
+        totalIncome,
+        totalExpense,
+        netFlow,
+        catMap,
+        apiKey
+      });
+    }
+
+    if (!aiEvaluation) {
+      aiEvaluation = generateFallbackDailyReport({
+        date: targetDate,
+        txs,
+        totalIncome,
+        totalExpense,
+        netFlow,
+        catMap
+      });
+    }
+
+    res.json({
+      success: true,
+      date: targetDate,
+      totalIncome,
+      totalExpense,
+      netFlow,
+      txCount: txs.length,
+      categoryBreakdown: catMap,
+      accountBreakdown: accMap,
+      transactions: txs,
+      aiEvaluation
+    });
+  } catch (err) {
+    console.error('Lỗi daily-report:', err);
     res.status(500).json({ error: err.message });
   }
 });

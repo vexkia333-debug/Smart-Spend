@@ -1,13 +1,9 @@
-import React from 'react';
-import { X, Sparkles, ArrowLeftRight } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { X, Sparkles, Send } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
-import { DEFAULT_QUICK_ACTIONS } from '../../constants/index.js';
 
 export default function LivePromptOverlay({
   livePrompt,
-  categories = [],
-  accounts = [],
-  handleCategorize,
   promptAiText,
   setPromptAiText,
   isPromptAiAnalyzing,
@@ -18,25 +14,19 @@ export default function LivePromptOverlay({
 
   const tx = livePrompt.transaction;
   const isIncome = tx.type === 'INCOME';
-  const descUpper = (tx.description || tx.raw_content || '').toUpperCase();
-  const isTransferRelated =
-    descUpper.includes('VU HA KIEN') ||
-    descUpper.includes('KIEN VU') ||
-    descUpper.includes('CHUYEN') ||
-    tx.category_id?.includes('transfer') ||
-    livePrompt.suggestedCategoryId?.includes('transfer');
+  const inputRef = useRef(null);
 
-  // Các tài khoản khác trong hệ thống để người dùng chọn chuyển tiền nội bộ
-  const otherAccounts = (accounts || []).filter((a) => a.id !== tx.account_id);
+  useEffect(() => {
+    // Tự động focus vào ô nhập AI khi popup xuất hiện
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [livePrompt]);
 
-  const actions =
-    livePrompt.quickActions && livePrompt.quickActions.length > 0
-      ? livePrompt.quickActions
-      : categories && categories.length > 0
-      ? categories
-          .filter((c) => c.type === (tx.type || 'EXPENSE'))
-          .slice(0, 4)
-      : DEFAULT_QUICK_ACTIONS;
+  const suggestions = isIncome
+    ? ['Bạn trả nợ tiền ăn', 'Bạn chuyển tiền trả', 'Thu hồi nợ', 'Tiền thưởng dự án']
+    : ['Tôi ăn 101k còn lại trả hộ bạn', 'Tiền đi nhậu', 'Đền mất vé xe', 'Cơm trưa văn phòng', 'Cà phê sáng'];
 
   return (
     <div className="prompt-modal-backdrop" onClick={onClose}>
@@ -85,119 +75,162 @@ export default function LivePromptOverlay({
             </span>
           </div>
 
-          <div className="prompt-desc">{tx.description}</div>
+          <div className="prompt-desc">{tx.description || tx.raw_content}</div>
 
-          {/* Hộp chọn nhanh chuyển tiền nội bộ giữa các tài khoản của bạn */}
-          {otherAccounts.length > 0 && (
+          {/* Khu vực AI Phân tích & Tách danh mục chính */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.08))',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: '16px',
+              padding: '16px',
+              marginTop: '12px',
+              marginBottom: '14px'
+            }}
+          >
             <div
               style={{
-                marginBottom: '14px',
-                padding: '10px 12px',
-                borderRadius: '12px',
-                background: isIncome ? 'rgba(16, 185, 129, 0.08)' : 'rgba(99, 102, 241, 0.08)',
-                border: `1px dashed ${isIncome ? 'rgba(16, 185, 129, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                color: '#c084fc',
+                fontWeight: 700,
+                fontSize: '0.88rem'
               }}
+            >
+              <Sparkles size={16} />
+              <span>Gõ nội dung để AI phân loại & tự động tách khoản:</span>
+            </div>
+
+            <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              {isIncome
+                ? 'Gõ người trả hoặc mục đích nhận tiền (VD: "Thảo trả tiền ăn trưa").'
+                : 'Bạn có thể gõ tự nhiên, ví dụ: "tôi ăn hết 101k còn lại trả hộ", "tiền đi nhậu", "đền mất vé xe"... AI sẽ tự động phân loại và tách tiền cho bạn!'}
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handlePromptAiCategorize(tx.id);
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
             >
               <div
                 style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  color: isIncome ? '#34d399' : '#818cf8',
-                  marginBottom: '8px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  border: '1px solid rgba(139, 92, 246, 0.4)',
+                  borderRadius: '12px',
+                  padding: '4px 6px 4px 12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                 }}
               >
-                <ArrowLeftRight size={13} />
-                {isIncome
-                  ? '⚡ Chuyển từ tài khoản nào của bạn?'
-                  : '⚡ Chuyển sang tài khoản nào của bạn?'}
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="prompt-ai-input"
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: '#fff',
+                    fontSize: '0.92rem',
+                    padding: '8px 0'
+                  }}
+                  placeholder={
+                    isIncome
+                      ? 'Nhập lý do nhận tiền (VD: Linh trả nợ cơm trưa)...'
+                      : 'Nhập nội dung (VD: tôi ăn 101k còn lại trả hộ bạn)...'
+                  }
+                  value={promptAiText}
+                  onChange={(e) => setPromptAiText(e.target.value)}
+                  disabled={isPromptAiAnalyzing}
+                />
+                <button
+                  type="submit"
+                  disabled={isPromptAiAnalyzing || !promptAiText.trim()}
+                  style={{
+                    background: promptAiText.trim()
+                      ? 'linear-gradient(135deg, #8b5cf6, #3b82f6)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: promptAiText.trim() ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s ease',
+                    boxShadow: promptAiText.trim() ? '0 4px 12px rgba(139, 92, 246, 0.35)' : 'none'
+                  }}
+                >
+                  {isPromptAiAnalyzing ? (
+                    'Đang phân tích...'
+                  ) : (
+                    <>
+                      <span>Phân tích</span>
+                      <Send size={13} />
+                    </>
+                  )}
+                </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                {otherAccounts.map((acc) => (
+
+              {/* Gợi ý nhanh dạng tags */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                {suggestions.map((s, idx) => (
                   <button
-                    key={acc.id}
-                    className="prompt-cat-btn"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      borderColor: acc.color || 'rgba(255, 255, 255, 0.15)',
-                      padding: '8px 10px',
-                      fontSize: '0.8rem'
-                    }}
+                    key={idx}
+                    type="button"
                     onClick={() => {
-                      const catId = isIncome ? 'cat_transfer_in' : 'cat_transfer_internal';
-                      const desc = isIncome
-                        ? `Nhận tiền từ ${acc.name}`
-                        : `Chuyển tiền sang ${acc.name}`;
-                      handleCategorize(tx.id, catId, desc, acc.id);
+                      setPromptAiText(s);
+                      inputRef.current?.focus();
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '16px',
+                      padding: '3px 9px',
+                      fontSize: '0.74rem',
+                      color: 'var(--text-dim)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#8b5cf6';
+                      e.currentTarget.style.color = '#c084fc';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                      e.currentTarget.style.color = 'var(--text-dim)';
                     }}
                   >
-                    <span style={{ color: acc.color || '#38bdf8' }}>●</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {isIncome ? `Từ ${acc.name}` : `Sang ${acc.name}`}
-                    </span>
+                    + {s}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div className="prompt-question">
-            {isIncome ? 'Hoặc chọn danh mục thu nhập:' : 'Hoặc chọn danh mục chi tiêu:'}
+            </form>
           </div>
 
-          <div className="prompt-actions-grid">
-            {actions.map((act) => (
-              <button
-                key={act.id}
-                className="prompt-cat-btn"
-                onClick={() => handleCategorize(tx.id, act.id)}
-              >
-                <span style={{ color: act.color || '#38bdf8' }}>●</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {act.name}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="prompt-divider">
-            <span>Hoặc gõ chi tiết để AI tự xếp</span>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handlePromptAiCategorize(tx.id);
+          <button
+            className="prompt-skip-btn"
+            onClick={onClose}
+            style={{
+              width: '100%',
+              padding: '10px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              textAlign: 'center'
             }}
-            className="prompt-ai-form"
           >
-            <div className="prompt-ai-input-wrap">
-              <Sparkles size={15} color="#8b5cf6" style={{ flexShrink: 0 }} />
-              <input
-                type="text"
-                className="prompt-ai-input"
-                placeholder={
-                  isIncome
-                    ? 'Gõ chi tiết (VD: tiền thưởng dự án, bạn trả nợ)...'
-                    : 'Gõ chi tiết (VD: bún bò huế 45k, cafe Highlands)...'
-                }
-                value={promptAiText}
-                onChange={(e) => setPromptAiText(e.target.value)}
-                disabled={isPromptAiAnalyzing}
-              />
-              <button
-                type="submit"
-                className="prompt-ai-btn"
-                disabled={isPromptAiAnalyzing || !promptAiText.trim()}
-              >
-                {isPromptAiAnalyzing ? 'Đang lọc...' : '✨ AI Phân loại'}
-              </button>
-            </div>
-          </form>
-
-          <button className="prompt-skip-btn" onClick={onClose}>
             Bỏ qua / Bổ sung sau trên trang Web ➔
           </button>
         </div>

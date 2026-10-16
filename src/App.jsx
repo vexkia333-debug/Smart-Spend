@@ -19,6 +19,8 @@ import ReconcileModal from './components/modals/ReconcileModal.jsx';
 import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
 import PinLockScreen from './components/modals/PinLockScreen.jsx';
+import EditTransactionModal from './components/modals/EditTransactionModal.jsx';
+import DailyReportModal from './components/modals/DailyReportModal.jsx';
 
 // Utilities & Constants
 import {
@@ -80,6 +82,10 @@ export default function App() {
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [txSortOrder, setTxSortOrder] = useState('DESC'); // 'DESC' = Gần nhất lên đầu
+
+  // Transaction Editing & Daily Report States
+  const [editingTx, setEditingTx] = useState(null);
+  const [showDailyReportModal, setShowDailyReportModal] = useState(false);
 
   // Category & Rule Form States
   const [newKeyword, setNewKeyword] = useState('');
@@ -413,6 +419,28 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Lưu thay đổi sau khi chỉnh sửa giao dịch
+  const handleSaveEditTx = async (txId, updatePayload) => {
+    const res = await authFetch(`/api/transactions/${txId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giao dịch');
+    await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats()]);
+  };
+
+  // Xóa giao dịch
+  const handleDeleteTx = async (txId) => {
+    const res = await authFetch(`/api/transactions/${txId}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Lỗi khi xóa giao dịch');
+    await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats()]);
   };
 
   // Mô phỏng bắn thông báo
@@ -951,6 +979,7 @@ export default function App() {
             );
             setShowReconcileModal(true);
           }}
+          onOpenDailyReport={() => setShowDailyReportModal(true)}
         />
       )}
 
@@ -967,6 +996,7 @@ export default function App() {
           setTxSortOrder={setTxSortOrder}
           onOpenResetModal={() => setShowResetModal(true)}
           onNavigateToPending={() => setActiveTab('pending')}
+          onEditTransaction={(tx) => setEditingTx(tx)}
           timeFilter={timeFilter}
           timeLabel={timeLabel}
           onOpenCustomDateModal={() => {
@@ -1000,9 +1030,6 @@ export default function App() {
       {/* Modals & Overlays */}
       <LivePromptOverlay
         livePrompt={livePrompt}
-        categories={categories}
-        accounts={accounts}
-        handleCategorize={handleCategorize}
         promptAiText={promptAiText}
         setPromptAiText={setPromptAiText}
         isPromptAiAnalyzing={isPromptAiAnalyzing}
@@ -1011,6 +1038,23 @@ export default function App() {
           setLivePrompt(null);
           setActiveTab('pending');
         }}
+      />
+
+      <EditTransactionModal
+        isOpen={Boolean(editingTx)}
+        tx={editingTx}
+        categories={categories}
+        accounts={accounts}
+        onClose={() => setEditingTx(null)}
+        onSave={handleSaveEditTx}
+        onDelete={handleDeleteTx}
+      />
+
+      <DailyReportModal
+        isOpen={showDailyReportModal}
+        onClose={() => setShowDailyReportModal(false)}
+        authFetch={authFetch}
+        onEditTransaction={(tx) => setEditingTx(tx)}
       />
 
       <ResetTransactionsModal

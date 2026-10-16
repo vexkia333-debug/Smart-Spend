@@ -1,14 +1,54 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { LineChart as LineChartIcon } from 'lucide-react';
+import { LineChart as LineChartIcon, Layers, Wallet } from 'lucide-react';
 import { formatCompactVND, parseTxDate } from '../../utils/formatters.js';
 
-export default function InteractiveTrendLineChart({ transactions = [], formatVND }) {
+const ACCOUNT_COLORS = {
+  acc_primary: '#10b981', // Agribank - Emerald
+  acc_tcb: '#ef4444',     // Techcombank - Red
+  acc_vtm: '#f43f5e',     // Viettel Money - Rose
+  acc_cash: '#f59e0b'     // Ví Tiền Mặt - Amber
+};
+
+export default function InteractiveTrendLineChart({ transactions = [], accounts = [], formatVND }) {
   const [rangeDays, setRangeDays] = useState(14); // 7 | 14 | 30
+  const [chartMode, setChartMode] = useState('ACCOUNTS'); // 'ACCOUNTS' | 'OVERVIEW'
+
+  // Series visibility for Overview mode
   const [showIncome, setShowIncome] = useState(true);
   const [showExpense, setShowExpense] = useState(true);
   const [showNet, setShowNet] = useState(false);
+
+  // Active accounts for Accounts mode
+  const defaultAccountIds = useMemo(() => {
+    return accounts.length > 0 ? accounts.map((a) => a.id) : ['acc_primary', 'acc_tcb', 'acc_vtm', 'acc_cash'];
+  }, [accounts]);
+
+  const [activeAccountIds, setActiveAccountIds] = useState(defaultAccountIds);
+
+  const toggleAccount = (accId) => {
+    setActiveAccountIds((prev) => {
+      if (prev.includes(accId)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        return prev.filter((id) => id !== accId);
+      } else {
+        return [...prev, accId];
+      }
+    });
+  };
+
   const [hoverIndex, setHoverIndex] = useState(null);
   const svgRef = useRef(null);
+
+  // Target accounts list
+  const displayAccounts = useMemo(() => {
+    if (accounts.length > 0) return accounts;
+    return [
+      { id: 'acc_primary', name: 'Agribank Plus', bank_code: 'AGRI', color: '#10b981' },
+      { id: 'acc_tcb', name: 'Techcombank', bank_code: 'TCB', color: '#ef4444' },
+      { id: 'acc_vtm', name: 'Viettel Money', bank_code: 'VTM', color: '#f43f5e' },
+      { id: 'acc_cash', name: 'Ví Tiền Mặt', bank_code: 'CASH', color: '#f59e0b' }
+    ];
+  }, [accounts]);
 
   // Parse transactions into daily data points
   const dailyPoints = useMemo(() => {
@@ -28,6 +68,12 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
       let income = 0;
       let expense = 0;
 
+      // Account-specific activity on this day
+      const accFlows = {};
+      displayAccounts.forEach((acc) => {
+        accFlows[acc.id] = { income: 0, expense: 0, net: 0, total: 0 };
+      });
+
       transactions.forEach((t) => {
         if (t.status === 'IGNORED') return;
         const txDate = parseTxDate(t.transaction_time, t.created_at);
@@ -35,10 +81,23 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
         const txKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
 
         if (txKey === dateKey) {
+          const amt = t.amount || 0;
           if (t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_')) {
-            income += t.amount || 0;
+            income += amt;
           } else if (t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_')) {
-            expense += t.amount || 0;
+            expense += amt;
+          }
+
+          const targetAccId = t.account_id || 'acc_primary';
+          if (accFlows[targetAccId]) {
+            if (t.type === 'INCOME') {
+              accFlows[targetAccId].income += amt;
+              accFlows[targetAccId].net += amt;
+            } else {
+              accFlows[targetAccId].expense += amt;
+              accFlows[targetAccId].net -= amt;
+            }
+            accFlows[targetAccId].total += amt;
           }
         }
       });
@@ -50,18 +109,18 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
         income,
         expense,
         net: income - expense,
+        accFlows,
         isToday: i === 0
       });
     }
 
     return points;
-  }, [transactions, rangeDays]);
+  }, [transactions, rangeDays, displayAccounts]);
 
   // Aggregate stats
   const totalIncomeInRange = dailyPoints.reduce((s, p) => s + p.income, 0);
   const totalExpenseInRange = dailyPoints.reduce((s, p) => s + p.expense, 0);
   const avgExpensePerDay = Math.round(totalExpenseInRange / rangeDays);
-  const maxExpensePoint = [...dailyPoints].sort((a, b) => b.expense - a.expense)[0];
 
   // SVG Geometry Constants
   const width = 800;
@@ -74,33 +133,54 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
   const chartH = height - padTop - padBottom;
   const bottomY = padTop + chartH;
 
-  // Maximum value for scaling
-  const allValues = dailyPoints.flatMap((p) => [
-    showIncome ? p.income : 0,
-    showExpense ? p.expense : 0,
-    showNet ? Math.max(0, p.net) : 0
-  ]);
-  const rawMax = Math.max(...allValues, 100000);
+  // Scaling maximum
+  const rawMax = useMemo(() => {
+    if (chartMode === 'OVERVIEW') {
+      const vals = dailyPoints.flatMap((p) => [
+        showIncome ? p.income : 0,
+        showExpense ? p.expense : 0,
+        showNet ? Math.max(0, p.net) : 0
+      ]);
+      return Math.max(...vals, 100000);
+    } else {
+      const vals = dailyPoints.flatMap((p) =>
+        activeAccountIds.map((accId) => p.accFlows[accId]?.total || 0)
+      );
+      return Math.max(...vals, 100000);
+    }
+  }, [chartMode, dailyPoints, showIncome, showExpense, showNet, activeAccountIds]);
+
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
   const stepVal = magnitude >= 100000 ? magnitude / 2 : 50000;
   const maxVal = Math.ceil(rawMax / stepVal) * stepVal || 100000;
 
   // Coordinate mapping
-  const coords = dailyPoints.map((p, i) => {
-    const x = padLeft + (i / Math.max(1, dailyPoints.length - 1)) * chartW;
-    const yIncome = bottomY - Math.min(chartH, (p.income / maxVal) * chartH);
-    const yExpense = bottomY - Math.min(chartH, (p.expense / maxVal) * chartH);
-    const yNet = bottomY - Math.min(chartH, (Math.max(0, p.net) / maxVal) * chartH);
-    return { ...p, x, yIncome, yExpense, yNet, index: i };
-  });
+  const coords = useMemo(() => {
+    return dailyPoints.map((p, i) => {
+      const x = padLeft + (i / Math.max(1, dailyPoints.length - 1)) * chartW;
+      const yIncome = bottomY - Math.min(chartH, (p.income / maxVal) * chartH);
+      const yExpense = bottomY - Math.min(chartH, (p.expense / maxVal) * chartH);
+      const yNet = bottomY - Math.min(chartH, (Math.max(0, p.net) / maxVal) * chartH);
 
-  // Smooth Bezier spline path generator
-  const getSplinePath = (pts, keyY) => {
+      const accY = {};
+      displayAccounts.forEach((acc) => {
+        const val = p.accFlows[acc.id]?.total || 0;
+        accY[acc.id] = bottomY - Math.min(chartH, (val / maxVal) * chartH);
+      });
+
+      return { ...p, x, yIncome, yExpense, yNet, accY, index: i };
+    });
+  }, [dailyPoints, maxVal, chartW, chartH, bottomY, padLeft, displayAccounts]);
+
+  // Spline generator
+  const getSplinePath = (pts, keyY, isAcc = false, accId = null) => {
     if (pts.length === 0) return '';
-    if (pts.length === 1) return `M ${pts[0].x} ${pts[0][keyY]}`;
-    if (pts.length === 2) return `M ${pts[0].x} ${pts[0][keyY]} L ${pts[1].x} ${pts[1][keyY]}`;
+    const getY = (pt) => (isAcc ? pt.accY[accId] : pt[keyY]);
 
-    let path = `M ${pts[0].x} ${pts[0][keyY]}`;
+    if (pts.length === 1) return `M ${pts[0].x} ${getY(pts[0])}`;
+    if (pts.length === 2) return `M ${pts[0].x} ${getY(pts[0])} L ${pts[1].x} ${getY(pts[1])}`;
+
+    let path = `M ${pts[0].x} ${getY(pts[0])}`;
     const tension = 0.2;
 
     for (let i = 0; i < pts.length - 1; i++) {
@@ -109,24 +189,27 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
       const p2 = pts[i + 1];
       const p3 = pts[i + 2] || p2;
 
-      const cp1x = p1.x + (p2.x - p0.x) * tension;
-      const cp1y = p1[keyY] + (p2[keyY] - p0[keyY]) * tension;
-      const cp2x = p2.x - (p3.x - p1.x) * tension;
-      const cp2y = p2[keyY] + (p3[keyY] - p1[keyY]) * tension;
+      const y0 = getY(p0);
+      const y1 = getY(p1);
+      const y2 = getY(p2);
+      const y3 = getY(p3);
 
-      path += ` C ${cp1x.toFixed(1)} ${Math.min(bottomY, Math.max(padTop - 5, cp1y)).toFixed(1)}, ${cp2x.toFixed(1)} ${Math.min(bottomY, Math.max(padTop - 5, cp2y)).toFixed(1)}, ${p2.x.toFixed(1)} ${p2[keyY].toFixed(1)}`;
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = y1 + (y2 - y0) * tension;
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = y2 + (y3 - y1) * tension;
+
+      path += ` C ${cp1x.toFixed(1)} ${Math.min(bottomY, Math.max(padTop - 5, cp1y)).toFixed(1)}, ${cp2x.toFixed(1)} ${Math.min(bottomY, Math.max(padTop - 5, cp2y)).toFixed(1)}, ${p2.x.toFixed(1)} ${y2.toFixed(1)}`;
     }
     return path;
   };
 
   const incomeLinePath = getSplinePath(coords, 'yIncome');
   const expenseLinePath = getSplinePath(coords, 'yExpense');
-  const netLinePath = getSplinePath(coords, 'yNet');
-
   const incomeAreaPath = coords.length > 0 ? `${incomeLinePath} L ${coords[coords.length - 1].x} ${bottomY} L ${coords[0].x} ${bottomY} Z` : '';
   const expenseAreaPath = coords.length > 0 ? `${expenseLinePath} L ${coords[coords.length - 1].x} ${bottomY} L ${coords[0].x} ${bottomY} Z` : '';
 
-  // Mouse hover event handler
+  // Mouse hover event
   const handleMouseMove = (e) => {
     if (!svgRef.current || coords.length === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
@@ -165,47 +248,51 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-                Biểu đồ xu hướng Thu - Chi & Dòng tiền
+                {chartMode === 'ACCOUNTS'
+                  ? 'Biểu đồ biến động từng Nguồn tiền'
+                  : 'Biểu đồ xu hướng Thu - Chi & Dòng tiền'}
               </h4>
               <span className="trend-range-indicator">
                 {rangeDays} ngày qua
               </span>
             </div>
             <p className="card-sub-desc">
-              Theo dõi biến động dòng tiền thực tế theo từng ngày và phát hiện các điểm chi tiêu đột biến
+              {chartMode === 'ACCOUNTS'
+                ? 'Theo dõi đường cong biến động riêng biệt của Agribank, Techcombank, Viettel Money và Tiền mặt'
+                : 'Theo dõi biến động dòng tiền thực tế theo từng ngày và phát hiện các điểm chi tiêu đột biến'}
             </p>
           </div>
         </div>
 
-        {/* Range Selector & Series Toggles */}
-        <div className="trend-line-controls">
-          <div className="trend-series-toggles">
+        {/* View Mode & Range Controls */}
+        <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          {/* Chuyển đổi giữa 2 chế độ biểu đồ */}
+          <div
+            style={{
+              display: 'flex',
+              background: 'rgba(255, 255, 255, 0.06)',
+              borderRadius: '10px',
+              padding: '2px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
             <button
               type="button"
-              className={`series-toggle-pill income ${showIncome ? 'active' : ''}`}
-              onClick={() => setShowIncome(!showIncome)}
-              title="Bật/Tắt đường Thu nhập"
+              className={`range-tab-btn ${chartMode === 'ACCOUNTS' ? 'active' : ''}`}
+              onClick={() => setChartMode('ACCOUNTS')}
+              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              <span className="series-dot income"></span>
-              Thu nhập
+              <Wallet size={13} />
+              Theo Nguồn tiền
             </button>
             <button
               type="button"
-              className={`series-toggle-pill expense ${showExpense ? 'active' : ''}`}
-              onClick={() => setShowExpense(!showExpense)}
-              title="Bật/Tắt đường Chi tiêu"
+              className={`range-tab-btn ${chartMode === 'OVERVIEW' ? 'active' : ''}`}
+              onClick={() => setChartMode('OVERVIEW')}
+              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              <span className="series-dot expense"></span>
-              Chi tiêu
-            </button>
-            <button
-              type="button"
-              className={`series-toggle-pill net ${showNet ? 'active' : ''}`}
-              onClick={() => setShowNet(!showNet)}
-              title="Bật/Tắt đường Tích lũy ròng"
-            >
-              <span className="series-dot net"></span>
-              Dòng tiền ròng
+              <Layers size={13} />
+              Tổng quan Thu/Chi
             </button>
           </div>
 
@@ -235,28 +322,125 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
         </div>
       </div>
 
+      {/* Series Toggles Bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 16px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+        }}
+      >
+        {chartMode === 'ACCOUNTS' ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Bật/Tắt nguồn tiền:
+            </span>
+            {displayAccounts.map((acc) => {
+              const isActive = activeAccountIds.includes(acc.id);
+              const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => toggleAccount(acc.id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    border: `1px solid ${isActive ? color : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: isActive ? `${color}22` : 'rgba(255, 255, 255, 0.03)',
+                    color: isActive ? '#fff' : 'var(--text-dim)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: color,
+                      opacity: isActive ? 1 : 0.4
+                    }}
+                  ></span>
+                  <span>{acc.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="trend-series-toggles">
+            <button
+              type="button"
+              className={`series-toggle-pill income ${showIncome ? 'active' : ''}`}
+              onClick={() => setShowIncome(!showIncome)}
+              title="Bật/Tắt đường Thu nhập"
+            >
+              <span className="series-dot income"></span>
+              Thu nhập
+            </button>
+            <button
+              type="button"
+              className={`series-toggle-pill expense ${showExpense ? 'active' : ''}`}
+              onClick={() => setShowExpense(!showExpense)}
+              title="Bật/Tắt đường Chi tiêu"
+            >
+              <span className="series-dot expense"></span>
+              Chi tiêu
+            </button>
+            <button
+              type="button"
+              className={`series-toggle-pill net ${showNet ? 'active' : ''}`}
+              onClick={() => setShowNet(!showNet)}
+              title="Bật/Tắt đường Tích lũy ròng"
+            >
+              <span className="series-dot net"></span>
+              Dòng tiền ròng
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Summary Stats Bar */}
       <div className="trend-line-summary-bar">
-        <div className="summary-pill-item">
-          <span className="summary-pill-label">Tổng thu {rangeDays} ngày:</span>
-          <span className="summary-pill-val income">+{formatVND(totalIncomeInRange)}</span>
-        </div>
-        <div className="summary-pill-divider"></div>
-        <div className="summary-pill-item">
-          <span className="summary-pill-label">Tổng chi {rangeDays} ngày:</span>
-          <span className="summary-pill-val expense">-{formatVND(totalExpenseInRange)}</span>
-        </div>
-        <div className="summary-pill-divider"></div>
-        <div className="summary-pill-item">
-          <span className="summary-pill-label">Trung bình mỗi ngày:</span>
-          <span className="summary-pill-val">~{formatVND(avgExpensePerDay)}/ngày</span>
-        </div>
-        {maxExpensePoint && maxExpensePoint.expense > 0 && (
+        {chartMode === 'ACCOUNTS' ? (
+          displayAccounts.map((acc, idx) => {
+            const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+            const totalVol = dailyPoints.reduce((s, p) => s + (p.accFlows[acc.id]?.total || 0), 0);
+            return (
+              <React.Fragment key={acc.id}>
+                {idx > 0 && <div className="summary-pill-divider"></div>}
+                <div className="summary-pill-item">
+                  <span className="summary-pill-label" style={{ color }}>● {acc.name}:</span>
+                  <span className="summary-pill-val" style={{ color }}>{formatVND(totalVol)}</span>
+                </div>
+              </React.Fragment>
+            );
+          })
+        ) : (
           <>
+            <div className="summary-pill-item">
+              <span className="summary-pill-label">Tổng thu {rangeDays} ngày:</span>
+              <span className="summary-pill-val income">+{formatVND(totalIncomeInRange)}</span>
+            </div>
             <div className="summary-pill-divider"></div>
             <div className="summary-pill-item">
-              <span className="summary-pill-label">Đỉnh chi ({maxExpensePoint.label}):</span>
-              <span className="summary-pill-val highlight">{formatVND(maxExpensePoint.expense)}</span>
+              <span className="summary-pill-label">Tổng chi {rangeDays} ngày:</span>
+              <span className="summary-pill-val expense">-{formatVND(totalExpenseInRange)}</span>
+            </div>
+            <div className="summary-pill-divider"></div>
+            <div className="summary-pill-item">
+              <span className="summary-pill-label">Trung bình mỗi ngày:</span>
+              <span className="summary-pill-val">~{formatVND(avgExpensePerDay)}/ngày</span>
             </div>
           </>
         )}
@@ -323,137 +507,149 @@ export default function InteractiveTrendLineChart({ transactions = [], formatVND
             );
           })}
 
-          {/* Area Fills */}
-          {showIncome && incomeAreaPath && (
-            <path d={incomeAreaPath} fill="url(#incomeAreaGrad)" />
-          )}
-          {showExpense && expenseAreaPath && (
-            <path d={expenseAreaPath} fill="url(#expenseAreaGrad)" />
-          )}
-
-          {/* Smooth Lines */}
-          {showIncome && (
-            <path
-              d={incomeLinePath}
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="chart-spline-line income"
-            />
-          )}
-
-          {showExpense && (
-            <path
-              d={expenseLinePath}
-              fill="none"
-              stroke="#f43f5e"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="chart-spline-line expense"
-            />
-          )}
-
-          {showNet && (
-            <path
-              d={netLinePath}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="2.5"
-              strokeDasharray="5 4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="chart-spline-line net"
-            />
+          {/* OVERVIEW MODE RENDERING */}
+          {chartMode === 'OVERVIEW' && (
+            <>
+              {showIncome && incomeAreaPath && (
+                <path d={incomeAreaPath} fill="url(#incomeAreaGrad)" />
+              )}
+              {showExpense && expenseAreaPath && (
+                <path d={expenseAreaPath} fill="url(#expenseAreaGrad)" />
+              )}
+              {showIncome && (
+                <path
+                  d={incomeLinePath}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+              {showExpense && (
+                <path
+                  d={expenseLinePath}
+                  fill="none"
+                  stroke="#f43f5e"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+            </>
           )}
 
-          {/* Data Points */}
-          {coords.map((c) => {
-            const isHovered = activePoint && activePoint.index === c.index;
-            if (!isHovered && c.expense === 0 && c.income === 0) return null;
-
-            return (
-              <g key={c.dateKey}>
-                {showIncome && (c.income > 0 || isHovered) && (
-                  <circle
-                    cx={c.x}
-                    cy={c.yIncome}
-                    r={isHovered ? 6 : 3.5}
-                    fill="#10b981"
-                    stroke="#ffffff"
-                    strokeWidth={isHovered ? 2.5 : 1.5}
-                    className="chart-data-dot"
-                    style={{
-                      filter: isHovered ? 'drop-shadow(0 0 8px #10b981)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
+          {/* ACCOUNTS MODE RENDERING */}
+          {chartMode === 'ACCOUNTS' && (
+            <>
+              {displayAccounts.map((acc) => {
+                if (!activeAccountIds.includes(acc.id)) return null;
+                const path = getSplinePath(coords, null, true, acc.id);
+                const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+                return (
+                  <path
+                    key={acc.id}
+                    d={path}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                )}
-                {showExpense && (c.expense > 0 || isHovered) && (
-                  <circle
-                    cx={c.x}
-                    cy={c.yExpense}
-                    r={isHovered ? 6 : 3.5}
-                    fill="#f43f5e"
-                    stroke="#ffffff"
-                    strokeWidth={isHovered ? 2.5 : 1.5}
-                    className="chart-data-dot"
-                    style={{
-                      filter: isHovered ? 'drop-shadow(0 0 8px #f43f5e)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  />
-                )}
-              </g>
-            );
-          })}
+                );
+              })}
+            </>
+          )}
 
-          {/* Active Guide Crosshair Line */}
+          {/* Vertical inspection crosshair on hover */}
           {activePoint && (
-            <line
-              x1={activePoint.x}
-              y1={padTop}
-              x2={activePoint.x}
-              y2={bottomY}
-              className="chart-crosshair-line"
-            />
+            <g>
+              <line
+                x1={activePoint.x}
+                y1={padTop}
+                x2={activePoint.x}
+                y2={bottomY}
+                stroke="rgba(255, 255, 255, 0.35)"
+                strokeWidth="1.5"
+                strokeDasharray="4 3"
+              />
+
+              {chartMode === 'OVERVIEW' ? (
+                <>
+                  {showIncome && activePoint.income > 0 && (
+                    <circle cx={activePoint.x} cy={activePoint.yIncome} r="5" fill="#10b981" stroke="#fff" strokeWidth="2" />
+                  )}
+                  {showExpense && activePoint.expense > 0 && (
+                    <circle cx={activePoint.x} cy={activePoint.yExpense} r="5" fill="#f43f5e" stroke="#fff" strokeWidth="2" />
+                  )}
+                </>
+              ) : (
+                displayAccounts.map((acc) => {
+                  if (!activeAccountIds.includes(acc.id)) return null;
+                  const y = activePoint.accY[acc.id];
+                  const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+                  return (
+                    <circle key={acc.id} cx={activePoint.x} cy={y} r="5" fill={color} stroke="#fff" strokeWidth="2" />
+                  );
+                })
+              )}
+            </g>
           )}
         </svg>
 
-        {/* Floating Tooltip HTML Overlay */}
+        {/* Hover Tooltip Overlay */}
         {activePoint && (
           <div
-            className="line-chart-floating-tooltip"
+            className="chart-hover-tooltip"
             style={{
+              position: 'absolute',
               left: `${(activePoint.x / width) * 100}%`,
-              transform: `translate(${activePoint.x > width * 0.72 ? '-105%' : activePoint.x < width * 0.28 ? '5%' : '-50%'}, -100%)`
+              top: '12px',
+              transform: activePoint.x > width * 0.65 ? 'translateX(-105%)' : 'translateX(10px)',
+              pointerEvents: 'none',
+              zIndex: 10
             }}
           >
-            <div className="tooltip-header-date">
-              {activePoint.fullDate} {activePoint.isToday && <span className="today-tag">Hôm nay</span>}
-            </div>
-            <div className="tooltip-metrics-list">
-              {showIncome && (
-                <div className="tooltip-metric-row income">
-                  <span>● Thu nhập:</span>
-                  <strong>+{formatVND(activePoint.income)}</strong>
-                </div>
-              )}
-              {showExpense && (
-                <div className="tooltip-metric-row expense">
-                  <span>● Chi tiêu:</span>
-                  <strong>-{formatVND(activePoint.expense)}</strong>
-                </div>
-              )}
-              <div className="tooltip-metric-row net">
-                <span>● Ròng ngày:</span>
-                <strong>
-                  {activePoint.net >= 0 ? '+' : ''}{formatVND(activePoint.net)}
-                </strong>
+            <div className="tooltip-header">{activePoint.fullDate}</div>
+
+            {chartMode === 'ACCOUNTS' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                {displayAccounts.map((acc) => {
+                  if (!activeAccountIds.includes(acc.id)) return null;
+                  const flow = activePoint.accFlows[acc.id];
+                  const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+                  return (
+                    <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '0.8rem' }}>
+                      <span style={{ color }}>● {acc.name}:</span>
+                      <strong style={{ color: flow.total > 0 ? '#fff' : 'var(--text-muted)' }}>
+                        {formatVND(flow.total)}
+                      </strong>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            ) : (
+              <>
+                {showIncome && (
+                  <div className="tooltip-row income">
+                    <span>Thu:</span>
+                    <strong>+{formatVND(activePoint.income)}</strong>
+                  </div>
+                )}
+                {showExpense && (
+                  <div className="tooltip-row expense">
+                    <span>Chi:</span>
+                    <strong>-{formatVND(activePoint.expense)}</strong>
+                  </div>
+                )}
+                {showNet && (
+                  <div className="tooltip-row net">
+                    <span>Dòng tiền:</span>
+                    <strong>{activePoint.net >= 0 ? '+' : ''}{formatVND(activePoint.net)}</strong>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

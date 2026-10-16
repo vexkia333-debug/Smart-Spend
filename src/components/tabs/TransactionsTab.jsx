@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Trash2, Calendar, X } from 'lucide-react';
+import { Layers, Trash2, Calendar, X, Edit3 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect.jsx';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
@@ -15,6 +15,7 @@ export default function TransactionsTab({
   setTxSortOrder,
   onOpenResetModal,
   onNavigateToPending,
+  onEditTransaction,
   timeFilter = 'ALL',
   timeLabel = 'Toàn bộ thời gian',
   onOpenCustomDateModal,
@@ -232,17 +233,39 @@ export default function TransactionsTab({
                       )}
                     </td>
                     <td>
-                      {tx.status === 'PENDING' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button
-                          className="btn btn-primary"
-                          style={{ padding: '4px 10px', fontSize: '0.78rem' }}
-                          onClick={onNavigateToPending}
+                          type="button"
+                          className="btn"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '0.75rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            color: '#38bdf8',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => onEditTransaction && onEditTransaction(tx)}
+                          title="Chỉnh sửa giao dịch này"
                         >
-                          Phân loại ngay
+                          <Edit3 size={12} />
+                          Sửa
                         </button>
-                      ) : (
-                        <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>Đã xử lý</span>
-                      )}
+
+                        {tx.status === 'PENDING' && (
+                          <button
+                            className="btn btn-primary"
+                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            onClick={onNavigateToPending}
+                          >
+                            Phân loại
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -304,17 +327,38 @@ export default function TransactionsTab({
                     )}
                   </div>
 
-                  {tx.status === 'PENDING' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button
-                      className="btn btn-primary"
-                      style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                      onClick={onNavigateToPending}
+                      type="button"
+                      className="btn"
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '0.78rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(56, 189, 248, 0.14)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        color: '#38bdf8',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => onEditTransaction && onEditTransaction(tx)}
                     >
-                      Phân loại ngay
+                      <Edit3 size={13} />
+                      Sửa
                     </button>
-                  ) : (
-                    <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>Đã xử lý</span>
-                  )}
+
+                    {tx.status === 'PENDING' && (
+                      <button
+                        className="btn btn-primary"
+                        style={{ padding: '5px 12px', fontSize: '0.78rem' }}
+                        onClick={onNavigateToPending}
+                      >
+                        Phân loại
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
