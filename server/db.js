@@ -176,7 +176,7 @@ async function seedInitialData() {
   await client.batch([
     {
       sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['acc_tcb', 'Techcombank', 'TCB', 'Tài khoản Techcombank', 0, 'VND', 'credit-card', '#dc2626']
+      args: ['acc_tcb', 'Techcombank', 'TCB', '1912200512', 0, 'VND', 'credit-card', '#dc2626']
     },
     {
       sql: `INSERT OR IGNORE INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

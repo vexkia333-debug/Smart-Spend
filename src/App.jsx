@@ -336,12 +336,16 @@ export default function App() {
         ? `${trimmed} (khoản tiền: ${amount}đ)`
         : trimmed;
 
+      const targetTx = transactions.find(t => t.id === txId) || livePrompt?.transaction;
+
       const res = await authFetch('/api/ai/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: promptText,
-          autoSave: false
+          autoSave: false,
+          expectedType: targetTx?.type,
+          originalAmount: amount
         })
       });
       const data = await res.json();
@@ -349,6 +353,21 @@ export default function App() {
 
       if (data.createdCategory) {
         await fetchCategories();
+      }
+
+      // Xử lý tách giao dịch nhiều phần (Split transaction)
+      if (data.isSplit && data.splits && data.splits.length > 1) {
+        const splitRes = await authFetch(`/api/transactions/${txId}/split`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ splits: data.splits })
+        });
+        if (!splitRes.ok) {
+          const splitErr = await splitRes.json();
+          throw new Error(splitErr.error || 'Lỗi tách giao dịch');
+        }
+        await Promise.all([fetchTransactions(), fetchStats(), fetchAccounts()]);
+        return true;
       }
 
       await handleCategorize(

@@ -250,6 +250,16 @@ app.patch('/api/transactions/:id/categorize', async (req, res) => {
       return res.status(404).json({ error: 'Giao dịch không tồn tại' });
     }
 
+    // Bảo vệ loại danh mục: Không để giao dịch INCOME nhận danh mục EXPENSE (ví dụ cat_loan, cat_other_expense)
+    if (existingTx.type === 'INCOME' && category_id) {
+      const selectedCat = await db.prepare('SELECT type FROM categories WHERE id = ?').get(category_id);
+      if (selectedCat && selectedCat.type === 'EXPENSE') {
+        if (category_id === 'cat_loan') category_id = 'cat_debt_collect';
+        else if (category_id === 'cat_other_expense') category_id = 'cat_debt_collect';
+        else category_id = 'cat_debt_collect';
+      }
+    }
+
     // Nếu chọn danh mục "Rút tiền vào Ví (ATM)" và trước đó chưa phải
     if (category_id === 'cat_transfer_cash' && existingTx.category_id !== 'cat_transfer_cash') {
       let cashAcc = await db.prepare("SELECT id FROM accounts WHERE id = 'acc_cash'").get();
@@ -356,6 +366,73 @@ app.patch('/api/transactions/:id/categorize', async (req, res) => {
     broadcastEvent('TRANSACTION_UPDATED', updatedTx);
 
     res.json({ success: true, transaction: updatedTx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3.1. Tách một giao dịch thành nhiều khoản (Split Transaction)
+app.post('/api/transactions/:id/split', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { splits } = req.body;
+
+    if (!splits || !Array.isArray(splits) || splits.length < 2) {
+      return res.status(400).json({ error: 'Cần ít nhất 2 phần để tách giao dịch' });
+    }
+
+    const tx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    if (!tx) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại' });
+    }
+
+    // Phần đầu tiên cập nhật trực tiếp vào giao dịch hiện tại
+    const first = splits[0];
+    await db.prepare(`
+      UPDATE transactions 
+      SET amount = ?, category_id = ?, description = ?, status = 'CONFIRMED', updated_at = datetime('now', 'localtime')
+      WHERE id = ?
+    `).run(first.amount, first.categoryId || first.category_id || tx.category_id, first.description || tx.description, id);
+
+    const updatedFirst = await db.prepare(`
+      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+      FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = ?
+    `).get(id);
+    broadcastEvent('TRANSACTION_UPDATED', updatedFirst);
+
+    const createdSplits = [];
+    // Các phần tiếp theo tạo giao dịch mới
+    for (let i = 1; i < splits.length; i++) {
+      const s = splits[i];
+      const newTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
+      await db.prepare(`
+        INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?, ?, datetime('now', 'localtime'))
+      `).run(
+        newTxId,
+        tx.account_id,
+        s.categoryId || s.category_id || 'cat_loan',
+        s.amount,
+        tx.type,
+        s.description || 'Khoản tách',
+        tx.raw_content,
+        tx.bank_name,
+        tx.transaction_time,
+        tx.confirmed_at || tx.transaction_time,
+        tx.created_at
+      );
+
+      const createdTx = await db.prepare(`
+        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+        FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.id = ?
+      `).get(newTxId);
+      broadcastEvent('TRANSACTION_CREATED', createdTx);
+      createdSplits.push(createdTx);
+    }
+
+    res.json({ success: true, updated: updatedFirst, created: createdSplits });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -517,6 +594,16 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
 
     // 1. Phân tích nội dung qua Parser
     const parsed = parseBankNotification(content, effectiveTitle);
+
+    if (!parsed || parsed.isIgnored) {
+      console.log('[Webhook Ignored]', parsed ? parsed.reason : 'null');
+      return res.json({
+        success: true,
+        ignored: true,
+        reason: parsed ? parsed.reason : 'UNRECOGNIZED_NOTIFICATION'
+      });
+    }
+
     const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
 
     // Ghi nhật ký webhook vào notification_logs
@@ -536,28 +623,33 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     }
 
     // 2. Tìm tài khoản tương ứng theo bankCode
-    let account = await db.prepare('SELECT id FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
+    let account = await db.prepare('SELECT id, name, account_number FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
     if (!account) {
       if (parsed.bankCode === 'AGRI') {
         await db.prepare(`
           INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
-          VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')
+          VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '7901205294347', 0, 'VND', 'landmark', '#059669')
         `).run();
-        account = { id: 'acc_primary' };
+        account = { id: 'acc_primary', name: 'Agribank Plus', account_number: '7901205294347' };
       } else if (parsed.bankCode === 'TCB') {
         await db.prepare(`
           INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
-          VALUES ('acc_tcb', 'Techcombank', 'TCB', 'Tài khoản Techcombank', 0, 'VND', 'credit-card', '#dc2626')
+          VALUES ('acc_tcb', 'Techcombank', 'TCB', '1912200512', 0, 'VND', 'credit-card', '#dc2626')
         `).run();
-        account = { id: 'acc_tcb' };
+        account = { id: 'acc_tcb', name: 'Techcombank', account_number: '1912200512' };
       } else if (parsed.bankCode === 'VTM') {
         await db.prepare(`
           INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
           VALUES ('acc_vtm', 'Viettel Money', 'VTM', 'Ví Viettel Money', 0, 'VND', 'smartphone', '#e11d48')
         `).run();
-        account = { id: 'acc_vtm' };
+        account = { id: 'acc_vtm', name: 'Viettel Money', account_number: 'Ví Viettel Money' };
       } else {
-        account = await db.prepare('SELECT id FROM accounts LIMIT 1').get();
+        if (/viettel|vtmoney|viettelpay/i.test(content)) {
+          account = await db.prepare("SELECT id, name, account_number FROM accounts WHERE bank_code = 'VTM'").get();
+        }
+        if (!account) {
+          account = await db.prepare("SELECT id, name, account_number FROM accounts WHERE id != 'acc_cash' ORDER BY id ASC LIMIT 1").get();
+        }
       }
     }
 
@@ -648,31 +740,56 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     } else {
       // Nếu chưa có giao dịch đối ứng, phân tích sâu người gửi và người nhận
       const transferInfo = extractTransferInfo(content, parsed.description);
-      const allOtherAccounts = await db.prepare('SELECT id, name, bank_code FROM accounts WHERE id != ?').all(targetAccountId);
+      const allOtherAccounts = await db.prepare('SELECT id, name, bank_code, account_number FROM accounts WHERE id != ?').all(targetAccountId);
       const descUpper = (parsed.description || '').toUpperCase();
       const rawUpper = (content || '').toUpperCase();
       const combinedUpper = `${descUpper} ${rawUpper}`;
 
-      // Người gửi là chính chủ VU HA KIEN khi và chỉ khi:
-      // 1. Phân tích thấy người gửi là VU HA KIEN
-      // 2. Hoặc chuỗi có "VU HA KIEN chuyen" VÀ KHÔNG có người khác đứng tên người gửi (như DOAN TRANG THAO)
       const isOwnerSender = transferInfo.isSenderOwner;
       const isExplicitThirdParty = Boolean(transferInfo.senderName && !transferInfo.isSenderOwner);
 
-      // Chỉ xét chuyển khoản nội bộ nếu:
-      // - Giao dịch là CHI (EXPENSE) sang tài khoản khác của chính mình
-      // - Hoặc giao dịch là THU (INCOME) nhưng người gửi PHẢI là chính mình (KHÔNG PHẢI người thứ 3)
-      const isPotentialInternal = parsed.type === 'EXPENSE' || (parsed.type === 'INCOME' && isOwnerSender && !isExplicitThirdParty);
+      // Cú pháp chuyển liên ngân hàng (ví dụ Agribank / Napas: 140421-TCB;19028817209389;VU HA KIEN chuyen tien)
+      const interbankMatch = content.match(/(?:[0-9]+-)?([A-Z]+);([0-9]{6,20});/i);
+      const interbankDestStk = interbankMatch ? interbankMatch[2] : null;
 
+      let isPotentialInternal = false;
       let mentionedAcc = null;
-      if (isPotentialInternal) {
-        mentionedAcc = allOtherAccounts.find(a => 
-          combinedUpper.includes(a.bank_code) || 
-          combinedUpper.includes(a.name.toUpperCase()) ||
-          (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
-          (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
-          (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
-        );
+
+      if (parsed.type === 'EXPENSE') {
+        // Khi chi tiền ra:
+        if (interbankDestStk) {
+          // Có số tài khoản đích: Chỉ coi là nội bộ nếu số tài khoản thụ hưởng trùng với STK tài khoản của bạn trong hệ thống!
+          mentionedAcc = allOtherAccounts.find(a => a.account_number && a.account_number.length > 5 && a.account_number === interbankDestStk);
+          if (mentionedAcc) {
+            isPotentialInternal = true;
+          }
+        } else {
+          // Không có STK đích: Chỉ coi là nội bộ nếu có từ khóa rõ ràng ("nội bộ", "sang tcb của tôi", "vào ví", "tự chuyển")
+          const hasExplicitSelfTransfer = /nội bộ|noi bo|sang tai khoan|cua toi|chuyen sang vi|tu chuyen/i.test(combinedUpper);
+          if (hasExplicitSelfTransfer) {
+            mentionedAcc = allOtherAccounts.find(a => 
+              combinedUpper.includes(a.name.toUpperCase()) ||
+              (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
+              (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
+              (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
+            );
+            if (mentionedAcc) {
+              isPotentialInternal = true;
+            }
+          }
+        }
+      } else if (parsed.type === 'INCOME') {
+        // Khi tiền vào: Chỉ nội bộ nếu người gửi là chính chủ và không phải người thứ 3
+        if (isOwnerSender && !isExplicitThirdParty) {
+          isPotentialInternal = true;
+          mentionedAcc = allOtherAccounts.find(a => 
+            combinedUpper.includes(a.bank_code) || 
+            combinedUpper.includes(a.name.toUpperCase()) ||
+            (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
+            (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
+            (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
+          );
+        }
       }
 
       if (mentionedAcc && isPotentialInternal) {
@@ -749,8 +866,15 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
           categoryId = suggested.categoryId;
           status = 'PENDING';
         } else if (parsed.type === 'INCOME') {
-          categoryId = 'cat_other_income';
+          categoryId = 'cat_debt_collect';
           status = 'PENDING';
+        }
+
+        // Đảm bảo giao dịch INCOME không bao giờ nhận danh mục EXPENSE (như cat_loan hay cat_other_expense)
+        if (parsed.type === 'INCOME' && categoryId) {
+          if (categoryId === 'cat_loan' || categoryId === 'cat_other_expense') {
+            categoryId = 'cat_debt_collect';
+          }
         }
       }
     }
@@ -1094,7 +1218,7 @@ app.post('/api/settings/gemini-key', async (req, res) => {
 // 11. Phân tích chi tiêu thông minh bằng Gemini Flash
 app.post('/api/ai/parse-transaction', async (req, res) => {
   try {
-    const { text, autoSave = true, forceCash = false } = req.body;
+    const { text, autoSave = true, forceCash = false, expectedType, originalAmount } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Vui lòng nhập nội dung chi tiêu' });
     }
@@ -1105,7 +1229,80 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
     }
 
     const categories = await db.prepare('SELECT id, name, type FROM categories').all();
-    const parsed = await parseTransactionWithGemini(text, categories, apiKey, { forceCash });
+    const parsed = await parseTransactionWithGemini(text, categories, apiKey, { forceCash, expectedType, originalAmount });
+
+    // Hỗ trợ tự động tách giao dịch (Split transaction)
+    if (parsed.isSplit && parsed.splits && parsed.splits.length > 1) {
+      if (!autoSave) {
+        return res.json({
+          success: true,
+          isSplit: true,
+          splits: parsed.splits,
+          parsed
+        });
+      }
+
+      const now = new Date();
+      const curDay = String(now.getDate()).padStart(2, '0');
+      const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const curYear = String(now.getFullYear());
+      const curHour = String(now.getHours()).padStart(2, '0');
+      const curMin = String(now.getMinutes()).padStart(2, '0');
+      const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+
+      let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
+      let cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+      let targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
+
+      const createdSplits = [];
+      let totalAmount = 0;
+
+      for (let i = 0; i < parsed.splits.length; i++) {
+        const s = parsed.splits[i];
+        totalAmount += s.amount;
+        const sTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
+        await db.prepare(`
+          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+        `).run(
+          sTxId,
+          targetAcc.id,
+          s.categoryId || 'cat_food',
+          s.amount,
+          parsed.type,
+          s.description || 'Khoản chi',
+          text,
+          targetAcc.name,
+          txTime,
+          txTime
+        );
+
+        const createdItem = await db.prepare(`
+          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
+          WHERE t.id = ?
+        `).get(sTxId);
+        broadcastEvent('TRANSACTION_CREATED', createdItem);
+        createdSplits.push(createdItem);
+      }
+
+      if (parsed.type === 'EXPENSE') {
+        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(totalAmount, targetAcc.id);
+      } else {
+        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(totalAmount, targetAcc.id);
+      }
+
+      broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAcc.id));
+
+      return res.json({
+        success: true,
+        isSplit: true,
+        splits: createdSplits,
+        parsed,
+        transaction: createdSplits[0],
+        message: `✨ Đã tự động tách thành ${createdSplits.length} khoản chi và ghi nhận thành công!`
+      });
+    }
 
     // Tự động tạo danh mục mới nếu AI phát hiện chi tiêu thuộc lĩnh vực mới
     let createdCategory = null;

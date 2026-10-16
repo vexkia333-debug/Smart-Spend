@@ -18,15 +18,18 @@ export function parseBankNotification(text, title = '') {
   let description = cleanText;
   let balance = null;
 
-  // 1. Nhận diện Ngân hàng: Ưu tiên App Title / Header nếu có để tránh nhầm lẫn khi nội dung chứa tên ngân hàng đối tác
+  // 1. Nhận diện Ngân hàng: Ưu tiên App Title / Header nếu có
   const titleUpper = (title || '').toUpperCase();
-  const contentUpper = cleanText.toUpperCase();
+
+  // Loại bỏ phần ND giao dịch khi nhận diện ngân hàng chủ quản để không bị nhầm ngân hàng thụ hưởng (ví dụ: 140421-TCB;... trong tin của Agribank)
+  const cleanWithoutND = cleanText.replace(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+[\s\S]*?(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i, ' ');
+  const contentUpper = cleanWithoutND.toUpperCase();
 
   function detectBank(str) {
     if (!str) return null;
-    if (str.includes('VIETTEL') || str.includes('VTMONEY') || str.includes('VIETTELPAY')) return { bankName: 'Viettel Money', bankCode: 'VTM' };
-    if (str.includes('TCB') || str.includes('TECHCOMBANK')) return { bankName: 'Techcombank', bankCode: 'TCB' };
-    if (str.includes('AGRIBANK') || str.includes('AGRI') || str.includes('VARB')) return { bankName: 'Agribank', bankCode: 'AGRI' };
+    if (str.includes('7901205294347') || str.includes('AGRIBANK') || str.includes('AGRI') || str.includes('VARB')) return { bankName: 'Agribank', bankCode: 'AGRI' };
+    if (str.includes('1912200512') || str.includes('TECHCOMBANK') || str.includes('TCB')) return { bankName: 'Techcombank', bankCode: 'TCB' };
+    if (str.includes('VIETTEL') || str.includes('VTMONEY') || str.includes('VIETTELPAY') || str.includes('GD THANH TOAN') || str.includes('NAPVIETTELPAY') || (str.includes('SỐ TIỀN GIAO DỊCH') && str.includes('THỜI GIAN:'))) return { bankName: 'Viettel Money', bankCode: 'VTM' };
     if (str.includes('VCB') || str.includes('VIETCOMBANK')) return { bankName: 'Vietcombank', bankCode: 'VCB' };
     if (str.includes('MBBANK') || str.includes('MB BANK') || str.includes('MB ')) return { bankName: 'MB Bank', bankCode: 'MB' };
     if (str.includes('MOMO')) return { bankName: 'MoMo', bankCode: 'MOMO' };
@@ -48,6 +51,20 @@ export function parseBankNotification(text, title = '') {
     bankCode = detectedFromContent.bankCode;
   }
 
+  // Lọc thông báo tiếp thị, ưu đãi, quảng cáo không phải biến động số dư thực tế
+  const isMarketing = /bảo hiểm|bao hiem|vay online|duyệt vay|duyet vay|hạn mức|han muc|mở ví trả sau|mo vi tra sau|ví trả sau|vi tra sau|nhận ngay voucher|nhan ngay voucher|tiêu trước trả sau|tieu truoc tra sau|quà tặng|qua tang|khuyến mãi|khuyen mai|ưu đãi|uu dai|voucher|hoàn tiền tới|hoan tien toi|trúng thưởng|trung thuong|quay số|quay so|tri ân|tri an|mở thẻ|mo the|tiết kiệm chỉ từ|tiet kiem|lãi suất|lai suat|đăng ký ngay|dang ky ngay|click để|click de|xem ngay|sắp hết hạn|sap het han/i.test(cleanText);
+  const hasSignedAmount = /(?:GD[:\s]*)?[+-]\s*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText) ||
+    /(?:số tiền giao dịch|so tien gd)[:\s]*[+-]?\s*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText);
+  const hasBalanceSignature = /(?:số dư|so du|sd)(?:\s+(?:cuối|cuoi|hien tai|hiện tại))?[:\s]*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText);
+
+  if (isMarketing && (!hasSignedAmount || !hasBalanceSignature || /ví trả sau|vi tra sau|duyệt vay|duyet vay|bảo hiểm|bao hiem/i.test(cleanText))) {
+    return {
+      isIgnored: true,
+      reason: 'PROMOTIONAL_NOTIFICATION',
+      rawContent: cleanText
+    };
+  }
+
   // 2. Xác định Loại: Thu (+) hay Chi (-)
   if (/[+]|nhan duoc|cong tien|nhan tien|chuyen vao|tang|nap thanh cong|nap vao|nhan tu/i.test(cleanText)) {
     type = 'INCOME';
@@ -61,7 +78,7 @@ export function parseBankNotification(text, title = '') {
 
   // Ưu tiên 2: Đi liền với đơn vị tiền tệ VND/VNĐ/d/đ
   if (!amountMatch) {
-    amountMatch = cleanText.match(/(?:thanh toan|chuyen|nhan|so tien|tien)?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12})\s*(?:VND|VNĐ|d|đ|\$)/i);
+    amountMatch = cleanText.match(/(?:thanh toan|chuyen|nhan|so tien|tiền|giao dịch)?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12})\s*(?:VND|VNĐ|d|đ|\$)/i);
   }
 
   // Ưu tiên 3: Định dạng có dấu chấm/phẩy hàng nghìn
@@ -72,6 +89,15 @@ export function parseBankNotification(text, title = '') {
   if (amountMatch && amountMatch[1]) {
     const normalized = amountMatch[1].replace(/[+-.,\s]/g, '');
     amount = parseFloat(normalized);
+  }
+
+  // Nếu không tìm thấy số tiền hợp lệ, bỏ qua để không tạo giao dịch ảo
+  if (!amount || amount <= 0) {
+    return {
+      isIgnored: true,
+      reason: 'NO_TRANSACTION_AMOUNT',
+      rawContent: cleanText
+    };
   }
 
   // 4. Bóc tách số dư cuối / số dư khả dụng (ví dụ: "Số dư cuối: 355,788VND" hoặc "SD: 18,365,000 VND")
@@ -95,7 +121,7 @@ export function parseBankNotification(text, title = '') {
   return {
     bankName,
     bankCode,
-    amount: amount || 50000,
+    amount,
     type,
     balance,
     description: description || 'Giao dịch qua ngân hàng',
@@ -159,6 +185,25 @@ export function extractTransferInfo(content, rawDesc = '') {
  */
 export function matchSuggestedCategory(description, rules = []) {
   const descUpper = (description || '').toUpperCase();
+
+  // Bồi thường / phạt / đền mất vé xe -> Chi tiêu khác (KHÔNG PHẢI di chuyển xăng xe)
+  if (/ĐỀN|PHẠT|BỒI THƯỜNG|MẤT VÉ|LÀM MẤT|ĐỀN BÙ|DEN MAT VE/i.test(descUpper)) {
+    return {
+      categoryId: 'cat_other_expense',
+      isAutoApply: true,
+      keyword: 'Bồi thường / Đền bù'
+    };
+  }
+
+  // Nhận diện tự động các mẫu câu về trả nợ / trả tiền ăn / hoàn tiền
+  if (/TRA TIEN|TRA NO|TRA HO|TIEN AN|TIEN COM|TRA LAI|REIMBURSE|HOAN TIEN|THAO TRA|CHUYEN TIEN QR|\bTRA\b/i.test(descUpper)) {
+    return {
+      categoryId: 'cat_debt_collect',
+      isAutoApply: true,
+      keyword: 'Trả tiền / Thu nợ'
+    };
+  }
+
   for (const rule of rules) {
     if (descUpper.includes(rule.keyword.toUpperCase())) {
       return {
@@ -167,15 +212,6 @@ export function matchSuggestedCategory(description, rules = []) {
         keyword: rule.keyword
       };
     }
-  }
-
-  // Nhận diện tự động các mẫu câu phổ biến về trả nợ / trả tiền ăn
-  if (/TRA TIEN|TRA NO|TRA HO|TIEN AN|TIEN COM|TRA LAI|REIMBURSE|HOAN TIEN|THAO TRA|\bTRA\b/i.test(descUpper)) {
-    return {
-      categoryId: 'cat_debt_collect',
-      isAutoApply: true,
-      keyword: 'Trả tiền / Thu nợ'
-    };
   }
 
   return null;
