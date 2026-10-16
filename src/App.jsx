@@ -922,6 +922,7 @@ export default function App() {
         onResetTimeFilter={handleResetTimeFilter}
         showCustomDatePopover={showCustomDatePopover}
         setShowCustomDatePopover={setShowCustomDatePopover}
+        onOpenDailyReport={() => setShowDailyReportModal(true)}
       />
 
       {/* Navigation Tabs */}
@@ -931,15 +932,17 @@ export default function App() {
         pendingCount={displayedPendingCount}
       />
 
-      {/* Stats Summary Top Row */}
-      <StatsSummary
-        totalBalance={stats.totalBalance}
-        accountsCount={accounts.length}
-        displayedExpense={displayedExpense}
-        displayedIncome={displayedIncome}
-        displayedPendingCount={displayedPendingCount}
-        timeLabel={timeLabel}
-      />
+      {/* 4 khối Thống kê tổng số dư khả dụng, tổng chi tiêu, tổng thu nhập, chờ phân loại - CHỈ hiển thị ở menu Cần bổ sung */}
+      {activeTab === 'pending' && (
+        <StatsSummary
+          totalBalance={stats.totalBalance}
+          accountsCount={accounts.length}
+          displayedExpense={displayedExpense}
+          displayedIncome={displayedIncome}
+          displayedPendingCount={displayedPendingCount}
+          timeLabel={timeLabel}
+        />
+      )}
 
       {/* Main Tab Views */}
       {activeTab === 'pending' && (

@@ -2,40 +2,60 @@ import React from 'react';
 import { Bell, PieChart as PieChartIcon, Layers, Tag } from 'lucide-react';
 
 export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0 }) {
+  const tabs = [
+    {
+      id: 'pending',
+      label: 'Cần bổ sung',
+      shortLabel: 'Cần xử lý',
+      icon: Bell,
+      badge: pendingCount
+    },
+    {
+      id: 'dashboard',
+      label: 'Tổng quan & Phân tích',
+      shortLabel: 'Tổng quan',
+      icon: PieChartIcon
+    },
+    {
+      id: 'transactions',
+      label: 'Toàn bộ giao dịch',
+      shortLabel: 'Giao dịch',
+      icon: Layers
+    },
+    {
+      id: 'rules',
+      label: 'Danh mục & Quy tắc',
+      shortLabel: 'Quy tắc',
+      icon: Tag
+    }
+  ];
+
   return (
-    <nav className="nav-tabs">
-      <button
-        className={`nav-tab-btn ${activeTab === 'pending' ? 'active' : ''}`}
-        onClick={() => setActiveTab('pending')}
-      >
-        <Bell size={18} />
-        Cần bổ sung
-        {pendingCount > 0 && <span className="nav-badge">{pendingCount}</span>}
-      </button>
-
-      <button
-        className={`nav-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-        onClick={() => setActiveTab('dashboard')}
-      >
-        <PieChartIcon size={18} />
-        Tổng quan & Phân tích
-      </button>
-
-      <button
-        className={`nav-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
-        onClick={() => setActiveTab('transactions')}
-      >
-        <Layers size={18} />
-        Toàn bộ giao dịch
-      </button>
-
-      <button
-        className={`nav-tab-btn ${activeTab === 'rules' ? 'active' : ''}`}
-        onClick={() => setActiveTab('rules')}
-      >
-        <Tag size={18} />
-        Danh mục & Quy tắc
-      </button>
+    <nav className="nav-tabs" aria-label="Menu điều hướng ứng dụng">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            className={`nav-tab-btn ${isActive ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <div className="nav-tab-icon-wrapper">
+              <Icon size={18} />
+              {tab.badge > 0 && (
+                <span className="nav-badge-mobile">{tab.badge > 99 ? '99+' : tab.badge}</span>
+              )}
+            </div>
+            <span className="nav-tab-text-full">{tab.label}</span>
+            <span className="nav-tab-text-short">{tab.shortLabel}</span>
+            {tab.badge > 0 && (
+              <span className="nav-badge nav-badge-desktop">{tab.badge}</span>
+            )}
+          </button>
+        );
+      })}
     </nav>
   );
 }

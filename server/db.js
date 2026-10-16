@@ -164,6 +164,15 @@ export async function initDatabase() {
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
+    -- Bảng Đăng ký nhận thông báo đẩy ứng dụng (Web Push Subscriptions)
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      endpoint TEXT UNIQUE NOT NULL,
+      subscription_json TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
     -- Indexes hỗ trợ tìm kiếm nhanh
     CREATE INDEX IF NOT EXISTS idx_trans_status ON transactions(status);
     CREATE INDEX IF NOT EXISTS idx_trans_time ON transactions(transaction_time);

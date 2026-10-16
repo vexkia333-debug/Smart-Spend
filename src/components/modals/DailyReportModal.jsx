@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Sparkles, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, 
   RefreshCw, Calendar, Edit3, ArrowRight, Bell, Smartphone, Send, 
-  Check, Copy, Clock, Settings, ExternalLink, ShieldCheck
+  Check, Clock, ShieldCheck, CheckCircle
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
+import { checkPushSubscriptionStatus, subscribeUserToPush, testPushNotification } from '../../utils/pushNotifications.js';
 
 export default function DailyReportModal({
   isOpen,
@@ -25,19 +26,18 @@ export default function DailyReportModal({
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
 
+  // Trạng thái thông báo ứng dụng Web Push
+  const [pushStatus, setPushStatus] = useState({ supported: true, isSubscribed: false, permission: 'default' });
+  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
+
   // Cấu hình thông báo 10h (22:00)
   const [autoSettings, setAutoSettings] = useState({
     time: '22:00',
-    enabled: true,
-    ntfyTopic: 'smartspend_kienvu',
-    macrodroidWebhookUrl: '',
-    telegramBotToken: '',
-    telegramChatId: ''
+    enabled: true
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isTestingPush, setIsTestingPush] = useState(false);
   const [testResult, setTestResult] = useState(null);
-  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const fetchReport = async (dateToFetch, forceRefresh = false) => {
     setIsLoading(true);
@@ -64,7 +64,10 @@ export default function DailyReportModal({
       if (res.ok) {
         const data = await res.json();
         if (data.settings) {
-          setAutoSettings(data.settings);
+          setAutoSettings({
+            time: data.settings.time || '22:00',
+            enabled: data.settings.enabled !== false
+          });
         }
       }
     } catch (e) {
@@ -72,12 +75,39 @@ export default function DailyReportModal({
     }
   };
 
+  const loadPushStatus = async () => {
+    try {
+      const status = await checkPushSubscriptionStatus();
+      setPushStatus(status);
+    } catch (e) {
+      console.warn('Lỗi kiểm tra push status:', e);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchReport(selectedDate);
       fetchAutoSettings();
+      loadPushStatus();
     }
   }, [isOpen, selectedDate]);
+
+  const handleEnablePush = async () => {
+    setIsSubscribingPush(true);
+    setTestResult(null);
+    try {
+      await subscribeUserToPush(authFetch);
+      await loadPushStatus();
+      setTestResult({
+        success: true,
+        message: '🎉 Đã bật thông báo ứng dụng thành công! Điện thoại của bạn sẽ tự động nhận thông báo báo cáo lúc ' + autoSettings.time + ' mỗi ngày.'
+      });
+    } catch (err) {
+      setTestResult({ success: false, message: '❌ ' + err.message });
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
@@ -89,7 +119,7 @@ export default function DailyReportModal({
       });
       const data = await res.json();
       if (res.ok) {
-        setTestResult({ success: true, message: 'Đã lưu cấu hình thông báo 10h thành công!' });
+        setTestResult({ success: true, message: 'Đã lưu cấu hình tự động lúc ' + autoSettings.time + ' thành công!' });
         setTimeout(() => setTestResult(null), 4000);
       } else {
         throw new Error(data.error || 'Lỗi lưu cấu hình');
@@ -101,28 +131,26 @@ export default function DailyReportModal({
     }
   };
 
-  const handleTestPush = async () => {
+  const handleTestAppPush = async () => {
     setIsTestingPush(true);
     setTestResult(null);
     try {
+      // 1. Thử gửi Web Push qua server
+      await testPushNotification(authFetch);
+
+      // 2. Kích hoạt logic thông báo báo cáo
       const res = await authFetch('/api/ai/daily-report/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate })
       });
       const data = await res.json();
+
       if (res.ok) {
-        const r = data.report?.dispatchResult?.results;
-        const channels = [];
-        if (r?.ntfy) channels.push('ntfy');
-        if (r?.macrodroid) channels.push('MacroDroid');
-        if (r?.telegram) channels.push('Telegram');
-        
         setTestResult({
           success: true,
-          message: `✅ Đã bắn thông báo thành công! ${channels.length > 0 ? `(Kênh: ${channels.join(', ')})` : '(Đã ghi nhật ký thông báo)'}`
+          message: '🔔 Đã bắn thông báo ứng dụng trực tiếp tới thiết bị của bạn thành công!'
         });
-        // Cập nhật lại dữ liệu hiển thị
         fetchReport(selectedDate);
       } else {
         throw new Error(data.error || 'Lỗi gửi thông báo');
@@ -131,17 +159,6 @@ export default function DailyReportModal({
       setTestResult({ success: false, message: '❌ Lỗi: ' + err.message });
     } finally {
       setIsTestingPush(false);
-    }
-  };
-
-  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://smartspend.onrender.com';
-  const macrodroidApiUrl = `${originUrl}/api/ai/daily-report/notification?format=text`;
-
-  const handleCopyUrl = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(macrodroidApiUrl);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 3000);
     }
   };
 
@@ -201,11 +218,11 @@ export default function DailyReportModal({
                     gap: '4px'
                   }}
                 >
-                  <Clock size={11} /> 22:00 Tự động
+                  <Clock size={11} /> {autoSettings.time} Tự động
                 </span>
               </div>
               <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo điện thoại
+                AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo ứng dụng
               </p>
             </div>
           </div>
@@ -276,7 +293,7 @@ export default function DailyReportModal({
             }}
           >
             <Bell size={15} />
-            Cấu hình bắn thông báo 10h ({autoSettings.time})
+            Thông báo ứng dụng 10h ({autoSettings.time})
           </button>
         </div>
 
@@ -635,68 +652,88 @@ export default function DailyReportModal({
           </div>
         )}
 
-        {/* TAB 2: CẤU HÌNH THÔNG BÁO TỰ ĐỘNG 10H */}
+        {/* TAB 2: THÔNG BÁO ỨNG DỤNG TRỰC TIẾP (WEB PUSH) */}
         {activeTab === 'automation' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            {/* Banner trạng thái */}
+            {/* Card Trạng thái Thông báo Ứng dụng */}
             <div
               style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(56, 189, 248, 0.15))',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                borderRadius: '16px',
-                padding: '16px',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(56, 189, 248, 0.18))',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: '18px',
+                padding: '20px',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '12px'
+                flexDirection: 'column',
+                gap: '14px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    background: 'rgba(16, 185, 129, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <Bell size={20} color="#34d399" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '14px',
+                      background: 'rgba(16, 185, 129, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Smartphone size={22} color="#34d399" />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      Thông báo ứng dụng trực tiếp
+                      {pushStatus.isSubscribed ? (
+                        <span style={{ background: '#10b981', color: '#000', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
+                          ĐÃ BẬT
+                        </span>
+                      ) : (
+                        <span style={{ background: '#f59e0b', color: '#000', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: '9999px' }}>
+                          CHƯA BẬT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                      App tự động đẩy thông báo thẳng về điện thoại của bạn, không cần cài đặt MacroDroid hay công cụ ngoài!
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>
-                    Tự động phân tích & Bắn thông báo lúc {autoSettings.time}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                    Hệ thống sẽ tự động rà soát ngày và gửi tóm tắt tới điện thoại của bạn
-                  </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {!pushStatus.isSubscribed ? (
+                    <button
+                      type="button"
+                      onClick={handleEnablePush}
+                      disabled={isSubscribingPush}
+                      className="btn btn-primary"
+                      style={{ padding: '9px 18px', fontSize: '0.84rem' }}
+                    >
+                      {isSubscribingPush ? <RefreshCw size={14} className="spin" /> : <Bell size={14} />}
+                      Bật thông báo trên máy này (1-chạm)
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleTestAppPush}
+                      disabled={isTestingPush}
+                      className="btn btn-primary"
+                      style={{ padding: '9px 18px', fontSize: '0.84rem' }}
+                    >
+                      {isTestingPush ? <RefreshCw size={14} className="spin" /> : <Send size={14} />}
+                      Bắn thử thông báo ngay
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleTestPush}
-                disabled={isTestingPush}
-                style={{
-                  background: 'linear-gradient(135deg, #10b981, #059669)',
-                  border: 'none',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  padding: '8px 16px',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {isTestingPush ? <RefreshCw size={14} className="spin" /> : <Send size={14} />}
-                Bắn thử thông báo ngay
-              </button>
+              {pushStatus.isSubscribed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 12px', borderRadius: '8px' }}>
+                  <CheckCircle size={16} />
+                  Thiết bị này đã sẵn sàng nhận thông báo tài chính cuối ngày lúc {autoSettings.time}.
+                </div>
+              )}
             </div>
 
             {/* Test Result Message */}
@@ -715,24 +752,24 @@ export default function DailyReportModal({
               </div>
             )}
 
-            {/* Mục Cấu hình giờ */}
+            {/* Mục Cấu hình giờ kích hoạt */}
             <div
               style={{
                 background: 'rgba(255, 255, 255, 0.03)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '16px',
-                padding: '16px'
+                padding: '18px'
               }}
             >
-              <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Clock size={16} color="#38bdf8" />
                 Cài đặt giờ tự động kích hoạt
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'center' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    Giờ phân tích báo cáo:
+                    Giờ phân tích và bắn thông báo:
                   </label>
                   <input
                     type="time"
@@ -753,7 +790,7 @@ export default function DailyReportModal({
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '10px' }}>
                   <input
                     type="checkbox"
                     id="enable_daily_report"
@@ -762,148 +799,12 @@ export default function DailyReportModal({
                     style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
                   />
                   <label htmlFor="enable_daily_report" style={{ fontSize: '0.85rem', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                    Kích hoạt báo cáo tự động mỗi ngày
+                    Tự động phân tích & gửi báo cáo mỗi ngày
                   </label>
                 </div>
               </div>
-            </div>
 
-            {/* Hướng dẫn tích hợp MacroDroid trên điện thoại */}
-            <div
-              style={{
-                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                borderRadius: '16px',
-                padding: '18px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <Smartphone size={18} color="#38bdf8" />
-                <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#38bdf8' }}>
-                  Thiết lập MacroDroid trên điện thoại (Hiện thông báo trực tiếp trên máy)
-                </span>
-              </div>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', margin: '0 0 12px 0', lineHeight: '1.5' }}>
-                Vì MacroDroid đã chạy sẵn trên điện thoại của bạn, hãy tạo 1 Macro nhỏ để tự động gọi lấy báo cáo và hiện thông báo lên màn hình khóa lúc 22:00:
-              </p>
-
-              {/* URL Box */}
-              <div
-                style={{
-                  background: '#0f172a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                  marginBottom: '14px'
-                }}
-              >
-                <div style={{ fontSize: '0.78rem', color: '#38bdf8', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                  {macrodroidApiUrl}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyUrl}
-                  style={{
-                    background: copiedUrl ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    color: copiedUrl ? '#34d399' : '#fff',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    flexShrink: 0
-                  }}
-                >
-                  {copiedUrl ? <Check size={13} /> : <Copy size={13} />}
-                  {copiedUrl ? 'Đã sao chép' : 'Sao chép'}
-                </button>
-              </div>
-
-              {/* 3 Steps */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem', color: '#e2e8f0' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ background: '#38bdf8', color: '#000', fontWeight: 800, width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>1</span>
-                  <span><strong>Kích hoạt (Trigger):</strong> Thêm <i>Thời gian trong ngày (Time of Day)</i> ➔ Chọn <strong>{autoSettings.time}</strong></span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ background: '#38bdf8', color: '#000', fontWeight: 800, width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>2</span>
-                  <span><strong>Hành động 1 (Action):</strong> Thêm <i>Yêu cầu HTTP (HTTP Request)</i> ➔ GET ➔ Dán link trên ➔ Lưu phản hồi vào biến chuỗi <code>bao_cao_ngay</code></span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ background: '#38bdf8', color: '#000', fontWeight: 800, width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.75rem' }}>3</span>
-                  <span><strong>Hành động 2 (Action):</strong> Thêm <i>Hiển thị thông báo (Display Notification)</i> ➔ Tiêu đề: <code>SmartSpend Báo Cáo 22h</code> ➔ Nội dung: <code>[v=bao_cao_ngay]</code></span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tùy chọn Push khác: ntfy và Telegram */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '16px',
-                padding: '16px'
-              }}
-            >
-              <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.88rem', marginBottom: '10px' }}>
-                Kênh đẩy bổ sung (Tùy chọn)
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    ntfy.sh Topic (Bắn trực tiếp qua app ntfy miễn phí):
-                  </label>
-                  <input
-                    type="text"
-                    value={autoSettings.ntfyTopic}
-                    onChange={(e) => setAutoSettings({ ...autoSettings, ntfyTopic: e.target.value })}
-                    placeholder="smartspend_kienvu"
-                    style={{
-                      width: '100%',
-                      background: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '0.85rem'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    Tải app ntfy trên CH Play và đăng ký kênh: <code>https://ntfy.sh/{autoSettings.ntfyTopic || 'smartspend_kienvu'}</code>
-                  </span>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    MacroDroid Webhook URL (Nếu điện thoại có bật Webhook Trigger):
-                  </label>
-                  <input
-                    type="text"
-                    value={autoSettings.macrodroidWebhookUrl}
-                    onChange={(e) => setAutoSettings({ ...autoSettings, macrodroidWebhookUrl: e.target.value })}
-                    placeholder="https://trigger.macrodroid.com/..."
-                    style={{
-                      width: '100%',
-                      background: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '0.85rem'
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: '14px', textAlign: 'right' }}>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
                 <button
                   type="button"
                   onClick={handleSaveSettings}
@@ -911,9 +812,31 @@ export default function DailyReportModal({
                   className="btn btn-primary"
                   style={{ padding: '8px 20px', fontSize: '0.84rem' }}
                 >
-                  {isSavingSettings ? 'Đang lưu...' : 'Lưu cấu hình'}
+                  {isSavingSettings ? 'Đang lưu...' : 'Lưu cài đặt'}
                 </button>
               </div>
+            </div>
+
+            {/* Hướng dẫn ngắn gọn */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '16px',
+                padding: '16px',
+                fontSize: '0.82rem',
+                color: 'var(--text-dim)',
+                lineHeight: '1.6'
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#fff', marginBottom: '6px' }}>
+                💡 Cách thông báo hoạt động trên điện thoại của bạn:
+              </div>
+              <ul style={{ paddingLeft: '18px', margin: 0 }}>
+                <li>Nhấn <strong>"Bật thông báo trên máy này"</strong> và chọn <strong>"Cho phép (Allow)"</strong> khi trình duyệt hỏi.</li>
+                <li>Đúng <strong>{autoSettings.time}</strong> mỗi tối, hệ thống sẽ tự động gửi thông báo tóm tắt chi tiêu thẳng lên thanh thông báo của máy.</li>
+                <li>Bạn có thể thêm trang web vào màn hình chính (PWA - <i>Add to Home Screen</i>) để dùng như một ứng dụng cài đặt thực thụ.</li>
+              </ul>
             </div>
           </div>
         )}

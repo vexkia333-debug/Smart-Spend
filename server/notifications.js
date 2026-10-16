@@ -1,6 +1,100 @@
 /**
- * Module gửi thông báo tự động tới điện thoại (MacroDroid, ntfy.sh, Telegram, SSE)
+ * Module gửi thông báo ứng dụng (Web Push Notification trực tiếp tới điện thoại, ntfy.sh, MacroDroid, Telegram)
  */
+import webpush from 'web-push';
+import { db } from './db.js';
+
+let isVapidConfigured = false;
+let cachedVapidPublicKey = null;
+
+/**
+ * Khởi tạo VAPID keys cho Web Push
+ */
+export async function initWebPush() {
+  if (isVapidConfigured && cachedVapidPublicKey) {
+    return cachedVapidPublicKey;
+  }
+
+  try {
+    const pubRow = await db.prepare("SELECT value FROM settings WHERE key = 'vapid_public_key'").get();
+    const privRow = await db.prepare("SELECT value FROM settings WHERE key = 'vapid_private_key'").get();
+
+    let pubKey = pubRow?.value;
+    let privKey = privRow?.value;
+
+    if (!pubKey || !privKey) {
+      console.log('[WebPush] Chưa có VAPID Keys, đang tạo mới...');
+      const keys = webpush.generateVAPIDKeys();
+      pubKey = keys.publicKey;
+      privKey = keys.privateKey;
+
+      await db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('vapid_public_key', ?, datetime('now', 'localtime')) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(pubKey);
+      await db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('vapid_private_key', ?, datetime('now', 'localtime')) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(privKey);
+    }
+
+    webpush.setVapidDetails(
+      'mailto:admin@smartspend.app',
+      pubKey,
+      privKey
+    );
+
+    cachedVapidPublicKey = pubKey;
+    isVapidConfigured = true;
+    console.log('[WebPush] Đã khởi tạo VAPID thành công');
+    return cachedVapidPublicKey;
+  } catch (err) {
+    console.error('[WebPush] Lỗi khởi tạo VAPID:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Bắn thông báo đẩy trực tiếp tới tất cả thiết bị đã đăng ký nhận thông báo
+ */
+export async function sendWebPushNotificationToAll({ title, body, url = '/' }) {
+  await initWebPush();
+  if (!isVapidConfigured) {
+    return { sentCount: 0, failedCount: 0 };
+  }
+
+  let subs = [];
+  try {
+    subs = await db.prepare('SELECT id, subscription_json FROM push_subscriptions').all();
+  } catch (e) {
+    console.warn('[WebPush] Không đọc được push_subscriptions:', e.message);
+    return { sentCount: 0, failedCount: 0 };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    icon: '/pwa-192x192.png',
+    badge: '/favicon.png',
+    url
+  });
+
+  for (const subRow of subs) {
+    try {
+      const sub = JSON.parse(subRow.subscription_json);
+      await webpush.sendNotification(sub, payload);
+      sentCount++;
+    } catch (err) {
+      failedCount++;
+      // Nếu subscription hết hạn hoặc bị hủy (410 Gone / 404 Not Found), tự động dọn dẹp khỏi DB
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        try {
+          await db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(subRow.id);
+        } catch { }
+      }
+      console.warn(`[WebPush Send Error] Sub ID ${subRow.id}:`, err.message);
+    }
+  }
+
+  return { sentCount, failedCount };
+}
 
 export function formatDailyReportNotification(report) {
   const {
@@ -65,15 +159,31 @@ export function formatDailyReportNotification(report) {
 export async function dispatchDailyReportNotification(report, settings = {}) {
   const formatted = formatDailyReportNotification(report);
   const results = {
+    webPush: false,
+    webPushCount: 0,
     ntfy: false,
     macrodroid: false,
     telegram: false,
     errors: []
   };
 
-  // 1. Gửi qua ntfy.sh (Miễn phí, tức thì về điện thoại Android/iOS qua app ntfy)
-  const ntfyTopic = settings.ntfy_topic || process.env.NTFY_TOPIC || 'smartspend_kienvu';
-  if (ntfyTopic) {
+  // 1. Gửi qua Web Push Ứng dụng TRỰC TIẾP đến điện thoại người dùng (Không cần công cụ bên thứ 3)
+  try {
+    const webPushRes = await sendWebPushNotificationToAll({
+      title: formatted.title,
+      body: formatted.shortText,
+      url: '/'
+    });
+    results.webPush = webPushRes.sentCount > 0;
+    results.webPushCount = webPushRes.sentCount;
+  } catch (err) {
+    console.warn('[WebPush dispatch error]:', err.message);
+    results.errors.push(`WebPush: ${err.message}`);
+  }
+
+  // 2. Gửi qua ntfy.sh (Nếu có cấu hình)
+  const ntfyTopic = settings.ntfy_topic || process.env.NTFY_TOPIC;
+  if (ntfyTopic && ntfyTopic !== 'smartspend_kienvu') {
     try {
       const ntfyRes = await fetch(`https://ntfy.sh/${encodeURIComponent(ntfyTopic)}`, {
         method: 'POST',
@@ -87,16 +197,14 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
       });
       results.ntfy = ntfyRes.ok;
     } catch (err) {
-      console.warn('[Notification ntfy error]:', err.message);
       results.errors.push(`ntfy: ${err.message}`);
     }
   }
 
-  // 2. Gửi qua MacroDroid Webhook (Nếu người dùng nhập Webhook URL của MacroDroid trên điện thoại)
+  // 3. Gửi qua MacroDroid Webhook (Nếu người dùng cài đặt)
   const macrodroidUrl = settings.macrodroid_webhook_url || process.env.MACRODROID_WEBHOOK_URL;
   if (macrodroidUrl) {
     try {
-      // MacroDroid webhook hỗ trợ cả query params và JSON body
       const mdRes = await fetch(macrodroidUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,12 +218,11 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
       });
       results.macrodroid = mdRes.ok;
     } catch (err) {
-      console.warn('[Notification MacroDroid error]:', err.message);
       results.errors.push(`MacroDroid: ${err.message}`);
     }
   }
 
-  // 3. Gửi qua Telegram Bot (Nếu có Token và Chat ID)
+  // 4. Gửi qua Telegram Bot (Nếu có Token và Chat ID)
   const tgToken = settings.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
   const tgChatId = settings.telegram_chat_id || process.env.TELEGRAM_CHAT_ID;
   if (tgToken && tgChatId) {
@@ -131,13 +238,12 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
       });
       results.telegram = tgRes.ok;
     } catch (err) {
-      console.warn('[Notification Telegram error]:', err.message);
       results.errors.push(`Telegram: ${err.message}`);
     }
   }
 
   return {
-    success: results.ntfy || results.macrodroid || results.telegram,
+    success: results.webPush || results.ntfy || results.macrodroid || results.telegram,
     results,
     formatted
   };

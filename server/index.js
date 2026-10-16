@@ -3,7 +3,7 @@ import cors from 'cors';
 import { db, initDatabase, seedInitialTransactions, TURSO_URL } from './db.js';
 import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } from './parser.js';
 import { parseTransactionWithGemini, generateDailyAiReport, generateFallbackDailyReport } from './gemini.js';
-import { formatDailyReportNotification, dispatchDailyReportNotification } from './notifications.js';
+import { formatDailyReportNotification, dispatchDailyReportNotification, initWebPush, sendWebPushNotificationToAll } from './notifications.js';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,8 +13,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, '..', 'dist');
 
-// Khởi tạo Database
+// Khởi tạo Database & Web Push
 await initDatabase();
+await initWebPush();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,12 +80,13 @@ app.get('/api/auth/check', (req, res) => {
 
 // Middleware bảo vệ API bằng mã PIN
 const requirePinAuth = (req, res, next) => {
-  // Miễn trừ các route công khai: auth, health check, webhook nhận thông báo từ MacroDroid, notification báo cáo ngày
+  // Miễn trừ các route công khai: auth, health check, webhook nhận thông báo từ MacroDroid, notification báo cáo ngày, web push
   if (
     req.path.startsWith('/api/auth') ||
     req.path === '/api/health' ||
     req.path.startsWith('/api/webhook') ||
     req.path.startsWith('/api/ai/daily-report/notification') ||
+    req.path.startsWith('/api/notifications') ||
     !req.path.startsWith('/api')
   ) {
     return next();
@@ -1891,6 +1893,65 @@ app.post('/api/settings/daily-report', async (req, res) => {
     }
 
     res.json({ success: true, message: 'Đã lưu cấu hình thông báo báo cáo 10h' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12.4. API Web Push Notification (Thông báo đẩy trực tiếp tới điện thoại/trình duyệt)
+app.get('/api/notifications/vapid-public-key', async (req, res) => {
+  try {
+    const key = await initWebPush();
+    res.json({ success: true, publicKey: key });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications/subscribe', async (req, res) => {
+  try {
+    const { subscription } = req.body || {};
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Dữ liệu subscription là bắt buộc' });
+    }
+
+    const endpoint = subscription.endpoint;
+    const subJson = JSON.stringify(subscription);
+    const userAgent = req.headers['user-agent'] || '';
+    const id = 'sub_' + crypto.randomUUID().slice(0, 8);
+
+    await db.prepare(`
+      INSERT INTO push_subscriptions (id, endpoint, subscription_json, user_agent, created_at)
+      VALUES (?, ?, ?, ?, datetime('now', 'localtime'))
+      ON CONFLICT(endpoint) DO UPDATE SET
+        subscription_json = excluded.subscription_json,
+        user_agent = excluded.user_agent
+    `).run(id, endpoint, subJson, userAgent);
+
+    // Bắn thông báo xác nhận ngay tức thì tới thiết bị vừa đăng ký
+    try {
+      await sendWebPushNotificationToAll({
+        title: 'SmartSpend 🔔',
+        body: 'Thông báo ứng dụng đã được kích hoạt thành công trên thiết bị của bạn!',
+        url: '/'
+      });
+    } catch { }
+
+    res.json({ success: true, message: 'Đã đăng ký nhận thông báo ứng dụng thành công!' });
+  } catch (err) {
+    console.error('Lỗi subscribe push:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications/test-push', async (req, res) => {
+  try {
+    const result = await sendWebPushNotificationToAll({
+      title: 'SmartSpend Test 🔔',
+      body: 'Thông báo ứng dụng hoạt động hoàn hảo lúc ' + new Date().toLocaleTimeString('vi-VN'),
+      url: '/'
+    });
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

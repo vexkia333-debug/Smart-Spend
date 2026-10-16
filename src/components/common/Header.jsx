@@ -9,7 +9,8 @@ import {
   Bot,
   CheckCircle2,
   Calendar,
-  Lock
+  Lock,
+  Bell
 } from 'lucide-react';
 import CustomDatePopover from './CustomDatePopover.jsx';
 
@@ -35,7 +36,8 @@ export default function Header({
   onApplyCustomDate,
   onResetTimeFilter,
   showCustomDatePopover,
-  setShowCustomDatePopover
+  setShowCustomDatePopover,
+  onOpenDailyReport
 }) {
   return (
     <>
@@ -117,6 +119,17 @@ export default function Header({
           </div>
 
           <div className="header-utility-btns">
+            {/* Nút Báo cáo cuối ngày & Thông báo ứng dụng */}
+            {onOpenDailyReport && (
+              <button
+                className="theme-toggle-btn"
+                onClick={onOpenDailyReport}
+                title="Báo cáo tài chính & Thông báo ứng dụng (Web Push 22:00)"
+              >
+                <Bell size={17} color="#c084fc" />
+              </button>
+            )}
+
             {/* Nút Khóa màn hình (PIN Lock) */}
             <button
               className="theme-toggle-btn"
