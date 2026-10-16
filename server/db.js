@@ -145,11 +145,31 @@ export async function initDatabase() {
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
+    -- Bảng Báo cáo tài chính cuối ngày AI (Daily Reports & AI Briefings)
+    CREATE TABLE IF NOT EXISTS daily_reports (
+      report_date TEXT PRIMARY KEY,
+      total_income REAL DEFAULT 0,
+      total_expense REAL DEFAULT 0,
+      net_flow REAL DEFAULT 0,
+      tx_count INTEGER DEFAULT 0,
+      category_breakdown TEXT,
+      account_breakdown TEXT,
+      rating_badge TEXT,
+      overview TEXT,
+      anomalies_json TEXT,
+      advice_tomorrow TEXT,
+      raw_ai_json TEXT,
+      sent_notification INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
     -- Indexes hỗ trợ tìm kiếm nhanh
     CREATE INDEX IF NOT EXISTS idx_trans_status ON transactions(status);
     CREATE INDEX IF NOT EXISTS idx_trans_time ON transactions(transaction_time);
     CREATE INDEX IF NOT EXISTS idx_trans_cat ON transactions(category_id);
     CREATE INDEX IF NOT EXISTS idx_trans_acc ON transactions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_daily_rep_date ON daily_reports(report_date);
   `);
 
   await seedInitialData();
@@ -183,6 +203,14 @@ async function seedInitialData() {
       args: ['acc_vtm', 'Viettel Money', 'VTM', 'Ví Viettel Money', 0, 'VND', 'smartphone', '#e11d48']
     }
   ]);
+
+  // Đảm bảo có sẵn cài đặt báo cáo 10h mặc định
+  await client.batch([
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_time', '22:00')`, args: [] },
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_enabled', 'true')`, args: [] },
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('ntfy_topic', 'smartspend_kienvu')`, args: [] }
+  ]);
+
   const catCountRow = await db.get('SELECT COUNT(*) as count FROM categories');
   if (catCountRow && Number(catCountRow.count) > 0) {
     return; // Đã có danh mục, không cần seed lại
@@ -249,7 +277,13 @@ async function seedInitialData() {
     }))
   );
 
-  console.log('Hoàn tất khởi tạo danh mục và quy tắc!');
+  await client.batch([
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_time', '22:00')`, args: [] },
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_enabled', 'true')`, args: [] },
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('ntfy_topic', 'smartspend_kienvu')`, args: [] }
+  ]);
+
+  console.log('Hoàn tất khởi tạo danh mục, quy tắc và cấu hình báo cáo 10h!');
 }
 
 // ĐÃ TẮT: Không tự động tạo giao dịch demo ban đầu

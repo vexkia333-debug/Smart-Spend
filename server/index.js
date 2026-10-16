@@ -3,6 +3,7 @@ import cors from 'cors';
 import { db, initDatabase, seedInitialTransactions, TURSO_URL } from './db.js';
 import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } from './parser.js';
 import { parseTransactionWithGemini, generateDailyAiReport, generateFallbackDailyReport } from './gemini.js';
+import { formatDailyReportNotification, dispatchDailyReportNotification } from './notifications.js';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,11 +79,12 @@ app.get('/api/auth/check', (req, res) => {
 
 // Middleware bảo vệ API bằng mã PIN
 const requirePinAuth = (req, res, next) => {
-  // Miễn trừ các route công khai: auth, health check, webhook nhận thông báo từ MacroDroid
+  // Miễn trừ các route công khai: auth, health check, webhook nhận thông báo từ MacroDroid, notification báo cáo ngày
   if (
     req.path.startsWith('/api/auth') ||
     req.path === '/api/health' ||
     req.path.startsWith('/api/webhook') ||
+    req.path.startsWith('/api/ai/daily-report/notification') ||
     !req.path.startsWith('/api')
   ) {
     return next();
@@ -1593,100 +1595,352 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
 });
 
 // 12. Báo cáo tài chính đánh giá cuối ngày & Phát hiện bất thường từ Gemini AI
-app.post('/api/ai/daily-report', async (req, res) => {
-  try {
-    const { date } = req.body;
-    const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const curDay = String(now.getDate()).padStart(2, '0');
-    const targetDate = date || `${curYear}-${curMonth}-${curDay}`;
 
-    const [tY, tM, tD] = targetDate.split('-');
-    const pattern1 = `%${tD}/${tM}/${tY}%`;
-    const pattern2 = `${targetDate}%`;
+/**
+ * Core Pipeline: Tạo và lưu trữ báo cáo tài chính cuối ngày, đồng thời bắn thông báo tới điện thoại
+ */
+export async function generateAndSaveDailyReport(date, { force = false, triggerSource = 'MANUAL' } = {}) {
+  // 1. Xác định ngày báo cáo (theo múi giờ Việt Nam Asia/Ho_Chi_Minh)
+  const nowVn = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  const curYear = nowVn.getFullYear();
+  const curMonth = String(nowVn.getMonth() + 1).padStart(2, '0');
+  const curDay = String(nowVn.getDate()).padStart(2, '0');
+  const targetDate = date || `${curYear}-${curMonth}-${curDay}`;
 
-    const txs = await db.prepare(`
-      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-      FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
-      LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE (t.transaction_time LIKE ? OR t.created_at LIKE ?) AND t.status != 'IGNORED'
-      ORDER BY t.created_at ASC
-    `).all(pattern1, pattern2);
+  const [tY, tM, tD] = targetDate.split('-');
+  const pattern1 = `%${tD}/${tM}/${tY}%`;
+  const pattern2 = `${targetDate}%`;
 
-    const totalIncome = txs
-      .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_'))
-      .reduce((s, t) => s + (t.amount || 0), 0);
-    const totalExpense = txs
-      .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
-      .reduce((s, t) => s + (t.amount || 0), 0);
-    const netFlow = totalIncome - totalExpense;
+  // Kiểm tra cache trong DB nếu không force làm mới
+  if (!force) {
+    const cached = await db.prepare('SELECT * FROM daily_reports WHERE report_date = ?').get(targetDate);
+    if (cached) {
+      const txs = await db.prepare(`
+        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE (t.transaction_time LIKE ? OR t.created_at LIKE ?) AND t.status != 'IGNORED'
+        ORDER BY t.created_at ASC
+      `).all(pattern1, pattern2);
 
-    // Cơ cấu chi tiêu theo danh mục
-    const catMap = {};
-    txs
-      .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
-      .forEach((t) => {
-        const cName = t.category_name || 'Khác';
-        catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);
-      });
+      return {
+        success: true,
+        date: targetDate,
+        totalIncome: Number(cached.total_income) || 0,
+        totalExpense: Number(cached.total_expense) || 0,
+        netFlow: Number(cached.net_flow) || 0,
+        txCount: Number(cached.tx_count) || 0,
+        categoryBreakdown: cached.category_breakdown ? JSON.parse(cached.category_breakdown) : {},
+        accountBreakdown: cached.account_breakdown ? JSON.parse(cached.account_breakdown) : {},
+        transactions: txs,
+        aiEvaluation: cached.raw_ai_json ? JSON.parse(cached.raw_ai_json) : {
+          rating: cached.rating_badge || 'Cân đối 👍',
+          overview: cached.overview || '',
+          anomalies: cached.anomalies_json ? JSON.parse(cached.anomalies_json) : [],
+          advice: cached.advice_tomorrow || ''
+        },
+        fromCache: true
+      };
+    }
+  }
 
-    // Cơ cấu theo tài khoản
-    const accMap = {};
-    txs.forEach((t) => {
-      const aName = t.account_name || 'Tài khoản khác';
-      if (!accMap[aName]) accMap[aName] = { in: 0, out: 0, count: 0 };
-      accMap[aName].count += 1;
-      if (t.type === 'INCOME') accMap[aName].in += t.amount || 0;
-      else accMap[aName].out += t.amount || 0;
+  // Lấy danh sách giao dịch
+  const txs = await db.prepare(`
+    SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    WHERE (t.transaction_time LIKE ? OR t.created_at LIKE ?) AND t.status != 'IGNORED'
+    ORDER BY t.created_at ASC
+  `).all(pattern1, pattern2);
+
+  const totalIncome = txs
+    .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_'))
+    .reduce((s, t) => s + (t.amount || 0), 0);
+  const totalExpense = txs
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
+    .reduce((s, t) => s + (t.amount || 0), 0);
+  const netFlow = totalIncome - totalExpense;
+
+  const catMap = {};
+  txs
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
+    .forEach((t) => {
+      const cName = t.category_name || 'Khác';
+      catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);
     });
 
-    const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
-    const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
+  const accMap = {};
+  txs.forEach((t) => {
+    const aName = t.account_name || 'Tài khoản khác';
+    if (!accMap[aName]) accMap[aName] = { in: 0, out: 0, count: 0 };
+    accMap[aName].count += 1;
+    if (t.type === 'INCOME') accMap[aName].in += t.amount || 0;
+    else accMap[aName].out += t.amount || 0;
+  });
 
-    let aiEvaluation = null;
+  const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+  const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
 
-    if (apiKey && txs.length > 0) {
-      aiEvaluation = await generateDailyAiReport({
-        date: targetDate,
-        txs,
-        totalIncome,
-        totalExpense,
-        netFlow,
-        catMap,
-        apiKey
-      });
+  let aiEvaluation = null;
+  if (apiKey && txs.length > 0) {
+    aiEvaluation = await generateDailyAiReport({
+      date: targetDate,
+      txs,
+      totalIncome,
+      totalExpense,
+      netFlow,
+      catMap,
+      apiKey
+    });
+  }
+
+  if (!aiEvaluation) {
+    aiEvaluation = generateFallbackDailyReport({
+      date: targetDate,
+      txs,
+      totalIncome,
+      totalExpense,
+      netFlow,
+      catMap
+    });
+  }
+
+  const reportData = {
+    success: true,
+    date: targetDate,
+    totalIncome,
+    totalExpense,
+    netFlow,
+    txCount: txs.length,
+    categoryBreakdown: catMap,
+    accountBreakdown: accMap,
+    transactions: txs,
+    aiEvaluation,
+    fromCache: false
+  };
+
+  // Lưu vào database bảng daily_reports
+  try {
+    await db.prepare(`
+      INSERT INTO daily_reports (
+        report_date, total_income, total_expense, net_flow, tx_count,
+        category_breakdown, account_breakdown, rating_badge, overview,
+        anomalies_json, advice_tomorrow, raw_ai_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+      ON CONFLICT(report_date) DO UPDATE SET
+        total_income = excluded.total_income,
+        total_expense = excluded.total_expense,
+        net_flow = excluded.net_flow,
+        tx_count = excluded.tx_count,
+        category_breakdown = excluded.category_breakdown,
+        account_breakdown = excluded.account_breakdown,
+        rating_badge = excluded.rating_badge,
+        overview = excluded.overview,
+        anomalies_json = excluded.anomalies_json,
+        advice_tomorrow = excluded.advice_tomorrow,
+        raw_ai_json = excluded.raw_ai_json,
+        updated_at = datetime('now', 'localtime')
+    `).run(
+      targetDate,
+      totalIncome,
+      totalExpense,
+      netFlow,
+      txs.length,
+      JSON.stringify(catMap),
+      JSON.stringify(accMap),
+      aiEvaluation?.rating || 'Cân đối 👍',
+      aiEvaluation?.overview || '',
+      JSON.stringify(aiEvaluation?.anomalies || []),
+      aiEvaluation?.advice || '',
+      JSON.stringify(aiEvaluation)
+    );
+  } catch (dbErr) {
+    console.error('Lỗi lưu daily_reports cache:', dbErr.message);
+  }
+
+  // Nếu kích hoạt từ CRON hoặc TEST_PUSH hoặc NOTIFICATION_REQUEST, thực hiện bắn thông báo tới điện thoại
+  let dispatchResult = null;
+  if (triggerSource.startsWith('CRON') || triggerSource === 'TEST_PUSH' || triggerSource === 'NOTIFICATION_REQUEST') {
+    try {
+      const settingRows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'daily_report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'").all();
+      const settingsMap = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
+
+      dispatchResult = await dispatchDailyReportNotification(reportData, settingsMap);
+
+      await db.prepare('UPDATE daily_reports SET sent_notification = 1 WHERE report_date = ?').run(targetDate);
+
+      // Ghi log vào notification_logs
+      await db.prepare(`
+        INSERT INTO notification_logs (id, title, body, actions_payload, status)
+        VALUES (?, ?, ?, ?, 'SENT')
+      `).run(
+        'log_' + crypto.randomUUID().slice(0, 8),
+        dispatchResult.formatted.title,
+        dispatchResult.formatted.shortText,
+        JSON.stringify({ triggerSource, date: targetDate, results: dispatchResult.results })
+      );
+    } catch (pushErr) {
+      console.error('Lỗi dispatch thông báo điện thoại:', pushErr.message);
+    }
+  }
+
+  // Phát tín hiệu realtime tới giao diện web
+  broadcastEvent('DAILY_REPORT_READY', reportData);
+
+  return {
+    ...reportData,
+    dispatchResult
+  };
+}
+
+// 12.1. API Lấy thông báo báo cáo ngày (Tối ưu riêng cho MacroDroid hoặc tự động bắn tới điện thoại)
+app.get('/api/ai/daily-report/notification', async (req, res) => {
+  try {
+    const { format = 'text', date, force } = req.query;
+    const isForce = force === 'true' || force === '1';
+    const report = await generateAndSaveDailyReport(date, {
+      force: isForce,
+      triggerSource: 'NOTIFICATION_REQUEST'
+    });
+
+    const formatted = formatDailyReportNotification(report);
+
+    if (format === 'text') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.send(formatted.shortText);
     }
 
-    if (!aiEvaluation) {
-      aiEvaluation = generateFallbackDailyReport({
-        date: targetDate,
-        txs,
-        totalIncome,
-        totalExpense,
-        netFlow,
-        catMap
-      });
+    if (format === 'markdown') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.send(formatted.markdownText);
     }
 
     res.json({
       success: true,
-      date: targetDate,
-      totalIncome,
-      totalExpense,
-      netFlow,
-      txCount: txs.length,
-      categoryBreakdown: catMap,
-      accountBreakdown: accMap,
-      transactions: txs,
-      aiEvaluation
+      title: formatted.title,
+      message: formatted.shortText,
+      rating: formatted.rating,
+      hasAnomalies: formatted.hasAnomalies,
+      report
     });
+  } catch (err) {
+    console.error('Lỗi /api/ai/daily-report/notification:', err);
+    res.status(500).send('Lỗi tạo thông báo báo cáo: ' + err.message);
+  }
+});
+
+// 12.2. API Kích hoạt chạy và bắn thử thông báo tới điện thoại ngay lập tức
+app.post('/api/ai/daily-report/trigger', async (req, res) => {
+  try {
+    const { date } = req.body || {};
+    const report = await generateAndSaveDailyReport(date, {
+      force: true,
+      triggerSource: 'TEST_PUSH'
+    });
+    res.json({
+      success: true,
+      message: 'Đã kích hoạt tạo báo cáo và bắn thông báo tới điện thoại thành công!',
+      report
+    });
+  } catch (err) {
+    console.error('Lỗi /api/ai/daily-report/trigger:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12.3. API Cài đặt thông báo tự động 10h (22:00)
+app.get('/api/settings/daily-report', async (req, res) => {
+  try {
+    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'daily_report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'").all();
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    res.json({
+      success: true,
+      settings: {
+        time: map.daily_report_time || '22:00',
+        enabled: map.daily_report_enabled !== 'false',
+        ntfyTopic: map.ntfy_topic || 'smartspend_kienvu',
+        macrodroidWebhookUrl: map.macrodroid_webhook_url || '',
+        telegramBotToken: map.telegram_bot_token ? '******' : '',
+        telegramChatId: map.telegram_chat_id || ''
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/daily-report', async (req, res) => {
+  try {
+    const { time, enabled, ntfyTopic, macrodroidWebhookUrl, telegramBotToken, telegramChatId } = req.body || {};
+    const updates = [];
+
+    if (time !== undefined) updates.push({ key: 'daily_report_time', value: String(time).trim() });
+    if (enabled !== undefined) updates.push({ key: 'daily_report_enabled', value: String(enabled) });
+    if (ntfyTopic !== undefined) updates.push({ key: 'ntfy_topic', value: String(ntfyTopic).trim() });
+    if (macrodroidWebhookUrl !== undefined) updates.push({ key: 'macrodroid_webhook_url', value: String(macrodroidWebhookUrl).trim() });
+    if (telegramBotToken !== undefined && telegramBotToken !== '******') updates.push({ key: 'telegram_bot_token', value: String(telegramBotToken).trim() });
+    if (telegramChatId !== undefined) updates.push({ key: 'telegram_chat_id', value: String(telegramChatId).trim() });
+
+    for (const item of updates) {
+      await db.prepare(`
+        INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', 'localtime'))
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now', 'localtime')
+      `).run(item.key, item.value);
+    }
+
+    res.json({ success: true, message: 'Đã lưu cấu hình thông báo báo cáo 10h' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 12.4. Báo cáo tài chính cuối ngày (hỗ trợ cache để mở modal là hiển thị ngay không phải đợi)
+app.post('/api/ai/daily-report', async (req, res) => {
+  try {
+    const { date, refresh = false } = req.body || {};
+    const report = await generateAndSaveDailyReport(date, {
+      force: Boolean(refresh),
+      triggerSource: 'UI_MODAL'
+    });
+    res.json(report);
   } catch (err) {
     console.error('Lỗi daily-report:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// 12.5. Background Cron: Tự động chạy báo cáo và bắn thông báo lúc 22:00 (10h đêm giờ Việt Nam)
+setInterval(async () => {
+  try {
+    const nowVn = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const curHour = String(nowVn.getHours()).padStart(2, '0');
+    const curMin = String(nowVn.getMinutes()).padStart(2, '0');
+    const currentTime = `${curHour}:${curMin}`;
+
+    const curY = nowVn.getFullYear();
+    const curM = String(nowVn.getMonth() + 1).padStart(2, '0');
+    const curD = String(nowVn.getDate()).padStart(2, '0');
+    const todayDate = `${curY}-${curM}-${curD}`;
+
+    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'daily_report%'").all();
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+
+    const targetTime = map.daily_report_time || '22:00';
+    const isEnabled = map.daily_report_enabled !== 'false';
+
+    if (isEnabled && currentTime === targetTime) {
+      const existing = await db.prepare('SELECT sent_notification FROM daily_reports WHERE report_date = ?').get(todayDate);
+      if (!existing || Number(existing.sent_notification) !== 1) {
+        console.log(`[10h Auto Cron] 🔔 Đã tới ${currentTime}. Tự động tạo báo cáo ngày và bắn thông báo tới điện thoại...`);
+        await generateAndSaveDailyReport(todayDate, { force: true, triggerSource: 'CRON_AUTO_22H' });
+      }
+    }
+  } catch (err) {
+    console.error('[10h Auto Cron Error]', err.message);
+  }
+}, 30000);
 
 // Phục vụ giao diện web tĩnh từ thư mục dist (dành cho môi trường Production như Render)
 if (fs.existsSync(distPath)) {
