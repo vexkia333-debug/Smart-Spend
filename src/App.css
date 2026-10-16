@@ -2661,6 +2661,47 @@ input[type="number"] {
   background: var(--border-subtle);
 }
 
+.badge-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-diff.decrease {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.badge-diff.increase {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-diff.neutral {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+:root[data-theme="light"] .badge-diff.decrease {
+  background: #ffe4e6;
+  color: #e11d48;
+  border-color: #fecdd3;
+}
+
+:root[data-theme="light"] .badge-diff.increase {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
 /* SVG Container */
 .line-chart-svg-wrapper {
   position: relative;
