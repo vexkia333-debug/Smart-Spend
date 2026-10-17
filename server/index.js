@@ -746,7 +746,8 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
   try {
     console.log('[Webhook Incoming]', JSON.stringify(req.body));
     const rawContent = req.body.content || req.body.text || req.body.body || req.body.message || req.body.notification || req.body.not_text || '';
-    const rawTitle = req.body.title || req.body.appName || req.body.app_name || req.body.not_title || '';
+    const rawTitle = req.body.title || req.body.not_title || '';
+    const rawAppName = req.body.appName || req.body.app_name || req.body.package || req.body.pkg_name || req.body.not_app_name || '';
     const { timestamp, source = 'BANK_NOTIFICATION' } = req.body;
 
     const content = rawContent || rawTitle;
@@ -759,7 +760,7 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
     const effectiveTitle = rawTitle;
 
     // 1. Phân tích nội dung qua Parser
-    const parsed = parseBankNotification(content, effectiveTitle);
+    const parsed = parseBankNotification(content, effectiveTitle, rawAppName);
 
     if (!parsed || parsed.isIgnored) {
       console.log('[Webhook Ignored]', parsed ? parsed.reason : 'null');

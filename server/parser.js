@@ -2,11 +2,26 @@
  * Engine bóc tách nội dung thông báo biến động số dư các ngân hàng Việt Nam
  */
 
-export function parseBankNotification(text, title = '') {
-  if (!text) return null;
+export function parseBankNotification(text, title = '', appName = '') {
+  if (!text && !title) return null;
 
-  // Ghép cả title và text để không bao giờ bị sót nội dung dù MacroDroid truyền ngược trường
-  let fullContent = `${title ? title + ' ' : ''}${text || ''}`.replace(/[\r\n]+/g, ' ').trim();
+  // Ghép cả title và text nhưng không lặp lại nếu title và text giống nhau hoặc chứa nhau
+  const cleanTitle = (title || '').replace(/[\r\n]+/g, ' ').trim();
+  const cleanBody = (text || '').replace(/[\r\n]+/g, ' ').trim();
+  let fullContent = '';
+  
+  if (!cleanTitle) {
+    fullContent = cleanBody;
+  } else if (!cleanBody) {
+    fullContent = cleanTitle;
+  } else if (cleanBody.toLowerCase().includes(cleanTitle.toLowerCase())) {
+    fullContent = cleanBody;
+  } else if (cleanTitle.toLowerCase().includes(cleanBody.toLowerCase())) {
+    fullContent = cleanTitle;
+  } else {
+    fullContent = `${cleanTitle} ${cleanBody}`;
+  }
+
   // Loại bỏ token văn bản nếu người dùng gõ nhầm literal string
   const cleanContent = fullContent.replace(/\[not_text\]|\[notification\]/gi, '').trim();
   const cleanText = cleanContent.length > 5 ? cleanContent : fullContent;
@@ -18,32 +33,38 @@ export function parseBankNotification(text, title = '') {
   let description = cleanText;
   let balance = null;
 
-  // 1. Nhận diện Ngân hàng: Ưu tiên App Title / Header nếu có
+  // 1. Nhận diện Ngân hàng: Ưu tiên App Name / Title / Header nếu có
+  const appUpper = (appName || '').toUpperCase();
   const titleUpper = (title || '').toUpperCase();
 
   // Loại bỏ phần ND giao dịch khi nhận diện ngân hàng chủ quản để không bị nhầm ngân hàng thụ hưởng (ví dụ: 140421-TCB;... trong tin của Agribank)
-  const cleanWithoutND = cleanText.replace(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+[\s\S]*?(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i, ' ');
+  const cleanWithoutND = cleanText.replace(/\b(?:ND|Noi dung|Nội dung)\b(?:\s+(?:giao dich|giao dịch))?[:\s]+[\s\S]*?(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i, ' ');
   const contentUpper = cleanWithoutND.toUpperCase();
 
   function detectBank(str) {
     if (!str) return null;
-    if (str.includes('7901205294347') || str.includes('AGRIBANK') || str.includes('AGRI') || str.includes('VARB')) return { bankName: 'Agribank', bankCode: 'AGRI' };
-    if (str.includes('1912200512') || str.includes('TECHCOMBANK') || str.includes('TCB')) return { bankName: 'Techcombank', bankCode: 'TCB' };
-    if (str.includes('VIETTEL') || str.includes('VTMONEY') || str.includes('VIETTELPAY') || str.includes('GD THANH TOAN') || str.includes('NAPVIETTELPAY') || (str.includes('SỐ TIỀN GIAO DỊCH') && str.includes('THỜI GIAN:'))) return { bankName: 'Viettel Money', bankCode: 'VTM' };
-    if (str.includes('VCB') || str.includes('VIETCOMBANK')) return { bankName: 'Vietcombank', bankCode: 'VCB' };
-    if (str.includes('MBBANK') || str.includes('MB BANK') || str.includes('MB ')) return { bankName: 'MB Bank', bankCode: 'MB' };
-    if (str.includes('MOMO')) return { bankName: 'MoMo', bankCode: 'MOMO' };
-    if (str.includes('ACB')) return { bankName: 'ACB', bankCode: 'ACB' };
-    if (str.includes('VPBANK') || str.includes('VPB')) return { bankName: 'VPBank', bankCode: 'VPB' };
-    if (str.includes('BIDV')) return { bankName: 'BIDV', bankCode: 'BIDV' };
-    if (str.includes('TPBANK') || str.includes('TPB')) return { bankName: 'TPBank', bankCode: 'TPB' };
+    const s = str.toUpperCase();
+    if (s.includes('7901205294347') || s.includes('AGRIBANK') || s.includes('AGRI') || s.includes('VARB') || s.includes('BPLUS') || s.includes('COM.BPLUS') || s.includes('COM.VNPAY.AGRIBANK')) return { bankName: 'Agribank Plus', bankCode: 'AGRI' };
+    if (s.includes('1912200512') || s.includes('TECHCOMBANK') || s.includes('TCB') || s.includes('TECHCOM') || s.includes('VN.COM.TECHCOMBANK')) return { bankName: 'Techcombank', bankCode: 'TCB' };
+    if (s.includes('VIETTEL') || s.includes('VTMONEY') || s.includes('VIETTELPAY') || s.includes('GD THANH TOAN') || s.includes('NAPVIETTELPAY') || (s.includes('SỐ TIỀN GIAO DỊCH') && s.includes('THỜI GIAN:'))) return { bankName: 'Viettel Money', bankCode: 'VTM' };
+    if (s.includes('VCB') || s.includes('VIETCOMBANK')) return { bankName: 'Vietcombank', bankCode: 'VCB' };
+    if (s.includes('MBBANK') || s.includes('MB BANK') || s.includes('MB ') || s.includes('COM.MBMOBILE')) return { bankName: 'MB Bank', bankCode: 'MB' };
+    if (s.includes('MOMO')) return { bankName: 'MoMo', bankCode: 'MOMO' };
+    if (s.includes('ACB')) return { bankName: 'ACB', bankCode: 'ACB' };
+    if (s.includes('VPBANK') || s.includes('VPB')) return { bankName: 'VPBank', bankCode: 'VPB' };
+    if (s.includes('BIDV')) return { bankName: 'BIDV', bankCode: 'BIDV' };
+    if (s.includes('TPBANK') || s.includes('TPB')) return { bankName: 'TPBank', bankCode: 'TPB' };
     return null;
   }
 
+  const detectedFromApp = detectBank(appUpper);
   const detectedFromTitle = detectBank(titleUpper);
   const detectedFromContent = detectBank(contentUpper);
 
-  if (detectedFromTitle) {
+  if (detectedFromApp) {
+    bankName = detectedFromApp.bankName;
+    bankCode = detectedFromApp.bankCode;
+  } else if (detectedFromTitle) {
     bankName = detectedFromTitle.bankName;
     bankCode = detectedFromTitle.bankCode;
   } else if (detectedFromContent) {
@@ -107,15 +128,24 @@ export function parseBankNotification(text, title = '') {
   }
 
   // 5. Bóc tách nội dung giao dịch (ND / Noi dung giao dich / Ref)
-  let descMatch = cleanText.match(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+([\s\S]*?)(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i);
+  let descMatch = cleanText.match(/\b(?:ND|Noi dung|Nội dung)\b(?:\s+(?:giao dich|giao dịch))?[:\s]+([\s\S]*?)(?=(?:\.|\s)*(?:Số dư|So du|SD[:\s])|$)/i);
   if (!descMatch || !descMatch[1].trim()) {
     descMatch = cleanText.match(/\b(?:tai|cho)[:\s]+(.*?)(?:\.|$)/i);
   }
 
-  if (descMatch && descMatch[1]) {
+  if (descMatch && descMatch[1] && descMatch[1].trim()) {
     description = descMatch[1].trim();
   } else {
-    description = cleanText.length > 80 ? cleanText.slice(0, 77) + '...' : cleanText;
+    // Nếu nội dung chỉ là số tiền trần (ví dụ: "+ VND 5,000", "+5.000d") không có lời nhắn/ND
+    const withoutBank = cleanText.replace(/techcombank|agribank|viettel|mbbank|vcb|vietcombank|vnpay/gi, '').trim();
+    const isBareAmountOnly = /^[+-]?\s*(?:VND|VNĐ|d|đ|\$)?\s*[0-9.,\s]+(?:VND|VNĐ|d|đ|\$)?$/i.test(withoutBank);
+    
+    if (isBareAmountOnly) {
+      const formatted = new Intl.NumberFormat('vi-VN').format(amount);
+      description = type === 'INCOME' ? `Nhận tiền (+${formatted} ₫)` : `Chi tiêu (-${formatted} ₫)`;
+    } else {
+      description = cleanText.length > 80 ? cleanText.slice(0, 77) + '...' : cleanText;
+    }
   }
 
   return {
@@ -155,7 +185,7 @@ export function extractTransferInfo(content, rawDesc = '') {
   }
 
   // 3. Trích xuất lời nhắn giao dịch (Remark)
-  const ndMatch = full.match(/(?:ND|Noi dung|Nội dung)(?:\s+(?:giao dich|giao dịch))?[:\s]+(.*?)(?:\s*(?:\bSD\b|\bSo du\b|\bSố dư\b|$))/i);
+  const ndMatch = full.match(/\b(?:ND|Noi dung|Nội dung)\b(?:\s+(?:giao dich|giao dịch))?[:\s]+(.*?)(?:\s*(?:\bSD\b|\bSo du\b|\bSố dư\b|$))/i);
   const rawND = ndMatch ? ndMatch[1].trim() : (rawDesc || full);
   const dotParts = rawND.split('.').map(p => p.trim()).filter(Boolean);
   for (const part of dotParts) {
