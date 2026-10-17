@@ -351,7 +351,8 @@ export default function App() {
           text: promptText,
           autoSave: false,
           expectedType: targetTx?.type,
-          originalAmount: amount
+          originalAmount: amount,
+          clientTime: new Date().toISOString()
         })
       });
       const data = await res.json();
@@ -565,7 +566,8 @@ export default function App() {
         body: JSON.stringify({
           text: aiInputText,
           autoSave: true,
-          forceCash: aiIsCash
+          forceCash: aiIsCash,
+          clientTime: new Date().toISOString()
         })
       });
       const data = await res.json();

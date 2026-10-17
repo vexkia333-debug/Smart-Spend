@@ -1528,18 +1528,130 @@ input[type="number"] {
   }
 
   .prompt-modal-backdrop {
-    padding: 12px;
+    padding: 8px;
   }
 
   .google-prompt-overlay {
     width: 100%;
     max-width: 100%;
-    max-height: 92vh;
-    border-radius: 20px;
+    max-height: 94vh;
+    border-radius: 18px;
+  }
+
+  .prompt-header {
+    padding: 10px 14px;
+  }
+
+  .prompt-badge {
+    font-size: 0.76rem;
+    gap: 6px;
+    max-width: calc(100% - 32px);
+  }
+
+  .prompt-body {
+    padding: 12px 14px;
+  }
+
+  .prompt-bank-row {
+    margin-bottom: 6px;
+  }
+
+  .prompt-bank-name {
+    font-size: 0.88rem;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .prompt-amount {
-    font-size: 1.35rem;
+    font-size: clamp(1.2rem, 5vw, 1.4rem);
+  }
+
+  .prompt-desc {
+    font-size: 0.84rem;
+    word-break: break-word;
+    margin-bottom: 8px;
+  }
+
+  .prompt-ai-card-inner {
+    padding: 12px !important;
+    margin-top: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .prompt-ai-input-box {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .prompt-ai-submit-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 12px;
+  }
+
+  /* Daily Report Modal on compact screens */
+  .daily-report-dialog {
+    padding: 14px 12px !important;
+    border-radius: 18px !important;
+    max-height: 94vh !important;
+  }
+
+  .daily-report-header {
+    gap: 6px;
+    margin-bottom: 12px !important;
+  }
+
+  .daily-report-icon-box {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .daily-report-title-row h3 {
+    font-size: 1.05rem !important;
+  }
+
+  .daily-report-tabs-bar {
+    gap: 6px !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .daily-report-tab-btn {
+    flex: 1 1 100% !important;
+    padding: 8px 10px !important;
+    font-size: 0.78rem !important;
+    justify-content: center !important;
+  }
+
+  .daily-report-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .daily-report-stats-grid > div {
+    padding: 10px !important;
+  }
+
+  .daily-report-stats-grid > div > div:first-child {
+    font-size: 0.7rem !important;
+  }
+
+  .daily-report-stats-grid > div > div:last-child {
+    font-size: 0.95rem !important;
+  }
+
+  .daily-report-push-actions {
+    width: 100%;
+  }
+
+  .daily-report-push-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 12px !important;
   }
 
   .prompt-actions-grid {
@@ -1706,6 +1818,43 @@ input[type="number"] {
 .custom-select-check {
   color: currentColor;
   flex-shrink: 0;
+}
+
+.custom-select-full {
+  width: 100% !important;
+  display: block !important;
+}
+
+.custom-select-trigger.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.custom-select-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-select-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+:root[data-theme="light"] .custom-select-menu::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Edit Transaction Modal Grid */
+.edit-tx-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 440px) {
+  .edit-tx-grid-row {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
 }
 
 /* AI Cash Toggle Button */

@@ -21,8 +21,14 @@ export async function parseTransactionWithGemini(userText, categories = [], apiK
 
   const categoryListPrompt = categories.map(c => `- ID: "${c.id}", Tên: "${c.name}", Loại: "${c.type}"`).join('\n');
 
+  const vnNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  const todayStr = `${vnNow.getFullYear()}-${String(vnNow.getMonth() + 1).padStart(2, '0')}-${String(vnNow.getDate()).padStart(2, '0')}`;
+
   const prompt = `Bạn là trợ lý tài chính cá nhân thông minh của hệ thống SmartSpend tại Việt Nam.
-Nhiệm vụ của bạn là đọc và phân tích đoạn văn bản chi tiêu/thu nhập tự nhiên (ví dụ: "vừa ăn bún bò 45k", "mua áo Uniqlo 599k", "nhận lương 20tr", "rút tiền mặt 2tr", "cho Nam vay 500k", "Nam trả nợ 500k", "mua thức ăn cho mèo 150k", "tiền tập gym 600k", "tiền làm móng 180k") hoặc nội dungVĂN BẢN ĐẦU VÀO CẦN PHÂN TÍCH:
+Nhiệm vụ của bạn là đọc và phân tích đoạn văn bản chi tiêu/thu nhập tự nhiên (ví dụ: "vừa ăn bún bò 45k", "mua áo Uniqlo 599k", "nhận lương 20tr", "rút tiền mặt 2tr", "cho Nam vay 500k", "Nam trả nợ 500k", "hôm qua uống bia 200k tiền mặt", "trưa nay ăn bún chả 40k", "ngày 15/10 mua quà 300k") hoặc nội dung giao dịch chuyển khoản.
+
+THỜI ĐIỂM HIỆN TẠI: Hôm nay là ngày ${todayStr} (theo múi giờ Việt Nam).
+VĂN BẢN ĐẦU VÀO CẦN PHÂN TÍCH:
 """${userText.trim()}"""
 
 ${options.expectedType ? `LƯU Ý RẤT QUAN TRỌNG VỀ LOẠI GIAO DỊCH: Đây là giao dịch ${options.expectedType === 'INCOME' ? 'TIỀN VÀO TÀI KHOẢN (INCOME)' : 'TIỀN CHI RA (EXPENSE)'}. BẮT BUỘC ĐẶT type = "${options.expectedType}" VÀ CHỈ ĐƯỢC CHỌN DANH MỤC CÙNG LOẠI.` : ''}
@@ -35,7 +41,16 @@ QUY TẮC PHÂN TÍCH & PHÂN LOẠI DANH MỤC THÔNG MINH:
    - "EXPENSE": Chi tiêu hoặc chuyển tiền đưa đi.
    - "INCOME": Thu nhập, nhận tiền hoặc thu hồi nợ.
 
-3. QUY TẮC TÁCH GIAO DỊCH (SPLIT EXPENSE):
+3. QUY TẮC NHẬN DIỆN THỜI GIAN GIAO DỊCH:
+   - Nếu câu nói có nhắc đến ngày trong quá khứ hoặc thời gian cụ thể:
+     + "hôm qua" / "tối qua" / "sáng qua" => tính lùi 1 ngày so với ngày hôm nay ${todayStr}.
+     + "hôm kia" => tính lùi 2 ngày so với ngày hôm nay ${todayStr}.
+     + Ngày cụ thể như "ngày 15/10", "15-10" => đặt "customDate" dạng "YYYY-MM-DD" với năm hiện tại.
+     + Giờ cụ thể như "lúc 14h", "trưa 12h30", "sáng 8h" => đặt "customTime" dạng "HH:mm".
+     + Nếu KHÔNG đề cập ngày hoặc nói "vừa mới", "hôm nay", "sáng nay", "trưa nay", "tối nay" => đặt "customDate" = null.
+     + Nếu KHÔNG đề cập giờ cụ thể => đặt "customTime" = null.
+
+4. QUY TẮC TÁCH GIAO DỊCH (SPLIT EXPENSE):
    - Khi câu nói thể hiện vừa chi cho cá nhân vừa trả hộ / cho người khác mượn (Ví dụ: "tôi ăn hết 101k còn lại là trả hộ", "ăn 101k trả hộ bạn", "ăn 80k cho Thảo mượn 40k", "tiền ăn 443k tôi ăn 101k"):
      => Đặt "isSplit": true
      => Tạo mảng "splits" gồm các phần:
@@ -43,12 +58,12 @@ QUY TẮC PHÂN TÍCH & PHÂN LOẠI DANH MỤC THÔNG MINH:
         + Phần trả hộ: amount = (Tổng tiền ban đầu ${options.originalAmount || 'trong câu'} - phần cá nhân), categoryId = "cat_loan", description = "Trả hộ tiền ăn bạn bè"
      => Nếu không có yêu cầu tách tiền, đặt "isSplit": false và "splits": null.
 
-4. QUY TẮC CHỌN DANH MỤC ĐẶC BIỆT:
+5. QUY TẮC CHỌN DANH MỤC ĐẶC BIỆT:
    - TIỀN TRẢ NỢ / THU NỢ: Khi là TIỀN VÀO (INCOME) hoặc có từ khóa "trả nợ", "bạn trả tiền", "người khác trả", "thu nợ" => BẮT BUỘC gán "cat_debt_collect" (Thu hồi nợ / Nhận tiền trả), type = "INCOME". TUYỆT ĐỐI KHÔNG gán "cat_loan" hay "cat_other_expense"!
    - ĐỀN BÙ / NỘP PHẠT: "đền mất vé xe", "đền tiền", "nộp phạt", "bồi thường" => BẮT BUỘC gán "cat_other_expense" (Chi tiêu khác). TUYỆT ĐỐI KHÔNG gán "cat_transport"!
    - TIỀN ĐI NHẬU: "tiền đi nhậu", "nhậu nhẹt", "uống bia" => gán "cat_food" (Cơm & Đồ ăn) với mô tả "Tiền đi nhậu", KHÔNG PHẢI chuyển tiền nội bộ.
 
-5. QUY TẮC CHỌN HOẶC TỰ ĐỘNG TẠO DANH MỤC:
+6. QUY TẮC CHỌN HOẶC TỰ ĐỘNG TẠO DANH MỤC:
    - ƯU TIÊN 1 (Gán vào danh mục có sẵn): Nếu nội dung chi tiêu/thu nhập phù hợp rõ ràng với một trong các danh mục hiện có:
      + Đồ ăn, bữa ăn (cơm, bún bò, phở, bánh mì, hủ tiếu, quán ăn, nhà hàng, đồ ăn vặt, đi nhậu) -> "cat_food" (Cơm & Đồ ăn).
      + Đồ uống (cà phê, trà sữa, trà đá, nước ngọt, Highlands, Phúc Long, The Coffee House, Starbucks, Katinat, Mixue...) -> "cat_drink" (Cà phê & Đồ uống).
@@ -57,7 +72,7 @@ QUY TẮC PHÂN TÍCH & PHÂN LOẠI DANH MỤC THÔNG MINH:
      + Nhận lại tiền người khác trả nợ / trả tiền ăn -> "cat_debt_collect" (Thu hồi nợ / Nhận tiền trả).
      + Đi lại, xăng xe, Grab, taxi, gửi xe -> "cat_transport" (Di chuyển & Xăng xe).
      + Mua sắm quần áo, đồ dùng siêu thị, Shopee, Tiki -> "cat_shopping" (Mua sắm & Siêu thị).
-     + Điện nước, internet, rác, hóa đơn nhà mạng -> "cat_bills" (Hóa đơn & Tiện ích).
+     + Hóa đơn: Điện nước, internet, rác, nạp điện thoại -> "cat_bills" (Hóa đơn & Tiện ích).
      + Xem phim, game, du lịch giải trí -> "cat_entertainment" (Giải trí & Phim ảnh).
      + Thuốc men, khám bệnh, nha khoa -> "cat_health" (Sức khỏe & Thuốc).
      + Tiền học, mua sách, khóa học -> "cat_education" (Học tập & Sách).
@@ -76,18 +91,20 @@ QUY TẮC PHÂN TÍCH & PHÂN LOẠI DANH MỤC THÔNG MINH:
          "color": Mã màu HEX pastel/vibrant đẹp
        }
 
-6. wallet:
+7. wallet:
    - "INTERNAL_TRANSFER": Khi chuyển tiền giữa các tài khoản ngân hàng hoặc ví với nhau.
    - "TRANSFER_TO_CASH": Khi rút tiền mặt từ thẻ/ngân hàng về ví tiền mặt.
    - "CASH": Khi câu nói có từ "tiền mặt", "ví", "tiền túi", "trả mặt", hoặc chi tiêu vặt hoặc options.forceCash = true.
    - "BANK": Khi chuyển khoản, quét mã QR ngân hàng, hoặc mặc định nếu không nhắc đến tiền mặt.
-7. description: Tên khoản chi hoặc thu rõ ràng, lịch sự.
+8. description: Tên khoản chi hoặc thu rõ ràng, lịch sự.
 
 Trả về DUY NHẤT một đối tượng JSON hợp lệ theo định dạng:
 {
   "amount": number,
   "type": "EXPENSE" | "INCOME",
   "categoryId": string | null,
+  "customDate": string | null,
+  "customTime": string | null,
   "isSplit": boolean,
   "splits": [
     {
@@ -199,6 +216,8 @@ function formatParsedResult(data, userText, options) {
         : (parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash'
             ? 'TRANSFER_TO_CASH'
             : (isCashExplicit ? 'CASH' : (parsed.wallet || 'BANK'))),
+      customDate: parsed.customDate || null,
+      customTime: parsed.customTime || null,
       sourceBank: parsed.sourceBank || null,
       targetBank: parsed.targetBank || null,
       borrower: parsed.borrower || null,
@@ -300,10 +319,42 @@ function fallbackLocalParse(userText, categories = [], options = {}) {
   const isCashExplicit = options.forceCash || 
     /tiền\s*mặt|tiền\s*túi|trong\s*ví|trả\s*mặt/i.test(text);
 
+  // Nhận diện ngày/giờ nếu người dùng có nói trong câu
+  let customDate = null;
+  let customTime = null;
+  const vnNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  
+  if (/hôm\s*qua|tối\s*qua|sáng\s*qua/i.test(lower)) {
+    const d = new Date(vnNow);
+    d.setDate(d.getDate() - 1);
+    customDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  } else if (/hôm\s*kia/i.test(lower)) {
+    const d = new Date(vnNow);
+    d.setDate(d.getDate() - 2);
+    customDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  } else {
+    const dateMatch = lower.match(/(?:ngày\s*)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/i);
+    if (dateMatch) {
+      const d = String(dateMatch[1]).padStart(2, '0');
+      const m = String(dateMatch[2]).padStart(2, '0');
+      const y = dateMatch[3] ? (dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]) : String(vnNow.getFullYear());
+      customDate = `${y}-${m}-${d}`;
+    }
+  }
+
+  const timeMatch = lower.match(/(?:lúc\s*)?(\d{1,2})h(?:(\d{2}))?/i);
+  if (timeMatch) {
+    const h = String(timeMatch[1]).padStart(2, '0');
+    const min = String(timeMatch[2] || '00').padStart(2, '0');
+    customTime = `${h}:${min}`;
+  }
+
   return {
     amount: Math.round(amount),
     type,
     categoryId,
+    customDate,
+    customTime,
     isSplit,
     splits,
     isNewCategory: false,

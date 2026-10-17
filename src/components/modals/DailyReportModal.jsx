@@ -185,30 +185,32 @@ export default function DailyReportModal({
   return (
     <div className="prompt-modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div
-        className="glass-panel"
+        className="glass-panel daily-report-dialog"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: '720px',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           overflowY: 'auto',
           background: 'var(--bg-card-solid)',
           border: '1px solid var(--border-subtle)',
-          borderRadius: '24px',
-          padding: '24px 28px',
+          borderRadius: 'clamp(18px, 4vw, 24px)',
+          padding: 'clamp(14px, 3.5vw, 24px)',
           boxShadow: 'var(--shadow-card, 0 25px 60px -15px rgba(0, 0, 0, 0.4))',
           backdropFilter: 'blur(24px)',
           color: 'var(--text-main)'
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="daily-report-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
             <div
+              className="daily-report-icon-box"
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '14px',
+                width: '40px',
+                height: '40px',
+                flexShrink: 0,
+                borderRadius: '12px',
                 background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25))',
                 border: '1px solid rgba(139, 92, 246, 0.4)',
                 display: 'flex',
@@ -216,11 +218,11 @@ export default function DailyReportModal({
                 justifyContent: 'center'
               }}
             >
-              <Sparkles size={22} color="var(--accent-purple, #c084fc)" />
+              <Sparkles size={20} color="var(--accent-purple, #c084fc)" />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="daily-report-title-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 'clamp(1.05rem, 4vw, 1.25rem)', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.2 }}>
                   Báo cáo tài chính cuối ngày
                 </h3>
                 <span
@@ -228,19 +230,20 @@ export default function DailyReportModal({
                     background: 'rgba(16, 185, 129, 0.15)',
                     border: '1px solid rgba(16, 185, 129, 0.3)',
                     color: '#10b981',
-                    fontSize: '0.7rem',
+                    fontSize: '0.68rem',
                     fontWeight: 700,
-                    padding: '2px 8px',
+                    padding: '2px 7px',
                     borderRadius: '9999px',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <Clock size={11} /> {autoSettings.time} Tự động
                 </span>
               </div>
-              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
                 AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo ứng dụng
               </p>
             </div>
@@ -252,7 +255,8 @@ export default function DailyReportModal({
               border: 'none',
               color: 'var(--text-muted)',
               cursor: 'pointer',
-              padding: '6px'
+              padding: '6px',
+              flexShrink: 0
             }}
           >
             <X size={20} />
@@ -261,31 +265,37 @@ export default function DailyReportModal({
 
         {/* Navigation Tabs */}
         <div
+          className="daily-report-tabs-bar"
           style={{
             display: 'flex',
             gap: '8px',
             borderBottom: '1px solid var(--border-subtle)',
             paddingBottom: '12px',
-            marginBottom: '18px'
+            marginBottom: '16px',
+            flexWrap: 'wrap'
           }}
         >
           <button
             type="button"
+            className="daily-report-tab-btn"
             onClick={() => setActiveTab('report')}
             style={{
+              flex: '1 1 140px',
+              justifyContent: 'center',
               background: activeTab === 'report' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
               borderColor: activeTab === 'report' ? 'var(--accent-purple, #c084fc)' : 'transparent',
               borderWidth: '1px',
               borderStyle: 'solid',
               color: activeTab === 'report' ? 'var(--accent-purple, #a855f7)' : 'var(--text-dim)',
-              padding: '7px 14px',
+              padding: '7px 12px',
               borderRadius: '10px',
-              fontSize: '0.84rem',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              whiteSpace: 'nowrap'
             }}
           >
             <Sparkles size={15} />
@@ -294,25 +304,29 @@ export default function DailyReportModal({
 
           <button
             type="button"
+            className="daily-report-tab-btn"
             onClick={() => setActiveTab('automation')}
             style={{
+              flex: '1 1 140px',
+              justifyContent: 'center',
               background: activeTab === 'automation' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
               borderColor: activeTab === 'automation' ? 'var(--accent-cyan, #38bdf8)' : 'transparent',
               borderWidth: '1px',
               borderStyle: 'solid',
               color: activeTab === 'automation' ? 'var(--accent-cyan, #0284c7)' : 'var(--text-dim)',
-              padding: '7px 14px',
+              padding: '7px 12px',
               borderRadius: '10px',
-              fontSize: '0.84rem',
+              fontSize: '0.82rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              whiteSpace: 'nowrap'
             }}
           >
             <Bell size={15} />
-            Thông báo ứng dụng 10h ({autoSettings.time})
+            Thông báo app ({autoSettings.time})
           </button>
         </div>
 
@@ -441,7 +455,7 @@ export default function DailyReportModal({
             {!isLoading && reportData && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {/* Top Cards Row: Thu - Chi - Tích lũy - Đánh giá */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                <div className="daily-report-stats-grid" style={{ display: 'grid', gap: '10px' }}>
                   <div
                     style={{
                       background: 'var(--bg-input)',
@@ -720,7 +734,7 @@ export default function DailyReportModal({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="daily-report-push-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {!pushStatus.isSubscribed ? (
                     <button
                       type="button"

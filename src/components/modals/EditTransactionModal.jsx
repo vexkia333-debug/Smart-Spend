@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, Edit3, Calendar, Tag, CreditCard, DollarSign } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
+import CustomSelect from '../common/CustomSelect.jsx';
 
 export default function EditTransactionModal({
   isOpen,
@@ -32,6 +33,22 @@ export default function EditTransactionModal({
   }, [tx]);
 
   const availableCategories = categories.filter((c) => c.type === type);
+
+  const accountOptions = accounts.map((a) => ({
+    value: a.id,
+    label: `${a.name} (${a.bank_code})`,
+    color: a.color || (a.id === 'acc_cash' ? '#f59e0b' : '#38bdf8'),
+    badge: a.bank_code
+  }));
+
+  const categoryOptions = [
+    { value: '', label: '-- Chưa phân loại --', color: '#94a3b8' },
+    ...availableCategories.map((c) => ({
+      value: c.id,
+      label: c.name,
+      color: c.color || '#ec4899'
+    }))
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -81,7 +98,7 @@ export default function EditTransactionModal({
   return (
     <div className="prompt-modal-backdrop" onClick={onClose} style={{ zIndex: 1100 }}>
       <div
-        className="glass-panel"
+        className="glass-panel edit-tx-modal-content"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -89,10 +106,11 @@ export default function EditTransactionModal({
           background: 'var(--bg-card-solid)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '20px',
-          padding: '24px',
+          padding: 'clamp(16px, 4vw, 24px)',
           boxShadow: 'var(--shadow-card)',
           backdropFilter: 'blur(20px)',
-          color: 'var(--text-main)'
+          color: 'var(--text-main)',
+          overflow: 'visible'
         }}
       >
         {/* Header */}
@@ -178,7 +196,7 @@ export default function EditTransactionModal({
           </div>
 
           {/* Số tiền & Tài khoản */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="edit-tx-grid-row">
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
                 <DollarSign size={14} color="var(--accent-cyan)" />
@@ -208,24 +226,13 @@ export default function EditTransactionModal({
                 <CreditCard size={14} color="var(--accent-purple)" />
                 Nguồn tiền
               </label>
-              <select
+              <CustomSelect
                 value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="form-select"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  fontSize: '0.88rem',
-                  boxSizing: 'border-box'
-                }}
-              >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.bank_code})
-                  </option>
-                ))}
-              </select>
+                onChange={setAccountId}
+                options={accountOptions}
+                fullWidth
+                placeholder="Chọn nguồn tiền..."
+              />
             </div>
           </div>
 
@@ -252,31 +259,19 @@ export default function EditTransactionModal({
           </div>
 
           {/* Danh mục & Thời gian */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="edit-tx-grid-row">
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
                 <Tag size={14} color="var(--accent-rose)" />
                 Danh mục
               </label>
-              <select
+              <CustomSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="form-select"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  fontSize: '0.88rem',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <option value="">-- Chưa phân loại --</option>
-                {availableCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoryId}
+                options={categoryOptions}
+                fullWidth
+                placeholder="Chọn danh mục..."
+              />
             </div>
 
             <div>

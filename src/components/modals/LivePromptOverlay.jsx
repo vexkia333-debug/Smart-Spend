@@ -79,6 +79,7 @@ export default function LivePromptOverlay({
 
           {/* Khu vực AI Phân tích & Tách danh mục chính */}
           <div
+            className="prompt-ai-card-inner"
             style={{
               background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.08))',
               border: '1px solid rgba(139, 92, 246, 0.3)',
@@ -100,13 +101,13 @@ export default function LivePromptOverlay({
               }}
             >
               <Sparkles size={16} />
-              <span>Gõ nội dung để AI phân loại & tự động tách khoản:</span>
+              <span>Gõ nội dung để AI phân loại & tự động tách:</span>
             </div>
 
             <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
               {isIncome
                 ? 'Gõ người trả hoặc mục đích nhận tiền (VD: "Thảo trả tiền ăn trưa").'
-                : 'Bạn có thể gõ tự nhiên, ví dụ: "tôi ăn hết 101k còn lại trả hộ", "tiền đi nhậu", "đền mất vé xe"... AI sẽ tự động phân loại và tách tiền cho bạn!'}
+                : 'Gõ tự nhiên (VD: "tôi ăn 101k còn lại trả hộ bạn", "tiền đi nhậu", "đền mất vé xe")... AI sẽ tự động phân loại và tách tiền cho bạn!'}
             </p>
 
             <form
@@ -116,23 +117,14 @@ export default function LivePromptOverlay({
               }}
               style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(15, 23, 42, 0.65)',
-                  border: '1px solid rgba(139, 92, 246, 0.4)',
-                  borderRadius: '12px',
-                  padding: '4px 6px 4px 12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                }}
-              >
+              <div className="prompt-ai-input-box">
                 <input
                   ref={inputRef}
                   type="text"
                   className="prompt-ai-input"
                   style={{
                     flex: 1,
+                    minWidth: 0,
                     background: 'transparent',
                     border: 'none',
                     outline: 'none',
@@ -142,8 +134,8 @@ export default function LivePromptOverlay({
                   }}
                   placeholder={
                     isIncome
-                      ? 'Nhập lý do nhận tiền (VD: Linh trả nợ cơm trưa)...'
-                      : 'Nhập nội dung (VD: tôi ăn 101k còn lại trả hộ bạn)...'
+                      ? 'Nhập lý do nhận tiền (VD: Linh trả nợ)...'
+                      : 'Nhập nội dung (VD: tôi ăn 101k còn lại trả hộ)...'
                   }
                   value={promptAiText}
                   onChange={(e) => setPromptAiText(e.target.value)}
@@ -152,19 +144,12 @@ export default function LivePromptOverlay({
                 <button
                   type="submit"
                   disabled={isPromptAiAnalyzing || !promptAiText.trim()}
+                  className="prompt-ai-submit-btn"
                   style={{
                     background: promptAiText.trim()
                       ? 'linear-gradient(135deg, #8b5cf6, #3b82f6)'
                       : 'rgba(255, 255, 255, 0.1)',
                     color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '8px 14px',
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
                     cursor: promptAiText.trim() ? 'pointer' : 'not-allowed',
                     transition: 'all 0.2s ease',
                     boxShadow: promptAiText.trim() ? '0 4px 12px rgba(139, 92, 246, 0.35)' : 'none'

@@ -54,6 +54,75 @@ app.use('/api/webhook/bank-notification', express.text({ type: '*/*' }), (req, r
 
 app.use(express.json());
 
+/**
+ * Trả về đối tượng Date và các thành phần thời gian chuẩn xác theo múi giờ Việt Nam (UTC+7, Asia/Ho_Chi_Minh)
+ * Khắc phục hoàn toàn lỗi sai lệch 7 tiếng khi máy chủ deploy trên môi trường Cloud / Render (UTC GMT+0)
+ */
+export function getVietnamTimeParts(inputDate = new Date()) {
+  const d = (inputDate instanceof Date) ? inputDate : new Date(inputDate);
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  
+  const vnStr = validDate.toLocaleString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
+  // vnStr format en-GB: "DD/MM/YYYY, HH:mm:ss"
+  const [datePart, timePart] = vnStr.split(', ');
+  const [day, month, year] = datePart.split('/');
+  const [hour, minute, second] = timePart.split(':');
+
+  return {
+    day,
+    month,
+    year,
+    hour,
+    minute,
+    second,
+    dateStr: `${day}/${month}/${year}`,
+    timeStr: `${hour}:${minute}`,
+    fullStr: `${hour}:${minute} ${day}/${month}/${year}`,
+    isoDate: `${year}-${month}-${day}`
+  };
+}
+
+/**
+ * Định dạng thời gian giao dịch chuẩn Việt Nam, hỗ trợ nhận diện ngày/giờ do người dùng gõ
+ */
+export function formatVietnamTxTime({ clientTime, customDate, customTime } = {}) {
+  const vnNow = getVietnamTimeParts(clientTime || new Date());
+  
+  let d = vnNow.day;
+  let m = vnNow.month;
+  let y = vnNow.year;
+  let hh = vnNow.hour;
+  let mm = vnNow.minute;
+
+  if (customDate && typeof customDate === 'string') {
+    if (customDate.includes('-')) {
+      const parts = customDate.split('-');
+      if (parts.length === 3) {
+        y = parts[0];
+        m = parts[1].padStart(2, '0');
+        d = parts[2].padStart(2, '0');
+      }
+    } else if (customDate.includes('/')) {
+      const parts = customDate.split('/');
+      if (parts.length === 3) {
+        d = parts[0].padStart(2, '0');
+        m = parts[1].padStart(2, '0');
+        y = parts[2];
+      }
+    }
+  }
+
+  if (customTime && typeof customTime === 'string') {
+    const parts = customTime.split(':');
+    if (parts.length >= 2) {
+      hh = parts[0].padStart(2, '0');
+      mm = parts[1].padStart(2, '0');
+    }
+  }
+
+  return `${hh}:${mm} ${d}/${m}/${y}`;
+}
+
 // Cấu hình mã PIN bảo vệ hệ thống
 const APP_PIN = process.env.APP_PIN || '014205';
 const AUTH_TOKEN = crypto.createHmac('sha256', APP_PIN).update('smartspend_vault_secret_salt').digest('hex');
@@ -752,13 +821,13 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
 
     const targetAccountId = account?.id || 'acc_primary';
 
-    // Chuẩn bị thời gian giao dịch
-    const now = new Date();
-    const curDay = String(now.getDate()).padStart(2, '0');
-    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const curYear = String(now.getFullYear());
-    const curHour = String(now.getHours()).padStart(2, '0');
-    const curMin = String(now.getMinutes()).padStart(2, '0');
+    // Chuẩn bị thời gian giao dịch chuẩn theo múi giờ Việt Nam
+    const vnTime = getVietnamTimeParts();
+    const curDay = vnTime.day;
+    const curMonth = vnTime.month;
+    const curYear = vnTime.year;
+    const curHour = vnTime.hour;
+    const curMin = vnTime.minute;
 
     let txTime = timestamp;
     if (txTime && typeof txTime === 'string') {
@@ -773,10 +842,10 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
         .trim();
 
       if (txTime.includes('{') || txTime.includes('[')) {
-        txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+        txTime = vnTime.fullStr;
       }
     } else {
-      txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+      txTime = vnTime.fullStr;
     }
 
     // 3. Tự động phát hiện & khớp lệnh chuyển tiền nội bộ (Smart Internal Transfer Pairing)
@@ -1186,13 +1255,8 @@ app.post('/api/accounts/:id/adjust-balance', async (req, res) => {
     }
 
     const diff = targetBalance - account.balance;
-    const now = new Date();
-    const curDay = String(now.getDate()).padStart(2, '0');
-    const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const curYear = String(now.getFullYear());
-    const curHour = String(now.getHours()).padStart(2, '0');
-    const curMin = String(now.getMinutes()).padStart(2, '0');
-    const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+    const vnTime = getVietnamTimeParts();
+    const txTime = vnTime.fullStr;
 
     await db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(targetBalance, id);
 
@@ -1339,13 +1403,11 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         });
       }
 
-      const now = new Date();
-      const curDay = String(now.getDate()).padStart(2, '0');
-      const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-      const curYear = String(now.getFullYear());
-      const curHour = String(now.getHours()).padStart(2, '0');
-      const curMin = String(now.getMinutes()).padStart(2, '0');
-      const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+      const txTime = formatVietnamTxTime({
+        clientTime: req.body.clientTime,
+        customDate: parsed.customDate,
+        customTime: parsed.customTime
+      });
 
       let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
       let cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
@@ -1442,13 +1504,11 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
 
     if (autoSave) {
       const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
-      const now = new Date();
-      const curDay = String(now.getDate()).padStart(2, '0');
-      const curMonth = String(now.getMonth() + 1).padStart(2, '0');
-      const curYear = String(now.getFullYear());
-      const curHour = String(now.getHours()).padStart(2, '0');
-      const curMin = String(now.getMinutes()).padStart(2, '0');
-      const txTime = `${curHour}:${curMin} ${curDay}/${curMonth}/${curYear}`;
+      const txTime = formatVietnamTxTime({
+        clientTime: req.body.clientTime,
+        customDate: parsed.customDate,
+        customTime: parsed.customTime
+      });
 
       // Đảm bảo có cả tài khoản ngân hàng và ví tiền mặt
       let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
@@ -1603,11 +1663,8 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
  */
 export async function generateAndSaveDailyReport(date, { force = false, triggerSource = 'MANUAL' } = {}) {
   // 1. Xác định ngày báo cáo (theo múi giờ Việt Nam Asia/Ho_Chi_Minh)
-  const nowVn = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
-  const curYear = nowVn.getFullYear();
-  const curMonth = String(nowVn.getMonth() + 1).padStart(2, '0');
-  const curDay = String(nowVn.getDate()).padStart(2, '0');
-  const targetDate = date || `${curYear}-${curMonth}-${curDay}`;
+  const vnTime = getVietnamTimeParts();
+  const targetDate = date || vnTime.isoDate;
 
   const [tY, tM, tD] = targetDate.split('-');
   const pattern1 = `%${tD}/${tM}/${tY}%`;
