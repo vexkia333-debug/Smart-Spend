@@ -121,8 +121,8 @@ export function parseBankNotification(text, title = '', appName = '') {
     };
   }
 
-  // 4. Bóc tách số dư cuối / số dư khả dụng (ví dụ: "Số dư cuối: 355,788VND" hoặc "SD: 18,365,000 VND")
-  const balanceMatch = cleanText.match(/(?:SD|So du|Số dư)(?:\s+(?:cuối|cuoi|kha dung|khả dụng|hien tai|hiện tại))?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12})/i);
+  // 4. Bóc tách số dư cuối / số dư khả dụng (ví dụ: "Số dư cuối: 355,788VND" hoặc "Số dư: VND 165,553")
+  const balanceMatch = cleanText.match(/(?:SD|So du|Số dư)(?:\s+(?:cuối|cuoi|kha dung|khả dụng|hien tai|hiện tại))?[:\s]*(?:VND|VNĐ|d|đ|\$)?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12})/i);
   if (balanceMatch && balanceMatch[1]) {
     balance = parseFloat(balanceMatch[1].replace(/[.,]/g, ''));
   }

@@ -822,6 +822,28 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
 
     const targetAccountId = account?.id || 'acc_primary';
 
+    // 2.1. Chống spam & khử trùng lặp webhook (Anti-Spam / Idempotency Guard trong 90 giây)
+    const recentDuplicate = await db.prepare(`
+      SELECT id, description, transaction_time 
+      FROM transactions 
+      WHERE account_id = ? 
+        AND amount = ? 
+        AND type = ? 
+        AND (raw_content = ? OR (datetime(created_at) >= datetime('now', '-90 seconds') AND description = ?))
+        AND datetime(created_at) >= datetime('now', '-90 seconds')
+      LIMIT 1
+    `).get(targetAccountId, parsed.amount, parsed.type, parsed.rawContent, parsed.description);
+
+    if (recentDuplicate) {
+      console.log(`[Webhook Anti-Spam] Bỏ qua webhook trùng lặp với giao dịch ${recentDuplicate.id}`);
+      return res.json({
+        success: true,
+        duplicate: true,
+        transactionId: recentDuplicate.id,
+        message: 'Giao dịch đã được ghi nhận trước đó, bỏ qua để tránh trùng lặp'
+      });
+    }
+
     // Chuẩn bị thời gian giao dịch chuẩn theo múi giờ Việt Nam
     const vnTime = getVietnamTimeParts();
     const curDay = vnTime.day;
