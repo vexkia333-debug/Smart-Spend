@@ -61,7 +61,7 @@ export default function LivePromptOverlay({
         <div className="prompt-body">
           <div className="prompt-bank-row">
             <span className="prompt-bank-name">
-              🏦 {tx.bank_name || 'Ngân hàng'}
+              🏦 {tx.account_name || tx.bank_name || 'Ngân hàng'}
             </span>
             <span
               className={`prompt-amount ${isIncome ? 'income' : 'expense'}`}

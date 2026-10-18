@@ -567,11 +567,14 @@ app.put('/api/transactions/:id', async (req, res) => {
       }
     }
 
+    const targetAccount = await db.prepare('SELECT name FROM accounts WHERE id = ?').get(newAccountId);
+    const newBankName = targetAccount?.name || oldTx.bank_name;
+
     await db.prepare(`
       UPDATE transactions
-      SET amount = ?, description = ?, category_id = ?, account_id = ?, type = ?, transaction_time = ?, updated_at = datetime('now', 'localtime')
+      SET amount = ?, description = ?, category_id = ?, account_id = ?, bank_name = ?, type = ?, transaction_time = ?, updated_at = datetime('now', 'localtime')
       WHERE id = ?
-    `).run(newAmount, newDesc, newCatId, newAccountId, newType, newTime, id);
+    `).run(newAmount, newDesc, newCatId, newAccountId, newBankName, newType, newTime, id);
 
     const updatedTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name

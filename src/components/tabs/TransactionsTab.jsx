@@ -191,7 +191,7 @@ export default function TransactionsTab({
                       {formatTxTime(tx.transaction_time, tx.created_at)}
                     </td>
                     <td>
-                      <span className="pending-bank-badge">{tx.bank_name || 'Ngân hàng'}</span>
+                      <span className="pending-bank-badge">{tx.account_name || tx.bank_name || 'Ngân hàng'}</span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{tx.description}</td>
                     <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -279,7 +279,7 @@ export default function TransactionsTab({
               <div key={tx.id} className="mobile-tx-card">
                 <div className="mobile-tx-card-header">
                   <div className="mobile-tx-card-meta">
-                    <span className="pending-bank-badge">{tx.bank_name || 'Ngân hàng'}</span>
+                    <span className="pending-bank-badge">{tx.account_name || tx.bank_name || 'Ngân hàng'}</span>
                     <span className="mobile-tx-time">
                       {formatTxTime(tx.transaction_time, tx.created_at)}
                     </span>

@@ -87,7 +87,7 @@ export default function PendingTab({
                 <div style={{ flex: 1, minWidth: '240px' }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="pending-bank-badge">
-                      🏦 {tx.bank_name || 'Ngân hàng'}
+                      🏦 {tx.account_name || tx.bank_name || 'Ngân hàng'}
                     </span>
                     <span className="badge badge-pending">Chờ gắn thẻ</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
