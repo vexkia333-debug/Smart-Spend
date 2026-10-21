@@ -45,9 +45,12 @@ export default function ReconcileModal({
           width: '460px',
           maxWidth: '100%',
           padding: '28px',
-          background: '#0f172a',
-          border: '1px solid rgba(245, 158, 11, 0.4)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(245, 158, 11, 0.2)'
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '20px',
+          boxShadow: 'var(--shadow-card)',
+          backdropFilter: 'blur(20px)',
+          color: 'var(--text-main)'
         }}
       >
         <div
@@ -58,8 +61,8 @@ export default function ReconcileModal({
             marginBottom: '16px'
           }}
         >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
-            <Banknote size={20} color="#f59e0b" />
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+            <Banknote size={20} color="var(--accent-amber)" />
             Kiểm kê số dư: {account.name}
           </h3>
           <button className="prompt-close" onClick={onClose}>
@@ -81,7 +84,8 @@ export default function ReconcileModal({
         <form onSubmit={handleSubmit}>
           <div
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-subtle)',
               padding: '12px 16px',
               borderRadius: 'var(--radius-md)',
               marginBottom: '16px',

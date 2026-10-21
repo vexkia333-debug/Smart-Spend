@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Edit3, Calendar, Tag, CreditCard, DollarSign } from 'lucide-react';
+import { X, Save, Trash2, Edit3, Calendar, Tag, CreditCard, DollarSign, AlertTriangle } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
 import CustomSelect from '../common/CustomSelect.jsx';
 
@@ -22,6 +22,7 @@ export default function EditTransactionModal({
   const [txTime, setTxTime] = useState(tx.transaction_time || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setDescription(tx.description || '');
@@ -30,6 +31,7 @@ export default function EditTransactionModal({
     setCategoryId(tx.category_id || '');
     setAccountId(tx.account_id || '');
     setTxTime(tx.transaction_time || '');
+    setShowDeleteConfirm(false);
   }, [tx]);
 
   const availableCategories = categories.filter((c) => c.type === type);
@@ -79,14 +81,15 @@ export default function EditTransactionModal({
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa giao dịch "${tx.description}" (${formatVND(tx.amount)}) không?\nSố dư tài khoản sẽ được hoàn lại tương ứng.`)) {
-      return;
-    }
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDelete = async () => {
     setIsDeleting(true);
     try {
       await onDelete(tx.id);
+      setShowDeleteConfirm(false);
       onClose();
     } catch (err) {
       alert(err.message || 'Lỗi khi xóa giao dịch');
@@ -101,6 +104,7 @@ export default function EditTransactionModal({
         className="glass-panel edit-tx-modal-content"
         onClick={(e) => e.stopPropagation()}
         style={{
+          position: 'relative',
           width: '100%',
           maxWidth: '520px',
           background: 'var(--bg-card-solid)',
@@ -110,9 +114,80 @@ export default function EditTransactionModal({
           boxShadow: 'var(--shadow-card)',
           backdropFilter: 'blur(20px)',
           color: 'var(--text-main)',
-          overflow: 'visible'
+          overflow: 'hidden'
         }}
       >
+        {/* Custom Confirmation Dialog khi bấm Xóa GD */}
+        {showDeleteConfirm && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.7)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              zIndex: 30
+            }}
+          >
+            <div
+              style={{
+                background: 'var(--bg-card-solid)',
+                border: '1px solid var(--accent-rose)',
+                borderRadius: '16px',
+                padding: '24px',
+                maxWidth: '400px',
+                width: '100%',
+                textAlign: 'center',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)'
+              }}
+            >
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'rgba(244, 63, 94, 0.15)',
+                  color: 'var(--accent-rose)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px auto'
+                }}
+              >
+                <AlertTriangle size={24} />
+              </div>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                Xác nhận xóa giao dịch?
+              </h4>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Bạn có chắc muốn xóa giao dịch <strong>"{tx.description}"</strong> ({formatVND(tx.amount)})? Số dư tài khoản sẽ được hoàn lại tương ứng.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="btn btn-secondary"
+                  style={{ padding: '9px 14px', borderRadius: '10px', fontSize: '0.84rem', fontWeight: 600 }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="btn btn-danger"
+                  style={{ padding: '9px 14px', borderRadius: '10px', fontSize: '0.84rem', fontWeight: 700 }}
+                >
+                  {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

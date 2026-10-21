@@ -1039,6 +1039,7 @@ export default function App() {
         setPromptAiText={setPromptAiText}
         isPromptAiAnalyzing={isPromptAiAnalyzing}
         handlePromptAiCategorize={handlePromptAiCategorize}
+        handleCategorize={handleCategorize}
         onClose={() => {
           setLivePrompt(null);
           setActiveTab('pending');

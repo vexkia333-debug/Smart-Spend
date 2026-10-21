@@ -8,6 +8,7 @@ export default function LivePromptOverlay({
   setPromptAiText,
   isPromptAiAnalyzing,
   handlePromptAiCategorize,
+  handleCategorize,
   onClose
 }) {
   if (!livePrompt || !livePrompt.transaction) return null;
@@ -15,18 +16,14 @@ export default function LivePromptOverlay({
   const tx = livePrompt.transaction;
   const isIncome = tx.type === 'INCOME';
   const inputRef = useRef(null);
+  const quickActions = livePrompt.quickActions || [];
 
   useEffect(() => {
-    // Tự động focus vào ô nhập AI khi popup xuất hiện
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 150);
     return () => clearTimeout(timer);
   }, [livePrompt]);
-
-  const suggestions = isIncome
-    ? ['Bạn trả nợ tiền ăn', 'Bạn chuyển tiền trả', 'Thu hồi nợ', 'Tiền thưởng dự án']
-    : ['Tôi ăn 101k còn lại trả hộ bạn', 'Tiền đi nhậu', 'Đền mất vé xe', 'Cơm trưa văn phòng', 'Cà phê sáng'];
 
   return (
     <div className="prompt-modal-backdrop" onClick={onClose}>
@@ -37,7 +34,7 @@ export default function LivePromptOverlay({
             style={{
               borderColor: isIncome ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)',
               background: isIncome ? 'rgba(16, 185, 129, 0.14)' : 'rgba(244, 63, 94, 0.14)',
-              color: isIncome ? '#34d399' : '#fb7185'
+              color: isIncome ? '#10b981' : '#f43f5e'
             }}
           >
             <span
@@ -51,7 +48,7 @@ export default function LivePromptOverlay({
           </div>
           <button
             className="prompt-close"
-            title="Đóng thông báo (để bổ sung sau trên Web)"
+            title="Đóng (bổ sung sau trên Web)"
             onClick={onClose}
           >
             <X size={16} />
@@ -66,7 +63,7 @@ export default function LivePromptOverlay({
             <span
               className={`prompt-amount ${isIncome ? 'income' : 'expense'}`}
               style={{
-                color: isIncome ? '#34d399' : '#fb7185',
+                color: isIncome ? '#10b981' : '#f43f5e',
                 fontWeight: 800
               }}
             >
@@ -77,66 +74,83 @@ export default function LivePromptOverlay({
 
           <div className="prompt-desc">{tx.description || tx.raw_content}</div>
 
-          {/* Khu vực AI Phân tích & Tách danh mục chính */}
-          <div
-            className="prompt-ai-card-inner"
-            style={{
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.08))',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              borderRadius: '16px',
-              padding: '16px',
-              marginTop: '12px',
-              marginBottom: '14px'
-            }}
-          >
+          {/* Chọn nhanh danh mục (nếu có) */}
+          {quickActions.length > 0 && typeof handleCategorize === 'function' && (
+            <div style={{ marginTop: '12px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                Chọn nhanh danh mục:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '6px' }}>
+                {quickActions.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      handleCategorize(tx.id, cat.id);
+                      onClose();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 10px',
+                      borderRadius: '10px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = cat.color || '#38bdf8';
+                      e.currentTarget.style.background = 'var(--bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                      e.currentTarget.style.background = 'var(--bg-input)';
+                    }}
+                  >
+                    <span>{cat.icon || '🏷️'}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Khu vực AI Phân tích & Ghi chú */}
+          <div className="prompt-ai-card-inner">
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                marginBottom: '8px',
-                color: '#c084fc',
+                marginBottom: '10px',
+                color: '#a855f7',
                 fontWeight: 700,
-                fontSize: '0.88rem'
+                fontSize: '0.86rem'
               }}
             >
               <Sparkles size={16} />
-              <span>Gõ nội dung để AI phân loại & tự động tách:</span>
+              <span>Ghi chú hoặc phân loại bằng AI:</span>
             </div>
-
-            <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              {isIncome
-                ? 'Gõ người trả hoặc mục đích nhận tiền (VD: "Thảo trả tiền ăn trưa").'
-                : 'Gõ tự nhiên (VD: "tôi ăn 101k còn lại trả hộ bạn", "tiền đi nhậu", "đền mất vé xe")... AI sẽ tự động phân loại và tách tiền cho bạn!'}
-            </p>
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handlePromptAiCategorize(tx.id);
+                if (promptAiText.trim()) {
+                  handlePromptAiCategorize(tx.id);
+                }
               }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
             >
-              <div className="prompt-ai-input-box">
+              <div className="prompt-ai-input-wrap">
                 <input
                   ref={inputRef}
                   type="text"
                   className="prompt-ai-input"
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
-                    color: '#fff',
-                    fontSize: '0.92rem',
-                    padding: '8px 0'
-                  }}
-                  placeholder={
-                    isIncome
-                      ? 'Nhập lý do nhận tiền (VD: Linh trả nợ)...'
-                      : 'Nhập nội dung (VD: tôi ăn 101k còn lại trả hộ)...'
-                  }
+                  placeholder={isIncome ? 'Nhập ghi chú hoặc lý do nhận tiền...' : 'Nhập ghi chú chi tiêu...'}
                   value={promptAiText}
                   onChange={(e) => setPromptAiText(e.target.value)}
                   disabled={isPromptAiAnalyzing}
@@ -144,19 +158,10 @@ export default function LivePromptOverlay({
                 <button
                   type="submit"
                   disabled={isPromptAiAnalyzing || !promptAiText.trim()}
-                  className="prompt-ai-submit-btn"
-                  style={{
-                    background: promptAiText.trim()
-                      ? 'linear-gradient(135deg, #8b5cf6, #3b82f6)'
-                      : 'rgba(255, 255, 255, 0.1)',
-                    color: '#fff',
-                    cursor: promptAiText.trim() ? 'pointer' : 'not-allowed',
-                    transition: 'all 0.2s ease',
-                    boxShadow: promptAiText.trim() ? '0 4px 12px rgba(139, 92, 246, 0.35)' : 'none'
-                  }}
+                  className="prompt-ai-btn"
                 >
                   {isPromptAiAnalyzing ? (
-                    'Đang phân tích...'
+                    'Đang xử lý...'
                   ) : (
                     <>
                       <span>Phân tích</span>
@@ -165,56 +170,12 @@ export default function LivePromptOverlay({
                   )}
                 </button>
               </div>
-
-              {/* Gợi ý nhanh dạng tags */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-                {suggestions.map((s, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setPromptAiText(s);
-                      inputRef.current?.focus();
-                    }}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '16px',
-                      padding: '3px 9px',
-                      fontSize: '0.74rem',
-                      color: 'var(--text-dim)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#8b5cf6';
-                      e.currentTarget.style.color = '#c084fc';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                      e.currentTarget.style.color = 'var(--text-dim)';
-                    }}
-                  >
-                    + {s}
-                  </button>
-                ))}
-              </div>
             </form>
           </div>
 
           <button
             className="prompt-skip-btn"
             onClick={onClose}
-            style={{
-              width: '100%',
-              padding: '10px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              textAlign: 'center'
-            }}
           >
             Bỏ qua / Bổ sung sau trên trang Web ➔
           </button>

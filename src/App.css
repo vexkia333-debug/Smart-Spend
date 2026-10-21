@@ -849,52 +849,74 @@
   margin-bottom: 12px;
 }
 
+.prompt-ai-card-inner {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.06));
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: 16px;
+  padding: 14px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+:root[data-theme="light"] .prompt-ai-card-inner {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.04));
+  border: 1px solid rgba(139, 92, 246, 0.22);
+}
+
 .prompt-ai-input-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(139, 92, 246, 0.08);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: var(--radius-md);
-  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  padding: 6px 8px 6px 12px;
   transition: all var(--transition-fast);
 }
 
 .prompt-ai-input-wrap:focus-within {
   border-color: #8b5cf6;
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.3);
 }
 
 .prompt-ai-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
   color: var(--text-main);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
+  padding: 4px 0;
 }
 
 .prompt-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
 .prompt-ai-btn:hover:not(:disabled) {
+  opacity: 0.95;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 3px 10px rgba(139, 92, 246, 0.4);
 }
 
 .prompt-ai-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
 }
 
 .prompt-skip-btn {
@@ -1577,20 +1599,21 @@ input[type="number"] {
   .prompt-ai-card-inner {
     padding: 12px !important;
     margin-top: 8px !important;
-    margin-bottom: 12px !important;
+    margin-bottom: 10px !important;
   }
 
-  .prompt-ai-input-box {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 8px 10px;
-    gap: 8px;
+  .prompt-ai-input-wrap {
+    padding: 5px 6px 5px 10px;
+    gap: 6px;
   }
 
-  .prompt-ai-submit-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 9px 12px;
+  .prompt-ai-input {
+    font-size: 0.82rem;
+  }
+
+  .prompt-ai-btn {
+    padding: 7px 11px;
+    font-size: 0.78rem;
   }
 
   /* Daily Report Modal on compact screens */

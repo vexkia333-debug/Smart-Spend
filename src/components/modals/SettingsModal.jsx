@@ -35,9 +35,12 @@ export default function SettingsModal({
           maxHeight: '90vh',
           overflowY: 'auto',
           padding: '28px',
-          background: '#0f172a',
-          border: '1px solid rgba(56, 189, 248, 0.35)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.15)'
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '20px',
+          boxShadow: 'var(--shadow-card)',
+          backdropFilter: 'blur(20px)',
+          color: 'var(--text-main)'
         }}
       >
         <div
@@ -48,8 +51,8 @@ export default function SettingsModal({
             marginBottom: '18px'
           }}
         >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
-            <Settings size={20} color="#38bdf8" />
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+            <Settings size={20} color="var(--accent-cyan)" />
             Cài đặt kết nối & Webhook điện thoại
           </h3>
           <button className="prompt-close" onClick={onClose}>

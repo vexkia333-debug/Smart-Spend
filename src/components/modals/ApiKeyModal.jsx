@@ -33,9 +33,12 @@ export default function ApiKeyModal({
           width: '500px',
           maxWidth: '100%',
           padding: '28px',
-          background: '#0f172a',
-          border: '1px solid rgba(139, 92, 246, 0.4)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(139, 92, 246, 0.25)'
+          background: 'var(--bg-card-solid)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '20px',
+          boxShadow: 'var(--shadow-card)',
+          backdropFilter: 'blur(20px)',
+          color: 'var(--text-main)'
         }}
       >
         <div
@@ -46,8 +49,8 @@ export default function ApiKeyModal({
             marginBottom: '16px'
           }}
         >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
-            <Key size={20} color="#8b5cf6" />
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+            <Key size={20} color="var(--accent-purple)" />
             Cấu hình Google AI Studio API Key (Gemini)
           </h3>
           <button className="prompt-close" onClick={onClose}>
