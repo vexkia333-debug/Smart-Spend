@@ -930,144 +930,33 @@ app.post('/api/webhook/bank-notification', async (req, res) => {
         broadcastEvent('TRANSACTION_UPDATED', updatedPartner);
       }
     } else {
-      // Nếu chưa có giao dịch đối ứng, phân tích sâu người gửi và người nhận
+      // KHÔNG CÓ partnerTx: Tuyệt đối KHÔNG tự ý suy đoán là chuyển tiền nội bộ.
+      // 1 tài khoản trừ tiền có thể là chuyển cho bạn bè, trả nợ, thanh toán, mua sắm...
+      // Phải luôn để trạng thái PENDING để kích hoạt Live Prompt cho người dùng nhập lý do/nội dung.
       const transferInfo = extractTransferInfo(content, parsed.description);
-      const allOtherAccounts = await db.prepare('SELECT id, name, bank_code, account_number FROM accounts WHERE id != ?').all(targetAccountId);
       const descUpper = (parsed.description || '').toUpperCase();
       const rawUpper = (content || '').toUpperCase();
       const combinedUpper = `${descUpper} ${rawUpper}`;
 
-      const isOwnerSender = transferInfo.isSenderOwner;
-      const isExplicitThirdParty = Boolean(transferInfo.senderName && !transferInfo.isSenderOwner);
-
-      // Cú pháp chuyển liên ngân hàng (ví dụ Agribank / Napas: 140421-TCB;19028817209389;VU HA KIEN chuyen tien)
-      const interbankMatch = content.match(/(?:[0-9]+-)?([A-Z]+);([0-9]{6,20});/i);
-      const interbankDestStk = interbankMatch ? interbankMatch[2] : null;
-
-      let isPotentialInternal = false;
-      let mentionedAcc = null;
-
-      if (parsed.type === 'EXPENSE') {
-        // Khi chi tiền ra:
-        if (interbankDestStk) {
-          // Có số tài khoản đích: Chỉ coi là nội bộ nếu số tài khoản thụ hưởng trùng với STK tài khoản của bạn trong hệ thống!
-          mentionedAcc = allOtherAccounts.find(a => a.account_number && a.account_number.length > 5 && a.account_number === interbankDestStk);
-          if (mentionedAcc) {
-            isPotentialInternal = true;
-          }
-        } else {
-          // Không có STK đích: Chỉ coi là nội bộ nếu có từ khóa rõ ràng ("nội bộ", "sang tcb của tôi", "vào ví", "tự chuyển")
-          const hasExplicitSelfTransfer = /nội bộ|noi bo|sang tai khoan|cua toi|chuyen sang vi|tu chuyen/i.test(combinedUpper);
-          if (hasExplicitSelfTransfer) {
-            mentionedAcc = allOtherAccounts.find(a => 
-              combinedUpper.includes(a.name.toUpperCase()) ||
-              (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
-              (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
-              (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
-            );
-            if (mentionedAcc) {
-              isPotentialInternal = true;
-            }
-          }
-        }
-      } else if (parsed.type === 'INCOME') {
-        // Khi tiền vào: Chỉ nội bộ nếu người gửi là chính chủ và không phải người thứ 3
-        if (isOwnerSender && !isExplicitThirdParty) {
-          isPotentialInternal = true;
-          mentionedAcc = allOtherAccounts.find(a => 
-            combinedUpper.includes(a.bank_code) || 
-            combinedUpper.includes(a.name.toUpperCase()) ||
-            (a.bank_code === 'TCB' && combinedUpper.includes('TECHCOMBANK')) ||
-            (a.bank_code === 'VTM' && (combinedUpper.includes('VIETTEL') || combinedUpper.includes('VTMONEY') || combinedUpper.includes('VIETTELPAY'))) ||
-            (a.bank_code === 'AGRI' && combinedUpper.includes('AGRIBANK'))
-          );
-        }
+      if (parsed.type === 'INCOME' && transferInfo.senderName && !transferInfo.isSenderOwner) {
+        const sender = transferInfo.senderName;
+        const remark = transferInfo.remark;
+        parsed.description = remark && remark.length > 3
+          ? `${sender}: ${remark}`
+          : `Nhận tiền từ ${sender}`;
       }
 
-      if (mentionedAcc && isPotentialInternal) {
-        isInternalTransfer = true;
-        categoryId = parsed.type === 'INCOME' ? 'cat_transfer_in' : 'cat_transfer_internal';
-        suggested = { categoryId, isAutoApply: true, keyword: mentionedAcc.name };
+      // Kiểm tra Auto Rules mà người dùng đã chủ động cấu hình
+      const rules = await db.prepare('SELECT * FROM auto_rules').all();
+      suggested = matchSuggestedCategory(combinedUpper, rules);
+      if (suggested && suggested.isAutoApply) {
+        categoryId = suggested.categoryId;
         status = 'CONFIRMED';
-        const curAccName = account?.name || 'Tài khoản chính';
-        parsed.description = parsed.type === 'EXPENSE'
-          ? `Chuyển tiền sang ${mentionedAcc.name}`
-          : `Nhận tiền từ ${mentionedAcc.name}`;
-
-        // Tự động tạo đối ứng cho mentionedAcc để cả 2 tài khoản đều cập nhật chuẩn số dư
-        try {
-          const partnerTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
-          if (parsed.type === 'INCOME') {
-            await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, mentionedAcc.id);
-            await db.prepare(`
-              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-              VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
-            `).run(
-              partnerTxId,
-              mentionedAcc.id,
-              parsed.amount,
-              `Chuyển tiền sang ${curAccName}`,
-              `Tự động trừ tiền khi chuyển nội bộ sang ${curAccName}`,
-              mentionedAcc.name,
-              txTime
-            );
-          } else {
-            await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, mentionedAcc.id);
-            await db.prepare(`
-              INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-              VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'INTERNAL_TRANSFER', ?, datetime('now', 'localtime'))
-            `).run(
-              partnerTxId,
-              mentionedAcc.id,
-              parsed.amount,
-              `Nhận tiền từ ${curAccName}`,
-              `Tự động cộng tiền khi chuyển nội bộ từ ${curAccName}`,
-              mentionedAcc.name,
-              txTime
-            );
-          }
-          const updatedMentioned = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(mentionedAcc.id);
-          if (updatedMentioned) broadcastEvent('ACCOUNT_UPDATED', updatedMentioned);
-        } catch (e) {
-          console.error('Lỗi tự động tạo paired transaction cho mentionedAcc:', e.message);
-        }
-      } else if (isOwnerSender && parsed.type === 'INCOME' && !isExplicitThirdParty) {
-        // Tên người chuyển là chính chủ VU HA KIEN nhưng trong remark không có tên ngân hàng nguồn cụ thể
-        // Tuyệt đối KHÔNG tự ý suy đoán và trừ tiền tài khoản khác. Đưa về PENDING để người dùng xác nhận nếu muốn.
-        categoryId = 'cat_transfer_in';
-        suggested = { categoryId, isAutoApply: false, keyword: 'Chuyển tiền nội bộ' };
-        parsed.description = `Nhận chuyển tiền nội bộ (VU HA KIEN)`;
+      } else if (suggested) {
+        categoryId = suggested.categoryId;
         status = 'PENDING';
       } else {
-        // Giao dịch từ bên thứ 3 chuyển tới hoặc chi tiêu thông thường
-        if (parsed.type === 'INCOME' && isExplicitThirdParty) {
-          const sender = transferInfo.senderName;
-          const remark = transferInfo.remark;
-          parsed.description = remark && remark.length > 3
-            ? `${sender}: ${remark}`
-            : `Nhận tiền từ ${sender}`;
-        }
-
-        // Kiểm tra Auto Rules và từ khóa trả nợ / thu tiền
-        const rules = await db.prepare('SELECT * FROM auto_rules').all();
-        suggested = matchSuggestedCategory(combinedUpper, rules);
-        if (suggested && suggested.isAutoApply) {
-          categoryId = suggested.categoryId;
-          status = 'CONFIRMED';
-        } else if (suggested) {
-          categoryId = suggested.categoryId;
-          status = 'PENDING';
-        } else if (parsed.type === 'INCOME') {
-          categoryId = 'cat_debt_collect';
-          status = 'PENDING';
-        }
-
-        // Đảm bảo giao dịch INCOME không bao giờ nhận danh mục EXPENSE (như cat_loan hay cat_other_expense)
-        if (parsed.type === 'INCOME' && categoryId) {
-          if (categoryId === 'cat_loan' || categoryId === 'cat_other_expense') {
-            categoryId = 'cat_debt_collect';
-          }
-        }
+        status = 'PENDING';
       }
     }
 
