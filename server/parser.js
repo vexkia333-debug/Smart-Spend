@@ -23,7 +23,7 @@ export function parseBankNotification(text, title = '', appName = '') {
   }
 
   // Loại bỏ token văn bản nếu người dùng gõ nhầm literal string
-  const cleanContent = fullContent.replace(/\[not_text\]|\[notification\]/gi, '').trim();
+  const cleanContent = fullContent.replace(/\[(?:not_text|not_title|notification)\]|\{(?:not_text|not_title|notification)\}/gi, '').trim();
   const cleanText = cleanContent.length > 5 ? cleanContent : fullContent;
 
   let bankName = 'Ngân hàng';
@@ -73,12 +73,12 @@ export function parseBankNotification(text, title = '', appName = '') {
   }
 
   // Lọc thông báo tiếp thị, ưu đãi, quảng cáo không phải biến động số dư thực tế
-  const isMarketing = /\bBH\b|bảo hiểm|bao hiem|thân vỏ|than vo|thuỷ kích|thuy kich|phí từ|phi tu|chỉ từ|chi tu|giá từ|gia tu|mua ngay|bảo vệ xe|bao ve xe|gói cước|goi cuoc|data 4g|data 5g|vay online|duyệt vay|duyet vay|hạn mức|han muc|mở ví trả sau|mo vi tra sau|ví trả sau|vi tra sau|nhận ngay voucher|nhan ngay voucher|tiêu trước trả sau|tieu truoc tra sau|quà tặng|qua tang|khuyến mãi|khuyen mai|ưu đãi|uu dai|voucher|hoàn tiền tới|hoan tien toi|trúng thưởng|trung thuong|quay số|quay so|tri ân|tri an|mở thẻ|mo the|tiết kiệm chỉ từ|tiet kiem|lãi suất|lai suat|đăng ký ngay|dang ky ngay|click để|click de|xem ngay|sắp hết hạn|sap het han/i.test(cleanText);
+  const isMarketing = /\bBH\b|bảo hiểm|bao hiem|phao cứu trợ|cuu tro|thân vỏ|than vo|thuỷ kích|thuy kich|phí từ|phi tu|chỉ từ|chi tu|giá từ|gia tu|mua ngay|bảo vệ xe|bao ve xe|gói cước|goi cuoc|data 4g|data 5g|vay online|duyệt vay|duyet vay|khoản vay|khoan vay|hạn mức|han muc|mở ví trả sau|mo vi tra sau|ví trả sau|vi tra sau|nhận ngay voucher|nhan ngay voucher|tiêu trước trả sau|tieu truoc tra sau|quà tặng|qua tang|khuyến mãi|khuyen mai|ưu đãi|uu dai|voucher|hoàn tiền tới|hoan tien toi|trúng thưởng|trung thuong|quay số|quay so|tri ân|tri an|mở thẻ|mo the|tiết kiệm chỉ từ|tiet kiem|lãi suất|lai suat|đăng ký ngay|dang ky ngay|click để|click de|xem ngay|sắp hết hạn|sap het han/i.test(cleanText);
   const hasSignedAmount = /(?:GD[:\s]*)?[+-]\s*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText) ||
     /(?:số tiền giao dịch|so tien gd)[:\s]*[+-]?\s*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText);
   const hasBalanceSignature = /(?:số dư|so du|sd)(?:\s+(?:cuối|cuoi|kha dung|khả dụng|hien tai|hiện tại))?[:\s]*[0-9]{1,3}(?:[.,][0-9]{3})+/i.test(cleanText);
 
-  if (isMarketing && (!hasSignedAmount || !hasBalanceSignature || /\bBH\b|bảo hiểm|bao hiem|ví trả sau|vi tra sau|duyệt vay|duyet vay|thân vỏ/i.test(cleanText))) {
+  if (isMarketing && (!hasSignedAmount || !hasBalanceSignature || /\bBH\b|bảo hiểm|bao hiem|ví trả sau|vi tra sau|duyệt vay|duyet vay|phao cứu trợ|cuu tro|thân vỏ/i.test(cleanText))) {
     return {
       isIgnored: true,
       reason: 'PROMOTIONAL_NOTIFICATION',
