@@ -170,6 +170,7 @@ export default function App() {
         setLivePrompt(payload);
         fetchStats();
         fetchTransactions();
+        fetchAccounts();
       } catch (e) {
         console.error('SSE Error:', e);
       }
@@ -178,11 +179,24 @@ export default function App() {
     eventSource.addEventListener('TRANSACTION_UPDATED', () => {
       fetchStats();
       fetchTransactions();
+      fetchAccounts();
+    });
+
+    eventSource.addEventListener('TRANSACTION_CREATED', () => {
+      fetchStats();
+      fetchTransactions();
+      fetchAccounts();
+    });
+
+    eventSource.addEventListener('ACCOUNT_UPDATED', () => {
+      fetchAccounts();
+      fetchStats();
     });
 
     eventSource.addEventListener('TRANSACTION_IGNORED', () => {
       fetchStats();
       fetchTransactions();
+      fetchAccounts();
     });
 
     eventSource.addEventListener('CATEGORY_CREATED', () => {
@@ -203,7 +217,7 @@ export default function App() {
     };
   }, [isLocked, authToken]);
 
-  // Tự động kiểm tra giao dịch mới khi app được mở lên hoặc chuyển từ nền lên foreground
+  // Tự động kiểm tra giao dịch mới và số dư khi app được mở lên hoặc chuyển từ nền lên foreground
   useEffect(() => {
     if (isLocked) return;
 
@@ -211,9 +225,12 @@ export default function App() {
       if (document.visibilityState === 'visible') {
         fetchTransactions();
         fetchStats();
+        fetchAccounts();
         // Bù đắp race-condition nếu MacroDroid bắn HTTP POST cùng tích tắc mở app
         setTimeout(() => {
           fetchTransactions();
+          fetchAccounts();
+          fetchStats();
         }, 1200);
       }
     };
