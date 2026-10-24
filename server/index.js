@@ -28,7 +28,9 @@ const webhookPaths = [
   '/api/webhook/bank-notification',
   '/api/webhook/bank-notification/',
   '/api/webhook',
-  '/api/webhook/'
+  '/api/webhook/',
+  '/webhook',
+  '/webhook/'
 ];
 app.use(webhookPaths, express.text({ type: '*/*' }), (req, res, next) => {
   if (typeof req.body === 'string') {
