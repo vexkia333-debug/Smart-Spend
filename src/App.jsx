@@ -203,6 +203,29 @@ export default function App() {
     };
   }, [isLocked, authToken]);
 
+  // Tự động kiểm tra giao dịch mới khi app được mở lên hoặc chuyển từ nền lên foreground
+  useEffect(() => {
+    if (isLocked) return;
+
+    const handleForeground = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTransactions();
+        fetchStats();
+        // Bù đắp race-condition nếu MacroDroid bắn HTTP POST cùng tích tắc mở app
+        setTimeout(() => {
+          fetchTransactions();
+        }, 1200);
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleForeground);
+    window.addEventListener('focus', handleForeground);
+    return () => {
+      window.removeEventListener('visibilitychange', handleForeground);
+      window.removeEventListener('focus', handleForeground);
+    };
+  }, [isLocked]);
+
   const fetchInitialData = async () => {
     await Promise.all([
       fetchStats(),
@@ -212,6 +235,10 @@ export default function App() {
       fetchRules(),
       fetchSettings()
     ]);
+    // Kiểm tra bù lại sau 1.2s đề phòng app mở song song lúc webhook vừa gửi
+    setTimeout(() => {
+      fetchTransactions();
+    }, 1200);
   };
 
   const fetchSettings = async () => {

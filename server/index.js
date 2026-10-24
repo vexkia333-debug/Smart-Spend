@@ -24,7 +24,13 @@ app.use(cors());
 
 // Middleware xử lý riêng cho Webhook để chống lỗi "Bad control character in string literal in JSON" (HTTP 400)
 // khi MacroDroid truyền thông báo có dấu xuống dòng thô (Techcombank, Viettel Money)
-app.use('/api/webhook/bank-notification', express.text({ type: '*/*' }), (req, res, next) => {
+const webhookPaths = [
+  '/api/webhook/bank-notification',
+  '/api/webhook/bank-notification/',
+  '/api/webhook',
+  '/api/webhook/'
+];
+app.use(webhookPaths, express.text({ type: '*/*' }), (req, res, next) => {
   if (typeof req.body === 'string') {
     const raw = req.body.trim();
     if (!raw) return next();
@@ -745,7 +751,7 @@ app.post('/api/webhook/quick-categorize', async (req, res) => {
 });
 
 // 5. WEBHOOK NHẬN BIẾN ĐỘNG TỪ ĐIỆN THOẠI (MacroDroid / Tasker / Android Agent)
-app.post('/api/webhook/bank-notification', async (req, res) => {
+app.post(webhookPaths, async (req, res) => {
   try {
     console.log('[Webhook Incoming]', JSON.stringify(req.body));
     const rawContent = req.body.content || req.body.text || req.body.body || req.body.message || req.body.notification || req.body.not_text || '';
@@ -1978,11 +1984,22 @@ setInterval(async () => {
 // Phục vụ giao diện web tĩnh từ thư mục dist (dành cho môi trường Production như Render)
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.use((req, res, next) => {
+  // Chỉ phục vụ index.html cho các request GET
+  app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Bắt các request POST gửi nhầm vào root để tự động chuyển vào webhook
+app.post('/', (req, res) => {
+  if (req.body && (req.body.content || req.body.text || req.body.title || req.body.not_text)) {
+    console.log('[Webhook Redirect] Nhận request POST tại root, chuyển hướng vào webhook bank-notification...');
+    req.url = '/api/webhook/bank-notification';
+    return app._router.handle(req, res);
+  }
+  res.status(404).json({ error: 'Endpoint không tồn tại. Vui lòng gửi Webhook tới /api/webhook/bank-notification' });
+});
 
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
