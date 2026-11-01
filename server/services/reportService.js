@@ -71,6 +71,14 @@ export async function generateAndSavePeriodicReport({
         return iso >= startDate && iso <= endDate;
       });
 
+      const cachedAi = cached.raw_ai_json ? JSON.parse(cached.raw_ai_json) : {
+        rating: cached.rating_badge || 'Cân đối 👍',
+        overview: cached.overview || '',
+        highlights: [],
+        anomalies: cached.anomalies_json ? JSON.parse(cached.anomalies_json) : [],
+        advice: cached.advice_tomorrow || ''
+      };
+
       return {
         success: true,
         period,
@@ -86,13 +94,8 @@ export async function generateAndSavePeriodicReport({
         categoryBreakdown: cached.category_breakdown ? JSON.parse(cached.category_breakdown) : {},
         accountBreakdown: cached.account_breakdown ? JSON.parse(cached.account_breakdown) : {},
         transactions: matchedTxs,
-        aiEvaluation: cached.raw_ai_json ? JSON.parse(cached.raw_ai_json) : {
-          rating: cached.rating_badge || 'Cân đối 👍',
-          overview: cached.overview || '',
-          highlights: [],
-          anomalies: cached.anomalies_json ? JSON.parse(cached.anomalies_json) : [],
-          advice: cached.advice_tomorrow || ''
-        },
+        aiEvaluation: cachedAi,
+        aiAnalysis: cachedAi,
         fromCache: true
       };
     }
@@ -183,6 +186,7 @@ export async function generateAndSavePeriodicReport({
     accountBreakdown: accMap,
     transactions: txs,
     aiEvaluation,
+    aiAnalysis: aiEvaluation,
     fromCache: false
   };
 

@@ -21,7 +21,7 @@ export default function ReportTab({
   onClose,
   getTodayStr
 }) {
-  const ai = reportData?.aiAnalysis;
+  const ai = reportData?.aiEvaluation || reportData?.aiAnalysis;
 
   return (
     <div>
