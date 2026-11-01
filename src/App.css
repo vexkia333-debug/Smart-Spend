@@ -1332,6 +1332,42 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: #0f172a !important;
 }
 
+.daily-report-date-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.daily-report-date-trigger-btn:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: var(--accent-cyan, #38bdf8);
+  color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
+:root[data-theme="light"] .daily-report-date-trigger-btn {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .daily-report-date-trigger-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
 /* AI Smart Input Card */
 .ai-smart-card {
   margin-bottom: 26px;
@@ -3519,6 +3555,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   padding: 14px;
   box-sizing: border-box;
   animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.custom-date-popover.align-left {
+  left: 0;
+  right: auto;
 }
 
 @keyframes popoverFadeIn {

@@ -13,20 +13,44 @@ import { formatDateInput, formatDateVN } from '../../utils/formatters.js';
 export default function CustomDatePopover({
   isOpen,
   onClose,
+  // Chế độ dải ngày (range)
   startDate,
   endDate,
   onApply,
-  onReset
+  onReset,
+  // Chế độ 1 ngày (single)
+  mode = 'range', // 'range' | 'single'
+  selectedDate,
+  onSelectDate,
+  title,
+  align = 'right' // 'right' | 'left'
 }) {
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
+  const [tempDate, setTempDate] = useState('');
+
+  // Hàm chuyển đổi an toàn chuỗi ngày YYYY-MM-DD sang Date không bị lệch múi giờ
+  const parseSafeDate = (dStr) => {
+    if (!dStr) return null;
+    if (typeof dStr === 'string' && dStr.includes('-')) {
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const date = new Date(y, m, d);
+        return isNaN(date.getTime()) ? null : date;
+      }
+    }
+    const d = new Date(dStr);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
   // Tháng và năm đang hiển thị trên lịch
   const [viewDate, setViewDate] = useState(() => {
-    if (startDate) {
-      const d = new Date(startDate);
-      if (!isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), 1);
-    }
+    const targetStr = mode === 'single' ? selectedDate : startDate;
+    const d = parseSafeDate(targetStr);
+    if (d) return new Date(d.getFullYear(), d.getMonth(), 1);
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
@@ -36,16 +60,25 @@ export default function CustomDatePopover({
   // Đồng bộ ngày khi mở popover
   useEffect(() => {
     if (isOpen) {
-      setTempStart(startDate || '');
-      setTempEnd(endDate || '');
-      if (startDate) {
-        const d = new Date(startDate);
-        if (!isNaN(d.getTime())) {
+      if (mode === 'single') {
+        const cur = selectedDate || formatDateInput(new Date());
+        setTempDate(cur);
+        const d = parseSafeDate(cur);
+        if (d) {
           setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+        }
+      } else {
+        setTempStart(startDate || '');
+        setTempEnd(endDate || '');
+        if (startDate) {
+          const d = parseSafeDate(startDate);
+          if (d) {
+            setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+          }
         }
       }
     }
-  }, [isOpen, startDate, endDate]);
+  }, [isOpen, startDate, endDate, selectedDate, mode]);
 
   // Click outside listener
   useEffect(() => {
@@ -53,8 +86,8 @@ export default function CustomDatePopover({
 
     const handleClickOutside = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        // Kiểm tra xem click có trúng nút Tùy chọn không để tránh toggle 2 lần
-        const triggerBtn = e.target.closest('.time-filter-btn');
+        // Kiểm tra xem click có trúng nút kích hoạt không để tránh toggle 2 lần
+        const triggerBtn = e.target.closest('.time-filter-btn') || e.target.closest('.daily-report-date-trigger-btn');
         if (!triggerBtn) {
           onClose();
         }
@@ -124,6 +157,13 @@ export default function CustomDatePopover({
 
   // Chọn ngày trên lịch
   const handleDayClick = (dateStr) => {
+    if (mode === 'single') {
+      setTempDate(dateStr);
+      if (onSelectDate) onSelectDate(dateStr);
+      onClose();
+      return;
+    }
+
     if (!tempStart || (tempStart && tempEnd)) {
       // Bắt đầu chọn mốc mới
       setTempStart(dateStr);
@@ -138,7 +178,7 @@ export default function CustomDatePopover({
     }
   };
 
-  // Áp dụng mốc chọn nhanh
+  // Áp dụng mốc chọn nhanh ở chế độ range
   const applyPreset = (preset) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -182,13 +222,48 @@ export default function CustomDatePopover({
     setTempEnd(end);
 
     if (start) {
-      const d = new Date(start);
-      setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+      const d = parseSafeDate(start);
+      if (d) setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+  };
+
+  // Áp dụng mốc chọn nhanh ở chế độ single
+  const applySinglePreset = (preset) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let chosen = '';
+
+    if (preset === 'TODAY') {
+      chosen = formatDateInput(today);
+    } else if (preset === 'YESTERDAY') {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      chosen = formatDateInput(y);
+    } else if (preset === 'TWO_DAYS_AGO') {
+      const past = new Date(today);
+      past.setDate(past.getDate() - 2);
+      chosen = formatDateInput(past);
+    } else if (preset === 'MONTH_START') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      chosen = formatDateInput(firstDay);
+    }
+
+    setTempDate(chosen);
+    if (chosen) {
+      const d = parseSafeDate(chosen);
+      if (d) setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+      if (onSelectDate) onSelectDate(chosen);
+      onClose();
     }
   };
 
   const handleApply = (e) => {
     if (e) e.preventDefault();
+    if (mode === 'single') {
+      if (onSelectDate && tempDate) onSelectDate(tempDate);
+      onClose();
+      return;
+    }
     if (tempStart && !tempEnd) {
       onApply(tempStart, tempStart);
     } else {
@@ -198,6 +273,13 @@ export default function CustomDatePopover({
   };
 
   const handleReset = () => {
+    if (mode === 'single') {
+      const today = formatDateInput(new Date());
+      setTempDate(today);
+      if (onSelectDate) onSelectDate(today);
+      onClose();
+      return;
+    }
     setTempStart('');
     setTempEnd('');
     if (onReset) onReset();
@@ -208,12 +290,15 @@ export default function CustomDatePopover({
   const daysGrid = getDaysGrid();
 
   return (
-    <div className="custom-date-popover glass-panel" ref={popoverRef}>
+    <div
+      className={`custom-date-popover glass-panel ${align === 'left' ? 'align-left' : ''}`}
+      ref={popoverRef}
+    >
       {/* Header Popover */}
       <div className="popover-header">
         <div className="popover-title">
           <CalendarIcon size={16} color="#38bdf8" />
-          <span>Khoảng thời gian tùy chọn</span>
+          <span>{title || (mode === 'single' ? 'Chọn ngày xem báo cáo' : 'Khoảng thời gian tùy chọn')}</span>
         </div>
         <button
           type="button"
@@ -227,66 +312,112 @@ export default function CustomDatePopover({
 
       {/* Chọn nhanh (Presets) */}
       <div className="popover-presets">
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('TODAY')}
-        >
-          Hôm nay
-        </button>
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('YESTERDAY')}
-        >
-          Hôm qua
-        </button>
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('LAST_7_DAYS')}
-        >
-          7 ngày qua
-        </button>
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('LAST_30_DAYS')}
-        >
-          30 ngày qua
-        </button>
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('THIS_MONTH')}
-        >
-          Tháng này
-        </button>
-        <button
-          type="button"
-          className="preset-pill"
-          onClick={() => applyPreset('LAST_MONTH')}
-        >
-          Tháng trước
-        </button>
+        {mode === 'single' ? (
+          <>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applySinglePreset('TODAY')}
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applySinglePreset('YESTERDAY')}
+            >
+              Hôm qua
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applySinglePreset('TWO_DAYS_AGO')}
+            >
+              Hôm kia
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applySinglePreset('MONTH_START')}
+            >
+              Đầu tháng
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('TODAY')}
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('YESTERDAY')}
+            >
+              Hôm qua
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('LAST_7_DAYS')}
+            >
+              7 ngày qua
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('LAST_30_DAYS')}
+            >
+              30 ngày qua
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('THIS_MONTH')}
+            >
+              Tháng này
+            </button>
+            <button
+              type="button"
+              className="preset-pill"
+              onClick={() => applyPreset('LAST_MONTH')}
+            >
+              Tháng trước
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Thanh tóm tắt 2 mốc Từ ngày -> Đến ngày */}
-      <div className="selected-range-display">
-        <div className={`range-box ${tempStart ? 'active' : ''}`}>
-          <span className="range-box-label">Từ ngày</span>
-          <span className="range-box-val">
-            {tempStart ? formatDateVN(tempStart) : 'Chọn ngày'}
-          </span>
+      {/* Thanh hiển thị ngày đã chọn */}
+      {mode === 'single' ? (
+        <div className="selected-range-display">
+          <div className="range-box active">
+            <span className="range-box-label">Ngày đang chọn</span>
+            <span className="range-box-val">
+              {tempDate ? formatDateVN(tempDate) : 'Chưa chọn'}
+            </span>
+          </div>
         </div>
-        <ArrowRight size={14} className="range-arrow-icon" />
-        <div className={`range-box ${tempEnd ? 'active' : ''}`}>
-          <span className="range-box-label">Đến ngày</span>
-          <span className="range-box-val">
-            {tempEnd ? formatDateVN(tempEnd) : tempStart ? 'Chọn ngày kết thúc' : 'Chọn ngày'}
-          </span>
+      ) : (
+        <div className="selected-range-display">
+          <div className={`range-box ${tempStart ? 'active' : ''}`}>
+            <span className="range-box-label">Từ ngày</span>
+            <span className="range-box-val">
+              {tempStart ? formatDateVN(tempStart) : 'Chọn ngày'}
+            </span>
+          </div>
+          <ArrowRight size={14} className="range-arrow-icon" />
+          <div className={`range-box ${tempEnd ? 'active' : ''}`}>
+            <span className="range-box-label">Đến ngày</span>
+            <span className="range-box-val">
+              {tempEnd ? formatDateVN(tempEnd) : tempStart ? 'Chọn ngày kết thúc' : 'Chọn ngày'}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bộ Lịch Tự Thiết Kế (Custom Calendar UI) */}
       <div className="custom-calendar-container">
@@ -327,9 +458,16 @@ export default function CustomDatePopover({
         {/* Lưới các ô ngày */}
         <div className="calendar-days-grid">
           {daysGrid.map((day, idx) => {
-            const isStart = tempStart && day.dateStr === tempStart;
-            const isEnd = tempEnd && day.dateStr === tempEnd;
+            const isStart =
+              mode === 'single'
+                ? day.dateStr === (tempDate || selectedDate)
+                : tempStart && day.dateStr === tempStart;
+            const isEnd =
+              mode === 'single'
+                ? day.dateStr === (tempDate || selectedDate)
+                : tempEnd && day.dateStr === tempEnd;
             const isInRange =
+              mode === 'range' &&
               tempStart &&
               tempEnd &&
               day.dateStr > tempStart &&
@@ -359,40 +497,82 @@ export default function CustomDatePopover({
 
       {/* Nút hành động */}
       <div className="popover-footer">
-        <button
-          type="button"
-          className="btn btn-secondary btn-popover-reset"
-          onClick={handleReset}
-        >
-          <RotateCcw size={13} />
-          <span>Xóa lọc</span>
-        </button>
-        <div className="popover-footer-right">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.82rem' }}
-            onClick={onClose}
-          >
-            Đóng
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{
-              padding: '6px 14px',
-              fontSize: '0.82rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px'
-            }}
-            onClick={handleApply}
-            disabled={!tempStart}
-          >
-            <Check size={14} />
-            <span>Áp dụng</span>
-          </button>
-        </div>
+        {mode === 'single' ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary btn-popover-reset"
+              onClick={handleReset}
+              title="Về ngày hôm nay"
+            >
+              <RotateCcw size={13} />
+              <span>Hôm nay</span>
+            </button>
+            <div className="popover-footer-right">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                onClick={onClose}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+                onClick={handleApply}
+                disabled={!tempDate}
+              >
+                <Check size={14} />
+                <span>Chọn</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary btn-popover-reset"
+              onClick={handleReset}
+            >
+              <RotateCcw size={13} />
+              <span>Xóa lọc</span>
+            </button>
+            <div className="popover-footer-right">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                onClick={onClose}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+                onClick={handleApply}
+                disabled={!tempStart}
+              >
+                <Check size={14} />
+                <span>Áp dụng</span>
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

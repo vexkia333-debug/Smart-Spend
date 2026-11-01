@@ -4,8 +4,9 @@ import {
   RefreshCw, Calendar, Edit3, ArrowRight, Bell, Smartphone, Send, 
   Check, Clock, ShieldCheck, CheckCircle
 } from 'lucide-react';
-import { formatVND } from '../../utils/formatters.js';
+import { formatVND, formatDateVN } from '../../utils/formatters.js';
 import { checkPushSubscriptionStatus, subscribeUserToPush, testPushNotification } from '../../utils/pushNotifications.js';
+import CustomDatePopover from '../common/CustomDatePopover.jsx';
 
 export default function DailyReportModal({
   isOpen,
@@ -22,6 +23,7 @@ export default function DailyReportModal({
 
   const [activeTab, setActiveTab] = useState('report'); // 'report' | 'automation'
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState(null);
@@ -348,19 +350,30 @@ export default function DailyReportModal({
                 gap: '8px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <Calendar size={16} color="var(--accent-cyan, #38bdf8)" style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>Ngày xem:</span>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  onClick={(e) => {
-                    try {
-                      e.target.showPicker?.();
-                    } catch (err) {}
+                <button
+                  type="button"
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className="daily-report-date-trigger-btn"
+                  title="Bấm để mở lịch chọn ngày"
+                >
+                  <Calendar size={14} color="var(--accent-cyan, #38bdf8)" />
+                  <span>{formatDateVN(selectedDate)}</span>
+                </button>
+
+                <CustomDatePopover
+                  isOpen={showDatePicker}
+                  onClose={() => setShowDatePicker(false)}
+                  mode="single"
+                  selectedDate={selectedDate}
+                  onSelectDate={(newDate) => {
+                    setSelectedDate(newDate);
+                    setShowDatePicker(false);
                   }}
-                  className="daily-report-date-input"
+                  align="left"
+                  title="Chọn ngày xem báo cáo"
                 />
               </div>
 
