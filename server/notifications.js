@@ -99,6 +99,9 @@ export async function sendWebPushNotificationToAll({ title, body, url = '/' }) {
 export function formatDailyReportNotification(report) {
   const {
     date,
+    dateRange,
+    dateLabel,
+    period = 'DAY',
     totalIncome = 0,
     totalExpense = 0,
     netFlow = 0,
@@ -108,41 +111,96 @@ export function formatDailyReportNotification(report) {
 
   const dateParts = (date || '').split('-');
   const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : date;
+  const displayLabel = dateLabel || dateRange || formattedDate;
 
   const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(Math.abs(num || 0)) + 'đ';
 
   const rating = aiEvaluation?.rating || (totalExpense === 0 ? 'Xuất sắc 🌟' : 'Bình thường 👍');
   const anomalies = Array.isArray(aiEvaluation?.anomalies) ? aiEvaluation.anomalies : [];
   const hasAnomalies = anomalies.length > 0 && !anomalies[0].toLowerCase().includes('không phát hiện');
+  const highlights = Array.isArray(aiEvaluation?.highlights) ? aiEvaluation.highlights : [];
 
-  const title = `📊 SmartSpend: Báo cáo ngày ${formattedDate}`;
+  let title = `📊 SmartSpend: Báo cáo ngày ${displayLabel}`;
+  let summaryLines = [];
+  let markdownText = '';
 
-  let summaryLines = [
-    `💸 Chi: ${fmtVND(totalExpense)} | 💰 Thu: ${fmtVND(totalIncome)}`,
-    `⚖️ Dòng tiền: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)`,
-    `🌟 Đánh giá AI: ${rating}`
-  ];
+  if (period === 'WEEK') {
+    title = `📈 SmartSpend: Tổng kết tài chính tuần (${displayLabel})`;
+    summaryLines = [
+      `💸 Chi tuần: ${fmtVND(totalExpense)} | 💰 Thu tuần: ${fmtVND(totalIncome)}`,
+      `⚖️ Dòng tiền ròng: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)`,
+      `🌟 Kỷ luật tuần: ${rating}`
+    ];
+    if (highlights.length > 0) {
+      summaryLines.push(`🔍 Nổi bật: ${highlights[0]}`);
+    }
+    if (aiEvaluation?.advice) {
+      summaryLines.push(`💡 Định hướng tuần tới: ${aiEvaluation.advice}`);
+    }
 
-  if (hasAnomalies) {
-    summaryLines.push(`⚠️ Cần chú ý: ${anomalies[0]}`);
-  }
+    markdownText = `*${title}*\n\n` +
+      `💸 *Tổng chi tuần*: ${fmtVND(totalExpense)}\n` +
+      `💰 *Tổng thu tuần*: ${fmtVND(totalIncome)}\n` +
+      `⚖️ *Dòng tiền ròng*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)}\n` +
+      `🔢 *Số giao dịch*: ${txCount}\n\n` +
+      `🌟 *Đánh giá*: ${rating}\n` +
+      `📝 *Tổng quan*: ${aiEvaluation?.overview || 'Đã phân tích toàn bộ giao dịch trong tuần qua.'}\n\n` +
+      (highlights.length > 0 ? `🔍 *Điểm nổi bật tuần*:\n${highlights.map(h => `• ${h}`).join('\n')}\n\n` : '') +
+      (hasAnomalies ? `⚠️ *Lưu ý/Bất thường*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
+      (aiEvaluation?.advice ? `💡 *Chiến lược tuần tới*: ${aiEvaluation.advice}\n` : '');
+  } else if (period === 'MONTH') {
+    title = `🏆 SmartSpend: Báo cáo tài chính ${displayLabel.startsWith('Tháng') ? displayLabel : 'tháng ' + displayLabel}`;
+    const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+    summaryLines = [
+      `💸 Tổng chi tháng: ${fmtVND(totalExpense)} | 💰 Thu: ${fmtVND(totalIncome)}`,
+      `💎 Tích lũy tháng: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (Tiết kiệm ${savingsRate}%)`,
+      `🌟 Sức khỏe tài chính: ${rating}`
+    ];
+    if (highlights.length > 0) {
+      summaryLines.push(`📊 Phân tích: ${highlights[0]}`);
+    }
+    if (aiEvaluation?.advice) {
+      summaryLines.push(`🎯 Chiến lược tháng mới: ${aiEvaluation.advice}`);
+    }
 
-  if (aiEvaluation?.advice) {
-    summaryLines.push(`💡 Lời khuyên: ${aiEvaluation.advice}`);
+    markdownText = `*${title}*\n\n` +
+      `💸 *Tổng chi tháng*: ${fmtVND(totalExpense)}\n` +
+      `💰 *Tổng thu tháng*: ${fmtVND(totalIncome)}\n` +
+      `💎 *Tích lũy*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${savingsRate}%)\n` +
+      `🔢 *Số giao dịch*: ${txCount}\n\n` +
+      `🌟 *Sức khỏe tài chính*: ${rating}\n` +
+      `📝 *Toàn cảnh*: ${aiEvaluation?.overview || 'Báo cáo tổng hợp tài chính cả tháng.'}\n\n` +
+      (highlights.length > 0 ? `📊 *Cơ cấu & Điểm nhấn*:\n${highlights.map(h => `• ${h}`).join('\n')}\n\n` : '') +
+      (hasAnomalies ? `⚠️ *Khoản đột biến*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
+      (aiEvaluation?.advice ? `🎯 *Kế hoạch tháng mới*: ${aiEvaluation.advice}\n` : '');
+  } else {
+    // DAY
+    summaryLines = [
+      `💸 Chi: ${fmtVND(totalExpense)} | 💰 Thu: ${fmtVND(totalIncome)}`,
+      `⚖️ Dòng tiền: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)`,
+      `🌟 Đánh giá AI: ${rating}`
+    ];
+
+    if (hasAnomalies) {
+      summaryLines.push(`⚠️ Cần chú ý: ${anomalies[0]}`);
+    }
+
+    if (aiEvaluation?.advice) {
+      summaryLines.push(`💡 Lời khuyên: ${aiEvaluation.advice}`);
+    }
+
+    markdownText = `*${title}*\n\n` +
+      `💸 *Tổng chi*: ${fmtVND(totalExpense)}\n` +
+      `💰 *Tổng thu*: ${fmtVND(totalIncome)}\n` +
+      `⚖️ *Chênh lệch*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)}\n` +
+      `🔢 *Số giao dịch*: ${txCount}\n\n` +
+      `🌟 *Đánh giá*: ${rating}\n` +
+      `📝 *Tổng quan*: ${aiEvaluation?.overview || 'Đã phân tích toàn bộ giao dịch trong ngày.'}\n\n` +
+      (hasAnomalies ? `⚠️ *Khoản nghi vấn/bất thường*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
+      (aiEvaluation?.advice ? `💡 *Lời khuyên ngày mai*: ${aiEvaluation.advice}\n` : '');
   }
 
   const shortText = summaryLines.join('\n');
-
-  // Format chi tiết cho Telegram / Markdown
-  const markdownText = `*${title}*\n\n` +
-    `💸 *Tổng chi*: ${fmtVND(totalExpense)}\n` +
-    `💰 *Tổng thu*: ${fmtVND(totalIncome)}\n` +
-    `⚖️ *Chênh lệch*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)}\n` +
-    `🔢 *Số giao dịch*: ${txCount}\n\n` +
-    `🌟 *Đánh giá*: ${rating}\n` +
-    `📝 *Tổng quan*: ${aiEvaluation?.overview || 'Đã phân tích toàn bộ giao dịch trong ngày.'}\n\n` +
-    (hasAnomalies ? `⚠️ *Khoản nghi vấn/bất thường*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
-    (aiEvaluation?.advice ? `💡 *Lời khuyên ngày mai*: ${aiEvaluation.advice}\n` : '');
 
   return {
     title,

@@ -530,38 +530,74 @@ function fallbackLocalParse(userText, categories = [], options = {}) {
 }
 
 /**
- * Tạo báo cáo tài chính đánh giá cuối ngày bằng Gemini Flash
+ * Tạo báo cáo tài chính đánh giá định kỳ (Ngày / Tuần / Tháng) bằng Gemini Flash
  */
-export async function generateDailyAiReport({ date, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {}, apiKey }) {
+export async function generatePeriodicAiReport({
+  period = 'DAY', // 'DAY' | 'WEEK' | 'MONTH'
+  dateRange = '',
+  txs = [],
+  totalIncome = 0,
+  totalExpense = 0,
+  netFlow = 0,
+  catMap = {},
+  apiKey
+}) {
   if (!apiKey || !txs.length) return null;
 
+  const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' VNĐ';
+
   const txListStr = txs
-    .map((t) => `- [${t.type === 'INCOME' ? '+' : '-'}${t.amount}đ] ${t.category_name || 'Chưa gắn thẻ'}: ${t.description} (TK: ${t.account_name || t.bank_name}, ID: ${t.id})`)
+    .slice(0, 60)
+    .map((t) => `- [${t.type === 'INCOME' ? '+' : '-'}${t.amount}đ] ${t.category_name || 'Chưa gắn thẻ'}: ${t.description} (TK: ${t.account_name || t.bank_name}, ID: ${t.id}, Ngày: ${t.transaction_time || t.created_at})`)
     .join('\n');
 
-  const prompt = `Bạn là chuyên gia cố vấn tài chính cá nhân thông minh của hệ thống SmartSpend tại Việt Nam.
-Hãy lập BÁO CÁO ĐÁNH GIÁ TÀI CHÍNH CUỐI NGÀY (${date}) dựa trên các giao dịch thực tế của người dùng:
-- TỔNG THU HÔM NAY: ${new Intl.NumberFormat('vi-VN').format(totalIncome)} VNĐ
-- TỔNG CHI HÔM NAY: ${new Intl.NumberFormat('vi-VN').format(totalExpense)} VNĐ
-- DÒNG TIỀN RÒNG: ${new Intl.NumberFormat('vi-VN').format(netFlow)} VNĐ
-
-DANH SÁCH GIAO DỊCH TRONG NGÀY:
-${txListStr}
-
-QUY ƯỚC DANH MỤC CỦA HỆ THỐNG SMARTSPEND (LƯU Ý ĐỂ KHÔNG BÁO LỖI NHẦM):
-- Danh mục "Cho vay & Cho mượn" (EXPENSE) là danh mục ĐÚNG CHUẨN dùng cho cả việc cho vay lẫn việc chi tiền trả hộ / ứng trước cho bạn bè. KHÔNG coi đây là xếp nhầm danh mục.
-- Danh mục "Thu hồi nợ / Nhận tiền trả" (INCOME) là danh mục ĐÚNG CHUẨN khi người khác hoàn trả lại tiền nợ hoặc tiền trả hộ.
-- Danh mục "Chuyển tiền nội bộ" / "Nhận chuyển nội bộ" / "Rút tiền vào Ví (ATM)" là giao dịch luân chuyển giữa các ví của chính người dùng.
-
-YÊU CẦU ĐÁNH GIÁ CHUYÊN SÂU:
+  let periodTitle = `BÁO CÁO ĐÁNH GIÁ TÀI CHÍNH CUỐI NGÀY (${dateRange})`;
+  let extraGuidelines = `
+YÊU CẦU ĐÁNH GIÁ NGÀY:
 1. "rating": Đánh giá mức độ kỷ luật hôm nay: "Rất tốt 🌟" | "Cân đối 👍" | "Cần chú ý ⚠️" | "Chi vượt định mức 🚨".
 2. "overview": Tóm tắt súc tích 1-2 câu về tình hình thu chi và thói quen tiêu dùng trong ngày.
-3. "anomalies": Mảng các chuỗi nhận xét phát hiện điểm bất thường:
-   - Các khoản chi lớn bất thường hoặc chiếm tỷ trọng cao.
-   - Các khoản nghi vấn xếp nhầm danh mục thực sự (ví dụ tiền phạt/đền bù bị xếp vào di chuyển, nhiều khoản gộp chung chưa tách, hoặc khoản chi tiêu bị gán vào Chi tiêu khác trong khi có danh mục cụ thể hơn...).
-   - Nếu không có bất thường, trả về mảng có 1 câu khen ngợi kỷ luật tốt.
-4. "advice": 1-2 câu lời khuyên tài chính ngắn gọn, ấm áp cho ngày mai.
-5. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
+3. "highlights": Mảng 1-2 điểm đáng nhớ nhất trong ngày.
+4. "anomalies": Mảng các chuỗi nhận xét phát hiện điểm bất thường (khoản chi lớn, nghi vấn xếp sai danh mục).
+5. "advice": 1-2 câu lời khuyên tài chính ngắn gọn cho ngày mai.`;
+
+  if (period === 'WEEK') {
+    periodTitle = `BÁO CÁO TỔNG KẾT & PHÂN TÍCH TÀI CHÍNH SAU 1 TUẦN (${dateRange})`;
+    extraGuidelines = `
+YÊU CẦU ĐÁNH GIÁ TUẦN:
+1. "rating": Đánh giá kỷ luật chi tiêu tuần: "Xuất sắc 🌟" | "Cân đối 👍" | "Cần chú ý ⚠️" | "Vượt định mức tuần 🚨".
+2. "overview": Tóm tắt 2-3 câu đánh giá tổng thể dòng tiền và thói quen tiêu dùng trong cả tuần qua.
+3. "highlights": Mảng 2-3 gạch đầu dòng phân tích: Hạng mục ngốn tiền nhiều nhất tuần, tỷ lệ chi tiêu thiết yếu vs giải trí/hưởng thụ, nhận định xu hướng chi tiêu.
+4. "anomalies": Mảng các khoản chi đột biến lớn hoặc bất thường đáng lưu ý trong tuần.
+5. "advice": 2 câu định hướng phân bổ ngân sách và chiến lược tài chính thực tế cho tuần tới.`;
+  } else if (period === 'MONTH') {
+    const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+    periodTitle = `BÁO CÁO TỔNG HỢP & PHÂN TÍCH SỨC KHỎE TÀI CHÍNH SAU 1 THÁNG (${dateRange})`;
+    extraGuidelines = `
+- TỶ LỆ TÍCH LŨY / TIẾT KIỆM THÁNG: ${savingsRate}%
+YÊU CẦU ĐÁNH GIÁ THÁNG:
+1. "rating": Xếp loại sức khỏe tài chính tháng: "Vững mạnh 💎" | "Cân đối lành mạnh 🌟" | "Cần thắt chặt ⚠️" | "Báo động thâm hụt 🚨".
+2. "overview": Đánh giá toàn cảnh 2-3 câu về hiệu quả quản lý tài chính, tỷ lệ tích lũy và dòng tiền trong suốt tháng qua.
+3. "highlights": Mảng 3-4 gạch đầu dòng phân tích sâu: Top các danh mục chi tiêu lớn nhất tháng, đánh giá tính bền vững của dòng tiền, các khoản chi đột biến.
+4. "anomalies": Mảng các điểm bất thường hoặc biến động chi phí lớn trong tháng.
+5. "advice": 2-3 câu chiến lược tối ưu hóa ngân sách, mục tiêu tiết kiệm và kế hoạch chi tiêu cho tháng tiếp theo.`;
+  }
+
+  const prompt = `Bạn là chuyên gia cố vấn tài chính cá nhân thông minh của hệ thống SmartSpend tại Việt Nam.
+Hãy lập ${periodTitle} dựa trên các số liệu thực tế:
+- TỔNG THU: ${fmtVND(totalIncome)}
+- TỔNG CHI: ${fmtVND(totalExpense)}
+- DÒNG TIỀN RÒNG: ${fmtVND(netFlow)}
+- CƠ CẤU CHI THEO DANH MỤC: ${JSON.stringify(catMap)}
+
+DANH SÁCH GIAO DỊCH (${txs.length} giao dịch):
+${txListStr}
+
+QUY ƯỚC DANH MỤC CỦA HỆ THỐNG SMARTSPEND:
+- Danh mục "Cho vay & Cho mượn" (EXPENSE) dùng cho cả việc cho vay lẫn việc chi tiền trả hộ / ứng trước cho bạn bè. KHÔNG coi đây là xếp nhầm danh mục.
+- Danh mục "Thu hồi nợ / Nhận tiền trả" (INCOME) khi người khác hoàn trả lại tiền nợ hoặc tiền trả hộ.
+- Danh mục "Chuyển tiền nội bộ" / "Nhận chuyển nội bộ" / "Rút tiền vào Ví (ATM)" là luân chuyển giữa các ví của chính người dùng.
+${extraGuidelines}
+6. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
    [
      {
        "txId": string,
@@ -576,6 +612,7 @@ Trả về DUY NHẤT một JSON hợp lệ:
 {
   "rating": string,
   "overview": string,
+  "highlights": [string],
   "anomalies": [string],
   "advice": string,
   "suggestedEdits": [
@@ -618,19 +655,47 @@ Trả về DUY NHẤT một JSON hợp lệ:
 }
 
 /**
- * Bộ tạo báo cáo cuối ngày dự phòng thông minh (khi offline hoặc không có API Key)
+ * Giữ nguyên hàm generateDailyAiReport cho tương thích ngược
  */
-export function generateFallbackDailyReport({ date, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {} }) {
+export async function generateDailyAiReport({ date, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {}, apiKey }) {
+  return generatePeriodicAiReport({
+    period: 'DAY',
+    dateRange: date,
+    txs,
+    totalIncome,
+    totalExpense,
+    netFlow,
+    catMap,
+    apiKey
+  });
+}
+
+/**
+ * Bộ tạo báo cáo định kỳ dự phòng thông minh (khi offline hoặc không có API Key)
+ */
+export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {} }) {
   const anomalies = [];
   const suggestedEdits = [];
+  const highlights = [];
 
   const expenses = txs.filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'));
-  if (expenses.length > 0) {
-    const sorted = [...expenses].sort((a, b) => b.amount - a.amount);
-    const maxTx = sorted[0];
+  const sortedExpenses = [...expenses].sort((a, b) => b.amount - a.amount);
+
+  if (sortedExpenses.length > 0) {
+    const maxTx = sortedExpenses[0];
     if (maxTx.amount >= 150000) {
-      anomalies.push(`Khoản chi lớn nhất hôm nay là "${maxTx.description}" (${new Intl.NumberFormat('vi-VN').format(maxTx.amount)} ₫).`);
+      anomalies.push(`Khoản chi lớn nhất là "${maxTx.description}" (${new Intl.NumberFormat('vi-VN').format(maxTx.amount)} ₫).`);
     }
+  }
+
+  // Sắp xếp top danh mục chi nhiều nhất
+  const topCategories = Object.entries(catMap)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3);
+
+  if (topCategories.length > 0) {
+    const topStr = topCategories.map(([cat, amt]) => `${cat} (${new Intl.NumberFormat('vi-VN').format(amt)} ₫)`).join(', ');
+    highlights.push(`Top danh mục chi tiêu lớn nhất: ${topStr}.`);
   }
 
   // Quét bất thường về danh mục
@@ -658,30 +723,79 @@ export function generateFallbackDailyReport({ date, txs = [], totalIncome = 0, t
     }
   });
 
-  const rating =
-    totalExpense > totalIncome && totalIncome > 0
+  let rating = 'Cân đối 👍';
+  let overview = '';
+  let advice = '';
+
+  const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' ₫';
+
+  if (period === 'WEEK') {
+    rating = totalExpense > totalIncome && totalIncome > 0
+      ? 'Cần chú ý ⚠️'
+      : totalExpense === 0
+      ? 'Xuất sắc 🌟'
+      : netFlow >= 500000
+      ? 'Xuất sắc 🌟'
+      : 'Cân đối 👍';
+
+    overview = `Tổng kết tuần (${dateRange}): Bạn đã chi tiêu ${fmtVND(totalExpense)} qua ${expenses.length} khoản chi${
+      totalIncome > 0 ? ` và thu về ${fmtVND(totalIncome)} (dòng tiền ròng ${netFlow >= 0 ? '+' : ''}${fmtVND(netFlow)})` : ''
+    }.`;
+
+    highlights.push(`Trung bình mỗi ngày trong tuần bạn chi khoảng ${fmtVND(Math.round(totalExpense / 7))}.`);
+
+    advice = totalExpense > totalIncome && totalIncome > 0
+      ? 'Tuần này chi tiêu hơi vượt thu. Hãy lập kế hoạch hạn mức cụ thể cho tuần tới để cân bằng lại dòng tiền nhé!'
+      : 'Kỷ luật tài chính trong tuần rất tốt! Tiếp tục phát huy trong tuần tiếp theo nhé.';
+  } else if (period === 'MONTH') {
+    const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+    rating = savingsRate >= 30
+      ? 'Vững mạnh 💎'
+      : savingsRate >= 10
+      ? 'Cân đối lành mạnh 🌟'
+      : totalExpense > totalIncome && totalIncome > 0
+      ? 'Báo động thâm hụt 🚨'
+      : 'Cần thắt chặt ⚠️';
+
+    overview = `Tổng kết tháng (${dateRange}): Tổng chi tiêu ${fmtVND(totalExpense)}, tổng thu ${fmtVND(totalIncome)}. Tích lũy được ${fmtVND(netFlow)} (tỷ lệ tiết kiệm đạt ${savingsRate}%).`;
+
+    highlights.push(`Tỷ lệ tích lũy của tháng đạt ${savingsRate}%.`);
+
+    advice = savingsRate >= 20
+      ? 'Sức khỏe tài chính tháng qua rất đáng khen ngợi! Đề xuất trích 50% số tiền tích lũy vào quỹ dự phòng khẩn cấp.'
+      : 'Tháng tới hãy theo dõi sát các khoản ăn uống và mua sắm không thiết yếu để cải thiện tỷ lệ tích lũy nhé.';
+  } else {
+    // DAY
+    rating = totalExpense > totalIncome && totalIncome > 0
       ? 'Cần chú ý ⚠️'
       : totalExpense === 0
       ? 'Xuất sắc 🌟'
       : 'Cân đối 👍';
 
-  const overview =
-    totalExpense > 0
-      ? `Hôm nay bạn đã chi tiêu ${new Intl.NumberFormat('vi-VN').format(totalExpense)} ₫ qua ${expenses.length} khoản chi${
-          totalIncome > 0 ? ` và thu về ${new Intl.NumberFormat('vi-VN').format(totalIncome)} ₫` : ''
+    overview = totalExpense > 0
+      ? `Hôm nay bạn đã chi tiêu ${fmtVND(totalExpense)} qua ${expenses.length} khoản chi${
+          totalIncome > 0 ? ` và thu về ${fmtVND(totalIncome)}` : ''
         }.`
       : `Hôm nay bạn chưa phát sinh khoản chi tiêu nào. Dòng tiền được giữ vững trọn vẹn!`;
 
-  const advice =
-    totalExpense > 250000
+    advice = totalExpense > 250000
       ? 'Hôm nay tổng chi tương đối đáng kể. Ngày mai hãy ưu tiên các nhu cầu thiết yếu và giữ vững ngân sách nhé!'
       : 'Bạn đang quản lý chi tiêu trong ngày rất tốt. Hãy tiếp tục duy trì mức chi tiêu hợp lý này!';
+  }
 
   return {
     rating,
     overview,
+    highlights: highlights.length > 0 ? highlights : ['Dòng tiền vận hành ổn định.'],
     anomalies: anomalies.length > 0 ? anomalies : ['Không phát hiện khoản chi tiêu bất thường hay nghi vấn xếp sai danh mục.'],
     advice,
     suggestedEdits
   };
+}
+
+/**
+ * Giữ nguyên hàm generateFallbackDailyReport cho tương thích ngược
+ */
+export function generateFallbackDailyReport(params) {
+  return generateFallbackPeriodicReport({ ...params, period: 'DAY' });
 }

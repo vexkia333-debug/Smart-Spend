@@ -1529,6 +1529,75 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation: slideDown 0.3s ease;
 }
 
+/* Period Switcher (Ngày - Tuần - Tháng) */
+.report-period-switcher {
+  display: flex;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-subtle);
+}
+
+:root[data-theme="light"] .report-period-switcher {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.report-period-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.report-period-pill:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.report-period-pill.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(139, 92, 246, 0.2));
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.15);
+}
+
+:root[data-theme="light"] .report-period-pill.active {
+  background: #ffffff;
+  border-color: rgba(2, 132, 199, 0.35);
+  color: #0284c7;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.period-quick-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 5px 11px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.period-quick-btn:hover {
+  border-color: var(--accent-cyan, #38bdf8);
+  color: var(--accent-cyan, #38bdf8);
+}
+
 /* Daily Report Modal: Web / Desktop layout (4 khối theo chiều ngang) */
 .daily-report-stats-grid {
   display: grid;
@@ -1838,6 +1907,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     padding: 8px 10px !important;
     font-size: 0.78rem !important;
     justify-content: center !important;
+  }
+
+  .report-period-switcher {
+    gap: 4px !important;
+    padding: 3px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .report-period-pill {
+    padding: 7px 6px !important;
+    font-size: 0.74rem !important;
   }
 
   /* Điện thoại: Hiển thị 4 khối theo chiều dọc */
