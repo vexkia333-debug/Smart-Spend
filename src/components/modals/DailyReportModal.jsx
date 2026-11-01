@@ -348,19 +348,19 @@ export default function DailyReportModal({
                 gap: '8px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Calendar size={16} color="var(--accent-cyan, #38bdf8)" />
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dim)' }}>Ngày xem:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <Calendar size={16} color="var(--accent-cyan, #38bdf8)" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>Ngày xem:</span>
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="form-input"
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    fontSize: '0.85rem'
+                  onClick={(e) => {
+                    try {
+                      e.target.showPicker?.();
+                    } catch (err) {}
                   }}
+                  className="daily-report-date-input"
                 />
               </div>
 

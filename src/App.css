@@ -1269,6 +1269,69 @@ input[type="number"] {
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
 }
 
+/* Date Inputs & Calendar Picker Styling */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] input[type="date"] {
+  color-scheme: light;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.8) brightness(1.2);
+  opacity: 0.85;
+  border-radius: 4px;
+  padding: 2px;
+  transition: opacity 0.2s ease, transform 0.15s ease, filter 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  filter: invert(1) brightness(1.5);
+}
+
+:root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.7;
+}
+
+:root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.daily-report-date-input {
+  color-scheme: dark;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  width: auto;
+  min-width: 135px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.daily-report-date-input:focus,
+.daily-report-date-input:hover {
+  border-color: var(--accent-cyan, #38bdf8) !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
+:root[data-theme="light"] .daily-report-date-input {
+  color-scheme: light;
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #0f172a !important;
+}
+
 /* AI Smart Input Card */
 .ai-smart-card {
   margin-bottom: 26px;
