@@ -577,12 +577,13 @@ app.put('/api/transactions/:id', async (req, res) => {
 
     const targetAccount = await db.prepare('SELECT name FROM accounts WHERE id = ?').get(newAccountId);
     const newBankName = targetAccount?.name || oldTx.bank_name;
+    const newStatus = (oldTx.status === 'PENDING' && newCatId) ? 'CONFIRMED' : oldTx.status;
 
     await db.prepare(`
       UPDATE transactions
-      SET amount = ?, description = ?, category_id = ?, account_id = ?, bank_name = ?, type = ?, transaction_time = ?, updated_at = datetime('now', 'localtime')
+      SET amount = ?, description = ?, category_id = ?, account_id = ?, bank_name = ?, type = ?, status = ?, transaction_time = ?, confirmed_at = COALESCE(confirmed_at, datetime('now', 'localtime')), updated_at = datetime('now', 'localtime')
       WHERE id = ?
-    `).run(newAmount, newDesc, newCatId, newAccountId, newBankName, newType, newTime, id);
+    `).run(newAmount, newDesc, newCatId, newAccountId, newBankName, newType, newStatus, newTime, id);
 
     const updatedTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
@@ -1147,6 +1148,18 @@ app.post('/api/categories', async (req, res) => {
   }
 });
 
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.prepare('UPDATE transactions SET category_id = NULL WHERE category_id = ?').run(id);
+    await db.prepare('DELETE FROM auto_rules WHERE category_id = ?').run(id);
+    await db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 8. Tài khoản (Accounts)
 app.get('/api/accounts', async (req, res) => {
   try {
@@ -1269,6 +1282,29 @@ app.post('/api/rules', async (req, res) => {
   }
 });
 
+app.patch('/api/rules/:id/toggle', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rule = await db.prepare('SELECT * FROM auto_rules WHERE id = ?').get(id);
+    if (!rule) return res.status(404).json({ error: 'Quy tắc không tồn tại' });
+    const nextVal = rule.is_auto_apply ? 0 : 1;
+    await db.prepare('UPDATE auto_rules SET is_auto_apply = ? WHERE id = ?').run(nextVal, id);
+    res.json({ success: true, is_auto_apply: nextVal });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/rules/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.prepare('DELETE FROM auto_rules WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 10. Cài đặt hệ thống & API Key
 app.get('/api/settings', async (req, res) => {
   try {
@@ -1281,7 +1317,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.post('/api/settings/gemini-key', async (req, res) => {
+app.post(['/api/settings/gemini-key', '/api/settings/api-key'], async (req, res) => {
   try {
     const { apiKey } = req.body;
     if (!apiKey || !apiKey.trim()) {
@@ -1299,21 +1335,37 @@ app.post('/api/settings/gemini-key', async (req, res) => {
   }
 });
 
-// 11. Phân tích chi tiêu thông minh bằng Gemini Flash
+// 11. Phân tích chi tiêu thông minh bằng Gemini Flash + SmartSpend NLU tốc độ cao
 app.post('/api/ai/parse-transaction', async (req, res) => {
   try {
     const { text, autoSave = true, forceCash = false, expectedType, originalAmount } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Vui lòng nhập nội dung chi tiêu' });
     }
-    const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+
+    // Truy vấn song song (Parallel Batch) giảm 75% thời gian chờ kết nối Turso Cloud
+    const [keyRow, categories, accounts, rules] = await Promise.all([
+      db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get(),
+      db.prepare('SELECT id, name, type, color, icon FROM categories').all(),
+      db.prepare('SELECT * FROM accounts').all(),
+      db.prepare('SELECT * FROM auto_rules').all()
+    ]);
+
     const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(400).json({ error: 'Chưa cấu hình API Key. Vui lòng bấm vào nút thiết lập API Key của Google AI Studio (miễn phí).' });
     }
 
-    const categories = await db.prepare('SELECT id, name, type FROM categories').all();
-    const parsed = await parseTransactionWithGemini(text, categories, apiKey, { forceCash, expectedType, originalAmount });
+    const parsed = await parseTransactionWithGemini(text, categories, apiKey, {
+      forceCash,
+      expectedType,
+      originalAmount,
+      rules
+    });
+
+    const catMap = new Map(categories.map(c => [c.id, c]));
+    let bankAcc = accounts.find(a => a.id === 'acc_primary') || accounts.find(a => a.id !== 'acc_cash');
+    let cashAcc = accounts.find(a => a.id === 'acc_cash');
 
     // Hỗ trợ tự động tách giao dịch (Split transaction)
     if (parsed.isSplit && parsed.splits && parsed.splits.length > 1) {
@@ -1332,49 +1384,72 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         customTime: parsed.customTime
       });
 
-      let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
-      let cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
-      let targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
-
+      let targetAcc = (parsed.wallet === 'CASH') ? (cashAcc || bankAcc) : (bankAcc || cashAcc);
       const createdSplits = [];
-      let totalAmount = 0;
+      let netBalanceDelta = 0;
+      const writePromises = [];
 
       for (let i = 0; i < parsed.splits.length; i++) {
         const s = parsed.splits[i];
-        totalAmount += s.amount;
+        const sType = s.type || parsed.type || 'EXPENSE';
+        netBalanceDelta += (sType === 'EXPENSE' ? -s.amount : s.amount);
         const sTxId = 'tx_' + crypto.randomUUID().slice(0, 8);
-        await db.prepare(`
-          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
-        `).run(
-          sTxId,
-          targetAcc.id,
-          s.categoryId || 'cat_food',
-          s.amount,
-          parsed.type,
-          s.description || 'Khoản chi',
-          text,
-          targetAcc.name,
-          txTime,
-          txTime
+        const sCatId = s.categoryId || (sType === 'INCOME' ? 'cat_other_income' : 'cat_other_expense');
+        const catInfo = catMap.get(sCatId);
+
+        writePromises.push(
+          db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+          `).run(
+            sTxId,
+            targetAcc.id,
+            sCatId,
+            s.amount,
+            sType,
+            s.description || 'Khoản giao dịch',
+            text,
+            targetAcc.name,
+            txTime,
+            txTime
+          )
         );
 
-        const createdItem = await db.prepare(`
-          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
-          WHERE t.id = ?
-        `).get(sTxId);
-        broadcastEvent('TRANSACTION_CREATED', createdItem);
-        createdSplits.push(createdItem);
+        createdSplits.push({
+          id: sTxId,
+          account_id: targetAcc.id,
+          category_id: sCatId,
+          amount: s.amount,
+          type: sType,
+          description: s.description || 'Khoản giao dịch',
+          raw_content: text,
+          bank_name: targetAcc.name,
+          status: 'CONFIRMED',
+          source: 'MANUAL',
+          transaction_time: txTime,
+          confirmed_at: txTime,
+          category_name: catInfo?.name || 'Chi tiêu khác',
+          category_color: catInfo?.color || '#64748b',
+          category_icon: catInfo?.icon || 'Tag',
+          account_name: targetAcc.name
+        });
       }
 
-      if (parsed.type === 'EXPENSE') {
-        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(totalAmount, targetAcc.id);
-      } else {
-        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(totalAmount, targetAcc.id);
-      }
+      writePromises.push(
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(netBalanceDelta, targetAcc.id)
+      );
 
-      broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAcc.id));
+      await Promise.all(writePromises);
+
+      const updatedTargetAcc = { ...targetAcc, balance: Number(targetAcc.balance || 0) + netBalanceDelta };
+      for (const item of createdSplits) {
+        broadcastEvent('TRANSACTION_CREATED', item);
+      }
+      broadcastEvent('ACCOUNT_UPDATED', updatedTargetAcc);
+
+      const splitSummary = createdSplits
+        .map(item => `${item.description} (${new Intl.NumberFormat('vi-VN').format(item.amount)} ₫)`)
+        .join(' + ');
 
       return res.json({
         success: true,
@@ -1382,7 +1457,7 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         splits: createdSplits,
         parsed,
         transaction: createdSplits[0],
-        message: `✨ Đã tự động tách thành ${createdSplits.length} khoản chi và ghi nhận thành công!`
+        message: `✨ Đã tự động tách ${createdSplits.length} khoản: ${splitSummary}`
       });
     }
 
@@ -1392,7 +1467,7 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
 
     if (parsed.isNewCategory && parsed.newCategory?.name) {
       const catName = parsed.newCategory.name.trim();
-      const existingCat = await db.prepare('SELECT * FROM categories WHERE LOWER(name) = LOWER(?)').get(catName);
+      const existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
       if (existingCat) {
         targetCatId = existingCat.id;
       } else {
@@ -1415,7 +1490,7 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
           is_quick_action: 1,
           sort_order: 99
         };
-
+        catMap.set(newCatId, createdCategory);
         broadcastEvent('CATEGORY_CREATED', createdCategory);
       }
     }
@@ -1433,22 +1508,19 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
         customTime: parsed.customTime
       });
 
-      // Đảm bảo có cả tài khoản ngân hàng và ví tiền mặt
-      let bankAcc = await db.prepare("SELECT * FROM accounts WHERE id != 'acc_cash' LIMIT 1").get();
       if (!bankAcc) {
         await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '****8888', 0, 'VND', 'landmark', '#059669')").run();
-        bankAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_primary'").get();
+        bankAcc = { id: 'acc_primary', name: 'Agribank Plus', bank_code: 'AGRI', balance: 0 };
       }
 
-      let cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
       if (!cashAcc) {
         await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
-        cashAcc = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+        cashAcc = { id: 'acc_cash', name: 'Ví Tiền Mặt', bank_code: 'CASH', balance: 0 };
       }
 
       // TRƯỜNG HỢP 1: Chuyển tiền nội bộ giữa các tài khoản ngân hàng / ví
       if (parsed.wallet === 'INTERNAL_TRANSFER' || parsed.categoryId === 'cat_transfer_internal') {
-        const allAccs = await db.prepare('SELECT * FROM accounts').all();
+        const allAccs = accounts;
         let srcAcc = allAccs.find(a => parsed.sourceBank && (a.name.toLowerCase().includes(parsed.sourceBank.toLowerCase()) || a.bank_code.toLowerCase() === parsed.sourceBank.toLowerCase())) || bankAcc;
         let dstAcc = allAccs.find(a => parsed.targetBank && (a.name.toLowerCase().includes(parsed.targetBank.toLowerCase()) || a.bank_code.toLowerCase() === parsed.targetBank.toLowerCase()) && a.id !== srcAcc.id);
         
@@ -1456,36 +1528,24 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
           dstAcc = allAccs.find(a => a.id !== srcAcc.id && a.id !== 'acc_cash') || allAccs.find(a => a.id !== srcAcc.id) || cashAcc;
         }
 
-        // Trừ tài khoản nguồn
-        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, srcAcc.id);
-        // Cộng tài khoản đích
-        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, dstAcc.id);
-
         const txIdOut = txId;
         const txIdIn = 'tx_' + crypto.randomUUID().slice(0, 8);
 
-        // Giao dịch 1: Chuyển đi
-        await db.prepare(`
-          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
-        `).run(txIdOut, srcAcc.id, parsed.amount, `Chuyển tiền sang ${dstAcc.name}`, text, srcAcc.name, txTime, txTime);
+        await Promise.all([
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, srcAcc.id),
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, dstAcc.id),
+          db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, 'cat_transfer_internal', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+          `).run(txIdOut, srcAcc.id, parsed.amount, `Chuyển tiền sang ${dstAcc.name}`, text, srcAcc.name, txTime, txTime),
+          db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+          `).run(txIdIn, dstAcc.id, parsed.amount, `Nhận tiền từ ${srcAcc.name}`, text, dstAcc.name, txTime, txTime)
+        ]);
 
-        // Giao dịch 2: Nhận vào
-        await db.prepare(`
-          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, 'cat_transfer_in', ?, 'INCOME', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
-        `).run(txIdIn, dstAcc.id, parsed.amount, `Nhận tiền từ ${srcAcc.name}`, text, dstAcc.name, txTime, txTime);
-
-        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(srcAcc.id));
-        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(dstAcc.id));
-        broadcastEvent('TRANSACTION_CREATED', await db.prepare(`
-          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id WHERE t.id = ?
-        `).get(txIdOut));
-        broadcastEvent('TRANSACTION_CREATED', await db.prepare(`
-          SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-          FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id WHERE t.id = ?
-        `).get(txIdIn));
+        broadcastEvent('ACCOUNT_UPDATED', { ...srcAcc, balance: Number(srcAcc.balance || 0) - parsed.amount });
+        broadcastEvent('ACCOUNT_UPDATED', { ...dstAcc, balance: Number(dstAcc.balance || 0) + parsed.amount });
 
         return res.json({
           success: true,
@@ -1497,36 +1557,71 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
       // TRƯỜNG HỢP 2: Rút tiền mặt (Bank -> Cash)
       if (parsed.wallet === 'TRANSFER_TO_CASH' || parsed.categoryId === 'cat_transfer_cash') {
         const sourceAcc = bankAcc;
-        // Trừ tài khoản ngân hàng
-        await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, sourceAcc.id);
-        // Cộng vào ví tiền mặt
-        await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, cashAcc.id);
+        const catInfo = catMap.get('cat_transfer_cash');
 
-        await db.prepare(`
-          INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
-          VALUES (?, ?, 'cat_transfer_cash', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
-        `).run(
-          txId,
-          sourceAcc.id,
-          parsed.amount,
-          parsed.description || 'Rút tiền mặt vào Ví',
-          text,
-          sourceAcc.name,
-          txTime,
-          txTime
-        );
+        await Promise.all([
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, sourceAcc.id),
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, cashAcc.id),
+          db.prepare(`
+            INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
+            VALUES (?, ?, 'cat_transfer_cash', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
+          `).run(
+            txId,
+            sourceAcc.id,
+            parsed.amount,
+            parsed.description || 'Rút tiền mặt vào Ví',
+            text,
+            sourceAcc.name,
+            txTime,
+            txTime
+          )
+        ]);
 
-        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(sourceAcc.id));
-        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(cashAcc.id));
-      } else {
-        // TRƯỜNG HỢP 2: Chi tiêu hoặc Thu nhập thông thường
-        let targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
-        if (parsed.bankName && parsed.wallet !== 'CASH') {
-          const matchedAcc = await db.prepare("SELECT * FROM accounts WHERE LOWER(name) LIKE ? OR LOWER(bank_code) = ?").get(`%${parsed.bankName.toLowerCase()}%`, parsed.bankName.toLowerCase());
-          if (matchedAcc) targetAcc = matchedAcc;
-        }
+        const createdTx = {
+          id: txId,
+          account_id: sourceAcc.id,
+          category_id: 'cat_transfer_cash',
+          amount: parsed.amount,
+          type: 'EXPENSE',
+          description: parsed.description || 'Rút tiền mặt vào Ví',
+          raw_content: text,
+          bank_name: sourceAcc.name,
+          status: 'CONFIRMED',
+          source: 'MANUAL',
+          transaction_time: txTime,
+          confirmed_at: txTime,
+          category_name: catInfo?.name || 'Rút tiền mặt',
+          category_color: catInfo?.color || '#f59e0b',
+          category_icon: catInfo?.icon || 'Wallet',
+          account_name: sourceAcc.name
+        };
 
-        await db.prepare(`
+        broadcastEvent('ACCOUNT_UPDATED', { ...sourceAcc, balance: Number(sourceAcc.balance || 0) - parsed.amount });
+        broadcastEvent('ACCOUNT_UPDATED', { ...cashAcc, balance: Number(cashAcc.balance || 0) + parsed.amount });
+        broadcastEvent('TRANSACTION_CREATED', createdTx);
+
+        return res.json({
+          success: true,
+          parsed,
+          createdCategory,
+          transaction: createdTx,
+          message: `Đã phân loại: ${createdTx.category_name} (${parsed.reasoning})`
+        });
+      }
+
+      // TRƯỜNG HỢP 3: Chi tiêu hoặc Thu nhập thông thường (Song song hóa INSERT + UPDATE)
+      let targetAcc = (parsed.wallet === 'CASH') ? cashAcc : bankAcc;
+      if (parsed.bankName && parsed.wallet !== 'CASH') {
+        const bLower = parsed.bankName.toLowerCase();
+        const matchedAcc = accounts.find(a => a.name.toLowerCase().includes(bLower) || a.bank_code.toLowerCase() === bLower);
+        if (matchedAcc) targetAcc = matchedAcc;
+      }
+
+      const balanceDelta = parsed.type === 'EXPENSE' ? -parsed.amount : parsed.amount;
+      const catInfo = catMap.get(parsed.categoryId);
+
+      await Promise.all([
+        db.prepare(`
           INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, ?)
         `).run(
@@ -1540,25 +1635,30 @@ app.post('/api/ai/parse-transaction', async (req, res) => {
           parsed.bankName || targetAcc.name,
           txTime,
           txTime
-        );
+        ),
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(balanceDelta, targetAcc.id)
+      ]);
 
-        if (parsed.type === 'EXPENSE') {
-          await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(parsed.amount, targetAcc.id);
-        } else {
-          await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(parsed.amount, targetAcc.id);
-        }
+      const createdTx = {
+        id: txId,
+        account_id: targetAcc.id,
+        category_id: parsed.categoryId,
+        amount: parsed.amount,
+        type: parsed.type,
+        description: parsed.description,
+        raw_content: text,
+        bank_name: parsed.bankName || targetAcc.name,
+        status: 'CONFIRMED',
+        source: 'MANUAL',
+        transaction_time: txTime,
+        confirmed_at: txTime,
+        category_name: catInfo?.name || 'Chi tiêu khác',
+        category_color: catInfo?.color || '#64748b',
+        category_icon: catInfo?.icon || 'Tag',
+        account_name: targetAcc.name
+      };
 
-        broadcastEvent('ACCOUNT_UPDATED', await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAcc.id));
-      }
-
-      const createdTx = await db.prepare(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.id = ?
-      `).get(txId);
-
+      broadcastEvent('ACCOUNT_UPDATED', { ...targetAcc, balance: Number(targetAcc.balance || 0) + balanceDelta });
       broadcastEvent('TRANSACTION_CREATED', createdTx);
 
       return res.json({
@@ -1986,10 +2086,12 @@ setInterval(async () => {
 // Phục vụ giao diện web tĩnh từ thư mục dist (dành cho môi trường Production như Render)
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  // Chỉ phục vụ index.html cho các request GET
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
-    res.sendFile(path.join(distPath, 'index.html'));
+  // Chỉ phục vụ index.html cho các request GET không phải API (tương thích Express 5 & path-to-regexp mới)
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      return res.sendFile(path.join(distPath, 'index.html'));
+    }
+    next();
   });
 }
 

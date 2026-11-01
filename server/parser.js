@@ -94,21 +94,24 @@ export function parseBankNotification(text, title = '', appName = '') {
   }
 
   // 3. Regex bóc tách số tiền
-  // Ưu tiên 1: Có dấu [+-] rõ ràng (ví dụ: -50,000VND, +150.000d)
-  let amountMatch = cleanText.match(/(?:GD[:\s]*)?([+-]\s*(?:[0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12}))\s*(?:VND|VNĐ|d|đ|\$)?/i);
+  // Ưu tiên 1: Có dấu [+-] rõ ràng (ví dụ: -50,000VND, + VND 7, +500VND, +150.000d)
+  let amountMatch = cleanText.match(/(?:GD[:\s]*)?([+-]\s*(?:VND|VNĐ|d|đ|\$)?\s*(?:[0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{1,12}))\s*(?:VND|VNĐ|d|đ|\$)?/i);
+
+  // Loại trừ phần số dư trước khi tìm số tiền không có dấu [+-] để tránh nhầm số dư thành số tiền giao dịch
+  const cleanWithoutBalance = cleanText.replace(/(?:SD|So du|Số dư)(?:\s+(?:cuối|cuoi|kha dung|khả dụng|hien tai|hiện tại))?[:\s]*(?:VND|VNĐ|d|đ|\$)?[:\s]*[0-9.,]+/gi, '');
 
   // Ưu tiên 2: Đi liền với đơn vị tiền tệ VND/VNĐ/d/đ
   if (!amountMatch) {
-    amountMatch = cleanText.match(/(?:thanh toan|chuyen|nhan|so tien|tiền|giao dịch)?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,12})\s*(?:VND|VNĐ|d|đ|\$)/i);
+    amountMatch = cleanWithoutBalance.match(/(?:thanh toan|chuyen|nhan|so tien|tiền|giao dịch)?[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{1,12})\s*(?:VND|VNĐ|d|đ|\$)/i);
   }
 
   // Ưu tiên 3: Định dạng có dấu chấm/phẩy hàng nghìn
   if (!amountMatch) {
-    amountMatch = cleanText.match(/([0-9]{1,3}(?:[.,][0-9]{3})+)\s*(?:VND|VNĐ|d|đ|\$)?/i);
+    amountMatch = cleanWithoutBalance.match(/([0-9]{1,3}(?:[.,][0-9]{3})+)\s*(?:VND|VNĐ|d|đ|\$)?/i);
   }
 
   if (amountMatch && amountMatch[1]) {
-    const normalized = amountMatch[1].replace(/[+-.,\s]/g, '');
+    const normalized = amountMatch[1].replace(/[^\d]/g, '');
     amount = parseFloat(normalized);
   }
 
@@ -136,15 +139,23 @@ export function parseBankNotification(text, title = '', appName = '') {
   if (descMatch && descMatch[1] && descMatch[1].trim()) {
     description = descMatch[1].trim();
   } else {
-    // Nếu nội dung chỉ là số tiền trần (ví dụ: "+ VND 5,000", "+5.000d") không có lời nhắn/ND
-    const withoutBank = cleanText.replace(/techcombank|agribank|viettel|mbbank|vcb|vietcombank|vnpay/gi, '').trim();
-    const isBareAmountOnly = /^[+-]?\s*(?:VND|VNĐ|d|đ|\$)?\s*[0-9.,\s]+(?:VND|VNĐ|d|đ|\$)?$/i.test(withoutBank);
-    
-    if (isBareAmountOnly) {
-      const formatted = new Intl.NumberFormat('vi-VN').format(amount);
-      description = type === 'INCOME' ? `Nhận tiền (+${formatted} ₫)` : `Chi tiêu (-${formatted} ₫)`;
+    if (type === 'INCOME' && (amount < 1000 || /lai|tiền lãi|tiết kiệm/i.test(cleanText))) {
+      description = `Lãi tiền gửi (${new Intl.NumberFormat('vi-VN').format(amount)} ₫)`;
     } else {
-      description = cleanText.length > 80 ? cleanText.slice(0, 77) + '...' : cleanText;
+      // Nếu nội dung chỉ là số tiền trần (ví dụ: "+ VND 5,000", "+5.000d") không có lời nhắn/ND
+      const withoutBank = cleanText
+        .replace(/techcombank|agribank|viettel|mbbank|vcb|vietcombank|vnpay/gi, '')
+        .replace(/(?:tài khoản|tk)[:\s]*[0-9*]+/gi, '')
+        .replace(/(?:SD|So du|Số dư)(?:\s+(?:cuối|cuoi|kha dung|khả dụng|hien tai|hiện tại))?[:\s]*(?:VND|VNĐ|d|đ|\$)?[:\s]*[0-9.,]+/gi, '')
+        .trim();
+      const isBareAmountOnly = /^[+-]?\s*(?:VND|VNĐ|d|đ|\$)?\s*[0-9.,\s]+(?:VND|VNĐ|d|đ|\$)?$/i.test(withoutBank);
+      
+      if (isBareAmountOnly) {
+        const formatted = new Intl.NumberFormat('vi-VN').format(amount);
+        description = type === 'INCOME' ? `Nhận tiền (+${formatted} ₫)` : `Chi tiêu (-${formatted} ₫)`;
+      } else {
+        description = cleanText.length > 80 ? cleanText.slice(0, 77) + '...' : cleanText;
+      }
     }
   }
 

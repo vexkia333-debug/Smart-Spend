@@ -403,7 +403,7 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || 'Lỗi phân tích AI');
 
       if (data.createdCategory) {
-        await fetchCategories();
+        fetchCategories();
       }
 
       // Xử lý tách giao dịch nhiều phần (Split transaction)
@@ -417,7 +417,7 @@ export default function App() {
           const splitErr = await splitRes.json();
           throw new Error(splitErr.error || 'Lỗi tách giao dịch');
         }
-        await Promise.all([fetchTransactions(), fetchStats(), fetchAccounts()]);
+        Promise.all([fetchTransactions(), fetchStats(), fetchAccounts()]);
         return true;
       }
 
@@ -535,6 +535,28 @@ export default function App() {
     }
   };
 
+  const handleToggleRule = async (ruleId) => {
+    try {
+      const res = await authFetch(`/api/rules/${ruleId}/toggle`, {
+        method: 'PATCH'
+      });
+      if (res.ok) fetchRules();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId) => {
+    try {
+      const res = await authFetch(`/api/rules/${ruleId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) fetchRules();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Tạo danh mục mới
   const handleCreateCategory = async (e) => {
     e.preventDefault();
@@ -560,6 +582,19 @@ export default function App() {
       console.error(err);
     } finally {
       setIsAddingCat(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId) => {
+    try {
+      const res = await authFetch(`/api/categories/${catId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await Promise.all([fetchCategories(), fetchTransactions(), fetchStats()]);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -618,21 +653,41 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || 'Lỗi phân tích AI');
 
       if (data.createdCategory) {
-        await fetchCategories();
+        fetchCategories();
       }
 
-      setAiMessage(
-        data.createdCategory
-          ? `✨ Đã tự động tạo danh mục mới "${data.createdCategory.name}" & ghi nhận: ${formatVND(
-              data.transaction.amount
-            )}!`
-          : `✨ Đã ghi nhận: ${data.transaction.category_name} - ${formatVND(
-              data.transaction.amount
-            )} (${data.parsed.reasoning})`
-      );
+      if (data.isSplit && Array.isArray(data.splits)) {
+        setAiMessage(
+          data.message ||
+            `✨ Đã tự động tách ${data.splits.length} khoản: ${data.splits
+              .map((s) => `${s.description} (${formatVND(s.amount)})`)
+              .join(' + ')}`
+        );
+      } else if (data.createdCategory && data.transaction) {
+        setAiMessage(
+          `✨ Đã tự động tạo danh mục mới "${data.createdCategory.name}" & ghi nhận: ${formatVND(
+            data.transaction.amount
+          )}!`
+        );
+      } else if (data.transaction) {
+        setAiMessage(
+          `✨ Đã ghi nhận: ${data.transaction.description} (${data.transaction.category_name}) - ${formatVND(
+            data.transaction.amount
+          )}`
+        );
+      } else if (data.message) {
+        setAiMessage(data.message);
+      }
       setAiInputText('');
       setAiIsCash(true);
-      await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts(), fetchCategories()]);
+
+      // Cập nhật lạc quan (Optimistic UI) & đồng bộ nền không chặn nút bấm
+      if (data.isSplit && Array.isArray(data.splits)) {
+        setTransactions((prev) => [...data.splits, ...prev]);
+      } else if (data.transaction) {
+        setTransactions((prev) => [data.transaction, ...prev.filter((t) => t.id !== data.transaction.id)]);
+      }
+      Promise.all([fetchStats(), fetchTransactions(), fetchAccounts()]);
 
       confetti({
         particleCount: 50,
@@ -951,6 +1006,7 @@ export default function App() {
         toggleTheme={toggleTheme}
         timeFilter={timeFilter}
         setTimeFilter={setTimeFilter}
+        onOpenSettings={() => setShowSettingsModal(true)}
         onLockApp={handleLockApp}
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}
@@ -1067,12 +1123,15 @@ export default function App() {
           setNewCatColor={setNewCatColor}
           isAddingCat={isAddingCat}
           handleCreateCategory={handleCreateCategory}
+          onDeleteCategory={handleDeleteCategory}
           rules={rules}
           newKeyword={newKeyword}
           setNewKeyword={setNewKeyword}
           newRuleCat={newRuleCat}
           setNewRuleCat={setNewRuleCat}
           handleCreateRule={handleCreateRule}
+          onToggleRule={handleToggleRule}
+          onDeleteRule={handleDeleteRule}
         />
       )}
 

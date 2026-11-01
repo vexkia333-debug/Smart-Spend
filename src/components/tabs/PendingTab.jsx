@@ -100,7 +100,7 @@ export default function PendingTab({
                   )}
                 </div>
 
-                <div className="pending-amount">
+                <div className={`pending-amount ${tx.type === 'INCOME' ? 'income' : 'expense'}`}>
                   {tx.type === 'EXPENSE' ? '-' : '+'}
                   {formatVND(tx.amount)}
                 </div>

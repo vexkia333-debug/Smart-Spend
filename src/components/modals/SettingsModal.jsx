@@ -147,10 +147,10 @@ export default function SettingsModal({
           </h4>
           <ol style={{ paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <li>
-              <strong>Trigger:</strong> Chọn <em>Thông báo (Notification)</em> $\rightarrow$ Chọn các ứng dụng bạn muốn theo dõi (Agribank Plus, Techcombank, Viettel Money...).
+              <strong>Trigger:</strong> Chọn <em>Thông báo (Notification)</em> → Chọn các ứng dụng bạn muốn theo dõi (Agribank Plus, Techcombank, Viettel Money...).
             </li>
             <li>
-              <strong>Action:</strong> Chọn <em>HTTP Request (POST)</em> $\rightarrow$ Dán Webhook URL ở trên.
+              <strong>Action:</strong> Chọn <em>HTTP Request (POST)</em> → Dán Webhook URL ở trên.
             </li>
             <li>
               <strong>Body (JSON):</strong>

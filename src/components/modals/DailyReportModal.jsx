@@ -189,7 +189,7 @@ export default function DailyReportModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '720px',
+          maxWidth: '820px',
           maxHeight: '92vh',
           overflowY: 'auto',
           background: 'var(--bg-card-solid)',
@@ -362,21 +362,6 @@ export default function DailyReportModal({
                     fontSize: '0.85rem'
                   }}
                 />
-                {reportData?.fromCache && (
-                  <span
-                    style={{
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                      color: '#10b981',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      borderRadius: '9999px'
-                    }}
-                  >
-                    ⚡ Có sẵn (0ms)
-                  </span>
-                )}
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -455,66 +440,35 @@ export default function DailyReportModal({
             {!isLoading && reportData && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {/* Top Cards Row: Thu - Chi - Tích lũy - Đánh giá */}
-                <div className="daily-report-stats-grid" style={{ display: 'grid', gap: '10px' }}>
-                  <div
-                    style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '14px',
-                      padding: '12px'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tổng thu hôm nay</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>
+                <div className="daily-report-stats-grid">
+                  <div className="daily-report-stat-card">
+                    <div className="daily-report-stat-label">Tổng thu hôm nay</div>
+                    <div className="daily-report-stat-value income">
                       +{formatVND(reportData.totalIncome)}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '14px',
-                      padding: '12px'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tổng chi hôm nay</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e', marginTop: '4px' }}>
+                  <div className="daily-report-stat-card">
+                    <div className="daily-report-stat-label">Tổng chi hôm nay</div>
+                    <div className="daily-report-stat-value expense">
                       -{formatVND(reportData.totalExpense)}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '14px',
-                      padding: '12px'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Dòng tiền ròng</div>
+                  <div className="daily-report-stat-card">
+                    <div className="daily-report-stat-label">Dòng tiền ròng</div>
                     <div
-                      style={{
-                        fontSize: '1.05rem',
-                        fontWeight: 800,
-                        color: reportData.netFlow >= 0 ? 'var(--accent-cyan, #38bdf8)' : 'var(--accent-amber, #fb923c)',
-                        marginTop: '4px'
-                      }}
+                      className={`daily-report-stat-value ${
+                        reportData.netFlow >= 0 ? 'net-pos' : 'net-neg'
+                      }`}
                     >
                       {reportData.netFlow >= 0 ? '+' : ''}{formatVND(reportData.netFlow)}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.12))',
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                      borderRadius: '14px',
-                      padding: '12px'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.74rem', color: 'var(--accent-purple, #c084fc)' }}>Xếp loại AI</div>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
+                  <div className="daily-report-stat-card ai-rating">
+                    <div className="daily-report-stat-label ai">Xếp loại AI</div>
+                    <div className="daily-report-stat-value rating">
                       {ai?.rating || 'Cân đối 👍'}
                     </div>
                   </div>

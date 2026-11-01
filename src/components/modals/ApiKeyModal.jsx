@@ -89,7 +89,7 @@ export default function ApiKeyModal({
           >
             aistudio.google.com/app/apikey
           </a>{' '}
-          (đăng nhập tài khoản Google $\rightarrow$ bấm "Create API key").
+          (đăng nhập tài khoản Google → bấm "Create API key").
         </div>
 
         <form onSubmit={handleSaveApiKey}>

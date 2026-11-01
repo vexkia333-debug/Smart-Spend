@@ -130,6 +130,17 @@ export default function Header({
               </button>
             )}
 
+            {/* Nút Cài đặt Webhook & Hướng dẫn MacroDroid */}
+            {onOpenSettings && (
+              <button
+                className="theme-toggle-btn"
+                onClick={onOpenSettings}
+                title="Cài đặt kết nối Webhook & Hướng dẫn MacroDroid"
+              >
+                <Settings size={17} color="#38bdf8" />
+              </button>
+            )}
+
             {/* Nút Khóa màn hình (PIN Lock) */}
             <button
               className="theme-toggle-btn"
@@ -175,7 +186,7 @@ export default function Header({
             className="ai-text-input"
             value={aiInputText}
             onChange={(e) => setAiInputText(e.target.value)}
-            placeholder="Gõ chi tiết chi tiêu (VD: bún bò 45k, cafe Highlands, đổ xăng 50k)..."
+            placeholder="Nhập 1 hoặc nhiều khoản (VD: đổ xăng 60k + mua xà phòng 20k, bún bò 45k)..."
             disabled={isAnalyzingAi}
           />
           <button
