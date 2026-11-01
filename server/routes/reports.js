@@ -163,3 +163,4 @@ router.post('/ai/daily-report', async (req, res) => {
 });
 
 export default router;
+

@@ -180,20 +180,40 @@ export default function DailyReportModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
+    <div
+      className="modal-overlay prompt-modal-backdrop"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'clamp(12px, 3vw, 24px)',
+        overflowY: 'auto'
+      }}
+    >
       <div
-        className="modal-container"
+        className="modal-container glass-panel daily-report-dialog"
         onClick={(e) => e.stopPropagation()}
         style={{
+          position: 'relative',
           maxWidth: '750px',
-          width: '95%',
+          width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',
-          background: 'var(--bg-card)',
+          background: 'var(--bg-card-solid)',
           borderRadius: '24px',
           padding: '24px',
           border: '1px solid var(--border-subtle)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)'
+          boxShadow: 'var(--shadow-card)',
+          color: 'var(--text-main)',
+          zIndex: 10001,
+          margin: 'auto'
         }}
       >
         {/* Header */}

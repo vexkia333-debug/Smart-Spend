@@ -29,3 +29,4 @@ export function requirePinAuth(req, res, next) {
 
   return res.status(401).json({ error: 'Yêu cầu mã PIN bảo mật để truy cập dữ liệu' });
 }
+
