@@ -4,7 +4,17 @@ import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } fr
 import { getVietnamTimeParts } from '../utils/time.js';
 import { broadcastEvent } from './sse.js';
 
-export async function processIncomingWebhook(body = {}) {
+// Chuỗi hàng đợi tuần tự hóa để chống race-condition khi MacroDroid bắn 2 webhook đồng thời
+let webhookPromiseChain = Promise.resolve();
+
+export function processIncomingWebhook(body = {}) {
+  const execution = () => processIncomingWebhookInternal(body);
+  const queued = webhookPromiseChain.then(execution, execution);
+  webhookPromiseChain = queued.catch(() => {});
+  return queued;
+}
+
+async function processIncomingWebhookInternal(body = {}) {
   const rawContent = body.content || body.text || body.body || body.message || body.notification || body.not_text || '';
   const rawTitle = body.title || body.not_title || '';
   const rawAppName = body.appName || body.app_name || body.package || body.pkg_name || body.not_app_name || '';
@@ -30,49 +40,35 @@ export async function processIncomingWebhook(body = {}) {
 
   const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
 
-  // Ghi nhật ký webhook vào notification_logs
-  try {
-    await db.prepare(`
-      INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
-      VALUES (?, ?, ?, ?, ?, 'SENT')
-    `).run(
-      'log_' + crypto.randomUUID().slice(0, 8),
-      txId,
-      effectiveTitle || parsed.bankName,
-      content,
-      JSON.stringify({ bankCode: parsed.bankCode, amount: parsed.amount, type: parsed.type, balance: parsed.balance })
-    );
-  } catch (e) {
-    console.error('Lỗi ghi notification_logs:', e.message);
-  }
+  // 2. Tìm tài khoản tương ứng theo bankCode và danh sách tài khoản hiện có
+  const allAccounts = await db.prepare('SELECT id, name, bank_code, account_number, balance FROM accounts').all();
+  let account = allAccounts.find(a => a.bank_code === parsed.bankCode);
 
-  // 2. Tìm tài khoản tương ứng theo bankCode
-  let account = await db.prepare('SELECT id, name, account_number FROM accounts WHERE bank_code = ?').get(parsed.bankCode);
   if (!account) {
     if (parsed.bankCode === 'AGRI') {
       await db.prepare(`
         INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
         VALUES ('acc_primary', 'Agribank Plus', 'AGRI', '7901205294347', 0, 'VND', 'landmark', '#059669')
       `).run();
-      account = { id: 'acc_primary', name: 'Agribank Plus', account_number: '7901205294347' };
+      account = { id: 'acc_primary', name: 'Agribank Plus', account_number: '7901205294347', bank_code: 'AGRI' };
     } else if (parsed.bankCode === 'TCB') {
       await db.prepare(`
         INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
         VALUES ('acc_tcb', 'Techcombank', 'TCB', '1912200512', 0, 'VND', 'credit-card', '#dc2626')
       `).run();
-      account = { id: 'acc_tcb', name: 'Techcombank', account_number: '1912200512' };
+      account = { id: 'acc_tcb', name: 'Techcombank', account_number: '1912200512', bank_code: 'TCB' };
     } else if (parsed.bankCode === 'VTM') {
       await db.prepare(`
         INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color)
         VALUES ('acc_vtm', 'Viettel Money', 'VTM', 'Ví Viettel Money', 0, 'VND', 'smartphone', '#e11d48')
       `).run();
-      account = { id: 'acc_vtm', name: 'Viettel Money', account_number: 'Ví Viettel Money' };
+      account = { id: 'acc_vtm', name: 'Viettel Money', account_number: 'Ví Viettel Money', bank_code: 'VTM' };
     } else {
       if (/viettel|vtmoney|viettelpay/i.test(content)) {
-        account = await db.prepare("SELECT id, name, account_number FROM accounts WHERE bank_code = 'VTM'").get();
+        account = allAccounts.find(a => a.bank_code === 'VTM');
       }
       if (!account) {
-        account = await db.prepare("SELECT id, name, account_number FROM accounts WHERE id != 'acc_cash' ORDER BY id ASC LIMIT 1").get();
+        account = allAccounts.find(a => a.id !== 'acc_cash') || allAccounts[0];
       }
     }
   }
@@ -134,6 +130,7 @@ export async function processIncomingWebhook(body = {}) {
   let status = 'PENDING';
   let suggested = null;
 
+  // 3.1. Tìm giao dịch đối ứng đã đến trước đó trong vòng 15 phút
   const partnerTx = await db.prepare(`
     SELECT t.*, a.name as account_name
     FROM transactions t
@@ -182,12 +179,31 @@ export async function processIncomingWebhook(body = {}) {
       broadcastEvent('TRANSACTION_UPDATED', updatedPartner);
     }
   } else {
+    // 3.2. Kiểm tra thông tin chuyển khoản trực tiếp từ nội dung tin nhắn
     const transferInfo = extractTransferInfo(content, parsed.description);
-    const descUpper = (parsed.description || '').toUpperCase();
-    const rawUpper = (content || '').toUpperCase();
-    const combinedUpper = `${descUpper} ${rawUpper}`;
+    const contentUpper = content.toUpperCase();
 
-    if (parsed.type === 'INCOME' && transferInfo.senderName && !transferInfo.isSenderOwner) {
+    // Nhận diện chuyển tiền nội bộ dựa trên số tài khoản / tên ngân hàng đích của chính người dùng
+    const otherAccounts = allAccounts.filter(a => a.id !== targetAccountId);
+    const matchedDestAccount = otherAccounts.find(a => {
+      const accNum = a.account_number?.replace(/[^0-9]/g, '');
+      const hasAccNum = accNum && accNum.length >= 6 && content.includes(accNum);
+      const hasBankCode = a.bank_code && contentUpper.includes(a.bank_code);
+      const hasBankName = a.name && contentUpper.includes(a.name.toUpperCase());
+      return hasAccNum || (hasBankCode && hasBankName);
+    });
+
+    if (matchedDestAccount && (transferInfo.isSenderOwner || contentUpper.includes('VU HA KIEN') || contentUpper.includes('KIEN VU'))) {
+      isInternalTransfer = true;
+      status = 'CONFIRMED';
+      if (parsed.type === 'EXPENSE') {
+        categoryId = 'cat_transfer_internal';
+        parsed.description = `Chuyển tiền sang ${matchedDestAccount.name}`;
+      } else {
+        categoryId = 'cat_transfer_in';
+        parsed.description = `Nhận tiền từ ${matchedDestAccount.name}`;
+      }
+    } else if (parsed.type === 'INCOME' && transferInfo.senderName && !transferInfo.isSenderOwner) {
       const sender = transferInfo.senderName;
       const remark = transferInfo.remark;
       parsed.description = remark && remark.length > 3
@@ -195,16 +211,22 @@ export async function processIncomingWebhook(body = {}) {
         : `Nhận tiền từ ${sender}`;
     }
 
-    const rules = await db.prepare('SELECT * FROM auto_rules').all();
-    suggested = matchSuggestedCategory(combinedUpper, rules);
-    if (suggested && suggested.isAutoApply) {
-      categoryId = suggested.categoryId;
-      status = 'CONFIRMED';
-    } else if (suggested) {
-      categoryId = suggested.categoryId;
-      status = 'PENDING';
-    } else {
-      status = 'PENDING';
+    if (!isInternalTransfer) {
+      const descUpper = (parsed.description || '').toUpperCase();
+      const rawUpper = (content || '').toUpperCase();
+      const combinedUpper = `${descUpper} ${rawUpper}`;
+
+      const rules = await db.prepare('SELECT * FROM auto_rules').all();
+      suggested = matchSuggestedCategory(combinedUpper, rules);
+      if (suggested && suggested.isAutoApply) {
+        categoryId = suggested.categoryId;
+        status = 'CONFIRMED';
+      } else if (suggested) {
+        categoryId = suggested.categoryId;
+        status = 'PENDING';
+      } else {
+        status = 'PENDING';
+      }
     }
   }
 
@@ -220,12 +242,28 @@ export async function processIncomingWebhook(body = {}) {
     parsed.type,
     parsed.description,
     parsed.rawContent,
-    parsed.bankName,
+    account?.name || parsed.bankName,
     status,
     source,
     txTime,
     status === 'CONFIRMED' ? txTime : null
   );
+
+  // Ghi nhật ký webhook vào notification_logs SAU KHI đã tạo transaction để không phạm Foreign Key
+  try {
+    await db.prepare(`
+      INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
+      VALUES (?, ?, ?, ?, ?, 'SENT')
+    `).run(
+      'log_' + crypto.randomUUID().slice(0, 8),
+      txId,
+      effectiveTitle || parsed.bankName,
+      content,
+      JSON.stringify({ bankCode: parsed.bankCode, amount: parsed.amount, type: parsed.type, balance: parsed.balance, status })
+    );
+  } catch (e) {
+    console.error('Lỗi ghi notification_logs:', e.message);
+  }
 
   // 5. Cập nhật số dư tài khoản
   if (parsed.balance !== null && parsed.balance !== undefined && !isNaN(parsed.balance)) {
@@ -279,4 +317,3 @@ export async function processIncomingWebhook(body = {}) {
       : (status === 'PENDING' ? 'Giao dịch đã được lưu và đang chờ bạn phân loại' : 'Đã tự động phân loại')
   };
 }
-
