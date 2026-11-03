@@ -144,6 +144,8 @@ export async function generateAndSavePeriodicReport({
   const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
   const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
 
+  const allCategories = await db.prepare('SELECT id, name, type FROM categories').all();
+
   let aiEvaluation = null;
   if (apiKey && txs.length > 0) {
     aiEvaluation = await generatePeriodicAiReport({
@@ -154,6 +156,7 @@ export async function generateAndSavePeriodicReport({
       totalExpense,
       netFlow,
       catMap,
+      categories: allCategories,
       apiKey
     });
   }

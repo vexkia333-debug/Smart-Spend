@@ -540,6 +540,7 @@ export async function generatePeriodicAiReport({
   totalExpense = 0,
   netFlow = 0,
   catMap = {},
+  categories = [],
   apiKey
 }) {
   if (!apiKey || !txs.length) return null;
@@ -550,6 +551,19 @@ export async function generatePeriodicAiReport({
     .slice(0, 60)
     .map((t) => `- [${t.type === 'INCOME' ? '+' : '-'}${t.amount}đ] ${t.category_name || 'Chưa gắn thẻ'}: ${t.description} (TK: ${t.account_name || t.bank_name}, ID: ${t.id}, Ngày: ${t.transaction_time || t.created_at})`)
     .join('\n');
+
+  const catNamesStr = (categories || [])
+    .filter(c => !c.id.startsWith('cat_transfer_'))
+    .map(c => `"${c.name}" (${c.type})`)
+    .join(', ');
+
+  const catGuidelines = catNamesStr ? `
+DANH SÁCH DANH MỤC CÓ SẴN TRONG HỆ THỐNG:
+[${catNamesStr}]
+QUY TẮC ĐẶC BIỆT CHO "suggestedCategory":
+- Bạn PHẢI ƯU TIÊN chọn chính xác một tên danh mục trong danh sách có sẵn ở trên (Ví dụ: hãy dùng "Học tập & Sách" thay vì tự sáng tác "Giáo dục & Học tập", dùng "Cơm & Đồ ăn" thay vì "Ăn uống").
+- Chỉ đề xuất tên danh mục mới nếu giao dịch thực sự không thể xếp vào bất kỳ danh mục nào ở trên.
+` : '';
 
   let periodTitle = `BÁO CÁO ĐÁNH GIÁ TÀI CHÍNH CUỐI NGÀY (${dateRange})`;
   let extraGuidelines = `
@@ -597,6 +611,7 @@ QUY ƯỚC DANH MỤC CỦA HỆ THỐNG SMARTSPEND:
 - Danh mục "Thu hồi nợ / Nhận tiền trả" (INCOME) khi người khác hoàn trả lại tiền nợ hoặc tiền trả hộ.
 - Danh mục "Chuyển tiền nội bộ" / "Nhận chuyển nội bộ" / "Rút tiền vào Ví (ATM)" là luân chuyển giữa các ví của chính người dùng.
 ${extraGuidelines}
+${catGuidelines}
 6. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
    [
      {

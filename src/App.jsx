@@ -1153,6 +1153,8 @@ export default function App() {
         tx={editingTx}
         categories={categories}
         accounts={accounts}
+        authFetch={authFetch}
+        onCategoriesChange={fetchCategories}
         onClose={() => setEditingTx(null)}
         onSave={handleSaveEditTx}
         onDelete={handleDeleteTx}
@@ -1162,7 +1164,12 @@ export default function App() {
         isOpen={showDailyReportModal}
         onClose={() => setShowDailyReportModal(false)}
         authFetch={authFetch}
-        onEditTransaction={(tx) => setEditingTx(tx)}
+        categories={categories}
+        onCategoriesChange={fetchCategories}
+        onTransactionsChange={fetchTransactions}
+        onEditTransaction={(tx, suggestedCategory) => {
+          setEditingTx({ ...tx, suggestedCategory });
+        }}
       />
 
       <ResetTransactionsModal

@@ -8,6 +8,9 @@ export default function DailyReportModal({
   isOpen,
   onClose,
   authFetch,
+  categories = [],
+  onCategoriesChange,
+  onTransactionsChange,
   onEditTransaction
 }) {
   if (!isOpen) return null;
@@ -356,6 +359,10 @@ export default function DailyReportModal({
             error={error}
             reportData={reportData}
             fetchReport={fetchReport}
+            authFetch={authFetch}
+            categories={categories}
+            onCategoriesChange={onCategoriesChange}
+            onTransactionsChange={onTransactionsChange}
             onEditTransaction={onEditTransaction}
             onClose={onClose}
             getTodayStr={getTodayStr}

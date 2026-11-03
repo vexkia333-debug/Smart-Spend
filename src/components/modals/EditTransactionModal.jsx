@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Edit3, Calendar, Tag, CreditCard, DollarSign, AlertTriangle } from 'lucide-react';
+import { X, Save, Trash2, Edit3, Calendar, Tag, CreditCard, DollarSign, AlertTriangle, Plus, Sparkles } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
 import CustomSelect from '../common/CustomSelect.jsx';
+import { matchOrFindCategory, ensureCategoryExists } from '../../utils/categoryMatcher.js';
 
 export default function EditTransactionModal({
   isOpen,
   tx,
   categories = [],
   accounts = [],
+  authFetch,
+  onCategoriesChange,
   onClose,
   onSave,
   onDelete
@@ -24,15 +27,69 @@ export default function EditTransactionModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Danh mục đề xuất và tạo nhanh danh mục
+  const [suggestedNewCatName, setSuggestedNewCatName] = useState('');
+  const [isCreatingCat, setIsCreatingCat] = useState(false);
+  const [showQuickCreateCat, setShowQuickCreateCat] = useState(false);
+  const [customCatInput, setCustomCatInput] = useState('');
+
   useEffect(() => {
+    if (!tx) return;
     setDescription(tx.description || '');
     setAmount(tx.amount || 0);
-    setType(tx.type || 'EXPENSE');
-    setCategoryId(tx.category_id || '');
+    const targetType = tx.type || 'EXPENSE';
+    setType(targetType);
     setAccountId(tx.account_id || '');
     setTxTime(tx.transaction_time || '');
     setShowDeleteConfirm(false);
-  }, [tx]);
+    setShowQuickCreateCat(false);
+    setCustomCatInput('');
+
+    // Xử lý danh mục thông minh: nếu có gợi ý từ AI
+    if (tx.suggestedCategory) {
+      const matched = matchOrFindCategory(categories, tx.suggestedCategory, targetType);
+      if (matched) {
+        setCategoryId(matched.id);
+        setSuggestedNewCatName('');
+      } else {
+        setCategoryId('');
+        setSuggestedNewCatName(tx.suggestedCategory);
+      }
+    } else {
+      setCategoryId(tx.category_id || '');
+      setSuggestedNewCatName('');
+    }
+  }, [tx, categories]);
+
+  const handleCreateAndSelectCategory = async (catName) => {
+    const targetName = (catName || customCatInput || suggestedNewCatName).trim();
+    if (!targetName || !authFetch) return;
+    setIsCreatingCat(true);
+    try {
+      const { category, wasCreated, error } = await ensureCategoryExists(
+        authFetch,
+        categories,
+        targetName,
+        type
+      );
+      if (error || !category?.id) {
+        throw new Error(error || 'Không thể tạo danh mục mới');
+      }
+
+      if (wasCreated && onCategoriesChange) {
+        await onCategoriesChange();
+      }
+
+      setCategoryId(category.id);
+      setSuggestedNewCatName('');
+      setShowQuickCreateCat(false);
+      setCustomCatInput('');
+    } catch (err) {
+      alert('Lỗi tạo danh mục: ' + err.message);
+    } finally {
+      setIsCreatingCat(false);
+    }
+  };
 
   const availableCategories = categories.filter((c) => c.type === type);
 
@@ -332,10 +389,59 @@ export default function EditTransactionModal({
           {/* Danh mục & Thời gian */}
           <div className="edit-tx-grid-row">
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '6px' }}>
-                <Tag size={14} color="var(--accent-rose)" />
-                Danh mục
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-dim)', margin: 0 }}>
+                  <Tag size={14} color="var(--accent-rose)" />
+                  Danh mục
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCreateCat(!showQuickCreateCat)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--accent-cyan, #38bdf8)',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>Thêm mới</span>
+                </button>
+              </div>
+
+              {showQuickCreateCat && (
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    value={customCatInput}
+                    onChange={(e) => setCustomCatInput(e.target.value)}
+                    placeholder="Nhập tên danh mục mới..."
+                    className="form-input"
+                    style={{ flex: 1, padding: '6px 10px', fontSize: '0.82rem', borderRadius: '8px' }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateAndSelectCategory(customCatInput);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleCreateAndSelectCategory(customCatInput)}
+                    disabled={isCreatingCat || !customCatInput.trim()}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.76rem', padding: '6px 12px', borderRadius: '8px', flexShrink: 0 }}
+                  >
+                    {isCreatingCat ? '...' : 'Tạo'}
+                  </button>
+                </div>
+              )}
+
               <CustomSelect
                 value={categoryId}
                 onChange={setCategoryId}
@@ -343,6 +449,37 @@ export default function EditTransactionModal({
                 fullWidth
                 placeholder="Chọn danh mục..."
               />
+
+              {suggestedNewCatName && (
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.1))',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} color="#10b981" />
+                    <span>AI đề xuất: <strong>{suggestedNewCatName}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCreateAndSelectCategory(suggestedNewCatName)}
+                    disabled={isCreatingCat}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.74rem', padding: '4px 10px', borderRadius: '7px' }}
+                  >
+                    {isCreatingCat ? 'Đang tạo...' : '+ Tạo & Chọn luôn'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>

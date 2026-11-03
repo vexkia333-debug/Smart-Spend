@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Sparkles, AlertTriangle, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, RefreshCw, 
-  Calendar, Edit3, BarChart3, Sun, Trophy, Wallet, ArrowRight
+  Calendar, Edit3, BarChart3, Sun, Trophy, Wallet, ArrowRight, Check
 } from 'lucide-react';
 import { formatVND, formatDateVN } from '../../../utils/formatters.js';
 import CustomDatePopover from '../../common/CustomDatePopover.jsx';
+import { ensureCategoryExists, matchOrFindCategory } from '../../../utils/categoryMatcher.js';
 
 export default function ReportTab({
   period,
@@ -17,11 +18,71 @@ export default function ReportTab({
   error,
   reportData,
   fetchReport,
+  authFetch,
+  categories = [],
+  onCategoriesChange,
+  onTransactionsChange,
   onEditTransaction,
   onClose,
   getTodayStr
 }) {
   const ai = reportData?.aiEvaluation || reportData?.aiAnalysis;
+  const [appliedTxIds, setAppliedTxIds] = useState({});
+  const [applyingTxId, setApplyingTxId] = useState(null);
+
+  const handleQuickApplySuggestion = async (s) => {
+    if (!s || !s.txId || !s.suggestedCategory || !authFetch) return;
+    setApplyingTxId(s.txId);
+    try {
+      const targetTx = reportData?.transactions?.find((t) => t.id === s.txId);
+      const txType = targetTx?.type || 'EXPENSE';
+
+      // 1. Tìm hoặc tự động tạo mới danh mục
+      const { category, wasCreated } = await ensureCategoryExists(
+        authFetch,
+        categories,
+        s.suggestedCategory,
+        txType
+      );
+
+      if (!category?.id) {
+        throw new Error('Không thể xác định hoặc tạo mới danh mục');
+      }
+
+      // Nếu vừa tạo mới danh mục, cập nhật lại state danh mục toàn app
+      if (wasCreated && onCategoriesChange) {
+        await onCategoriesChange();
+      }
+
+      // 2. Cập nhật category_id mới cho giao dịch
+      const updateRes = await authFetch(`/api/transactions/${s.txId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category_id: category.id
+        })
+      });
+      if (!updateRes.ok) {
+        const errData = await updateRes.json();
+        throw new Error(errData.error || 'Lỗi cập nhật giao dịch');
+      }
+
+      // 3. Đánh dấu đã áp dụng thành công
+      setAppliedTxIds((prev) => ({
+        ...prev,
+        [s.txId]: category.name
+      }));
+
+      // 4. Đồng bộ danh sách giao dịch
+      if (onTransactionsChange) {
+        onTransactionsChange();
+      }
+    } catch (err) {
+      alert('Không thể áp dụng đề xuất: ' + err.message);
+    } finally {
+      setApplyingTxId(null);
+    }
+  };
 
   return (
     <div>
@@ -316,48 +377,99 @@ export default function ReportTab({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {ai.suggestedEdits.map((s, idx) => {
                     const targetTx = reportData.transactions?.find((t) => t.id === s.txId);
+                    const appliedCategoryName = appliedTxIds[s.txId];
+                    const isApplying = applyingTxId === s.txId;
+
                     return (
                       <div
                         key={idx}
                         className="daily-report-suggested-edit-card"
                       >
-                        <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
                             {s.txDescription}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span>Đang phân loại:</span>
                             <span style={{ color: 'var(--accent-rose, #f43f5e)', fontWeight: 600 }}>{s.currentCategory}</span>
                             <ArrowRight size={12} color="var(--text-dim)" />
                             <span>Đề xuất:</span>
                             <span style={{ color: 'var(--accent-emerald, #10b981)', fontWeight: 700 }}>{s.suggestedCategory}</span>
                           </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--accent-purple, #c084fc)', marginTop: '2px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--accent-purple, #c084fc)', marginTop: '3px' }}>
                             Lý do: {s.reason}
                           </div>
                         </div>
 
-                        {targetTx && onEditTransaction && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onClose();
-                              onEditTransaction(targetTx);
-                            }}
-                            className="btn btn-primary"
-                            style={{
-                              fontSize: '0.76rem',
-                              padding: '5px 12px',
-                              borderRadius: '8px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <Edit3 size={13} />
-                            Sửa ngay
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                          {appliedCategoryName ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                color: '#10b981',
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                border: '1px solid rgba(16, 185, 129, 0.35)',
+                                padding: '6px 12px',
+                                borderRadius: '8px'
+                              }}
+                            >
+                              <CheckCircle2 size={14} />
+                              Đã đổi sang: {appliedCategoryName}
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickApplySuggestion(s)}
+                                disabled={isApplying}
+                                className="btn btn-primary"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  padding: '6px 14px',
+                                  borderRadius: '8px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px'
+                                }}
+                                title={`Đổi danh mục giao dịch sang "${s.suggestedCategory}" ngay lập tức`}
+                              >
+                                {isApplying ? (
+                                  <RefreshCw size={13} className="spin" />
+                                ) : (
+                                  <Check size={14} />
+                                )}
+                                <span>Áp dụng</span>
+                              </button>
+
+                              {targetTx && onEditTransaction && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onClose();
+                                    onEditTransaction(targetTx, s.suggestedCategory);
+                                  }}
+                                  className="btn btn-secondary"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                  }}
+                                  title="Mở bảng sửa chi tiết giao dịch"
+                                >
+                                  <Edit3 size={13} />
+                                  <span>Sửa</span>
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
