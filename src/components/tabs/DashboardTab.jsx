@@ -1,5 +1,8 @@
 import React from 'react';
-import { Activity, TrendingUp, PieChart as PieChartIcon, Wallet, Sparkles } from 'lucide-react';
+import { 
+  Activity, TrendingUp, PieChart as PieChartIcon, Wallet, Sparkles, 
+  Coins, Smartphone, Building2, SlidersHorizontal 
+} from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
 import { formatVND } from '../../utils/formatters.js';
@@ -50,30 +53,30 @@ export default function DashboardTab({
               }`}
             >
               {spendRatio <= 50
-                ? '🌟 Dòng tiền rất tốt'
+                ? 'Dòng tiền rất tốt'
                 : spendRatio <= 80
-                ? '👍 Dòng tiền ổn định'
+                ? 'Dòng tiền ổn định'
                 : spendRatio <= 100
-                ? '⚠️ Cận biên thu nhập'
-                : '🚨 Chi vượt thu'}
+                ? 'Cận biên thu nhập'
+                : 'Chi vượt thu'}
             </span>
           </div>
 
           <div className="health-metrics-row">
             <div className="health-metric-item">
               <span className="health-metric-label">Tổng thu nhập</span>
-              <span className="health-metric-val income-val">+{formatVND(displayedIncome)}</span>
+              <span className="health-metric-val income-val tabular-nums">+{formatVND(displayedIncome)}</span>
             </div>
             <div className="health-metric-divider"></div>
             <div className="health-metric-item">
               <span className="health-metric-label">Tổng chi tiêu</span>
-              <span className="health-metric-val expense-val">-{formatVND(displayedExpense)}</span>
+              <span className="health-metric-val expense-val tabular-nums">-{formatVND(displayedExpense)}</span>
             </div>
             <div className="health-metric-divider"></div>
             <div className="health-metric-item">
               <span className="health-metric-label">Dòng tiền ròng</span>
               <span
-                className={`health-metric-val ${
+                className={`health-metric-val tabular-nums ${
                   netSavings >= 0 ? 'savings-positive' : 'savings-negative'
                 }`}
               >
@@ -359,7 +362,13 @@ export default function DashboardTab({
                         color: acc.color || '#10b981'
                       }}
                     >
-                      {acc.id === 'acc_cash' ? '💵' : acc.bank_code === 'VTM' ? '📱' : '🏦'}
+                      {acc.id === 'acc_cash' ? (
+                        <Coins size={18} />
+                      ) : acc.bank_code === 'VTM' ? (
+                        <Smartphone size={18} />
+                      ) : (
+                        <Building2 size={18} />
+                      )}
                     </div>
                     <div className="account-info">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -383,7 +392,7 @@ export default function DashboardTab({
                       gap: '4px'
                     }}
                   >
-                    <div className="account-balance">{formatVND(acc.balance)}</div>
+                    <div className="account-balance tabular-nums">{formatVND(acc.balance)}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
                         {accPercent}% tài sản
@@ -394,7 +403,8 @@ export default function DashboardTab({
                         onClick={() => onReconcile(acc)}
                         title="Kiểm kê và điều chỉnh số dư"
                       >
-                        ⚡ Kiểm kê
+                        <SlidersHorizontal size={11} style={{ display: 'inline', marginRight: '4px' }} />
+                        <span>Kiểm kê</span>
                       </button>
                     </div>
                   </div>

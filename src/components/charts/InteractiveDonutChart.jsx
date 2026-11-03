@@ -84,7 +84,7 @@ export default function InteractiveDonutChart({ categories = [], totalExpense = 
           <span className="donut-center-label">
             {hoveredCat ? hoveredCat.name : 'Tổng chi tiêu'}
           </span>
-          <span className="donut-center-val">
+          <span className="donut-center-val tabular-nums">
             {formatVND(hoveredCat ? hoveredCat.total_amount : totalExpense)}
           </span>
           <span className="donut-center-sub">

@@ -19,7 +19,7 @@ export default function StatsSummary({
             <Wallet size={20} />
           </div>
         </div>
-        <div className="stat-value">{formatVND(totalBalance)}</div>
+        <div className="stat-value tabular-nums">{formatVND(totalBalance)}</div>
         <div className="stat-sub">{accountsCount} ví & tài khoản ngân hàng</div>
       </div>
 
@@ -30,7 +30,7 @@ export default function StatsSummary({
             <ArrowDownRight size={20} />
           </div>
         </div>
-        <div className="stat-value expense">{formatVND(displayedExpense)}</div>
+        <div className="stat-value expense tabular-nums">{formatVND(displayedExpense)}</div>
         <div className="stat-sub">Ghi nhận trong {timeLabel.toLowerCase()}</div>
       </div>
 
@@ -41,7 +41,7 @@ export default function StatsSummary({
             <ArrowUpRight size={20} />
           </div>
         </div>
-        <div className="stat-value income">{formatVND(displayedIncome)}</div>
+        <div className="stat-value income tabular-nums">{formatVND(displayedIncome)}</div>
         <div className="stat-sub">Dòng tiền vào trong {timeLabel.toLowerCase()}</div>
       </div>
 
@@ -52,7 +52,7 @@ export default function StatsSummary({
             <Clock size={20} />
           </div>
         </div>
-        <div className="stat-value" style={{ color: '#f59e0b' }}>
+        <div className="stat-value tabular-nums" style={{ color: '#f59e0b' }}>
           {displayedPendingCount}
         </div>
         <div className="stat-sub">Chưa gán thẻ danh mục</div>

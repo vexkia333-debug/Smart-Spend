@@ -1562,6 +1562,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 8px 10px;
   border-radius: 9px;
   font-size: 0.82rem;
@@ -1593,12 +1594,48 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.period-quick-btn {
+/* Daily Report Filter Bar & Quick Actions */
+.daily-report-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 8px 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.daily-report-date-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.daily-report-date-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.daily-report-quick-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.period-quick-btn {
+  background: var(--bg-subtle, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle);
   color: var(--text-muted);
-  padding: 5px 11px;
-  border-radius: 7px;
+  padding: 5px 12px;
+  border-radius: 8px;
   font-size: 0.78rem;
   cursor: pointer;
   font-weight: 600;
@@ -1609,9 +1646,62 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .period-quick-btn:hover {
   border-color: var(--accent-cyan, #38bdf8);
   color: var(--accent-cyan, #38bdf8);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.period-quick-btn.active {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-color: var(--accent-cyan, #38bdf8) !important;
+  color: var(--accent-cyan, #38bdf8) !important;
+}
+
+:root[data-theme="light"] .period-quick-btn {
+  background: #ffffff;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #475569;
+}
+
+:root[data-theme="light"] .period-quick-btn:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.08);
+}
+
+.period-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: var(--accent-purple, #c084fc);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all var(--transition-fast);
+}
+
+.period-refresh-btn:hover {
+  background: rgba(139, 92, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+:root[data-theme="light"] .period-refresh-btn {
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
 }
 
 /* Daily Report Modal: Web / Desktop layout (4 khối theo chiều ngang) */
+.daily-report-dialog {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  box-shadow: var(--shadow-modal);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 .daily-report-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1622,21 +1712,51 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 14px 12px;
+  padding: 14px 14px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   min-width: 0;
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .daily-report-stat-card:hover {
-  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  border-color: var(--border-medium);
+}
+
+.daily-report-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.stat-card-icon.income { color: #10b981; }
+.stat-card-icon.expense { color: #f43f5e; }
+.stat-card-icon.net { color: var(--accent-cyan, #38bdf8); }
+.stat-card-icon.ai { color: var(--accent-purple, #c084fc); }
+
+.daily-report-stat-card.stat-income {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-input) 100%);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.daily-report-stat-card.stat-expense {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, var(--bg-input) 100%);
+  border-color: rgba(244, 63, 94, 0.25);
+}
+
+.daily-report-stat-card.stat-net {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, var(--bg-input) 100%);
+  border-color: rgba(56, 189, 248, 0.25);
 }
 
 .daily-report-stat-card.ai-rating {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(59, 130, 246, 0.12));
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%);
+  border-color: rgba(139, 92, 246, 0.35);
 }
 
 .daily-report-stat-label {
@@ -1655,7 +1775,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .daily-report-stat-value {
   font-size: 1.05rem;
   font-weight: 800;
-  margin-top: 5px;
+  margin-top: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1681,6 +1801,70 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .daily-report-stat-value.rating {
   font-size: 0.95rem;
   color: var(--text-main);
+}
+
+.daily-report-ai-card {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--bg-input) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.daily-report-highlights-card {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.06) 0%, var(--bg-input) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.daily-report-anomalies-section {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.daily-report-anomaly-item {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.daily-report-anomaly-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #10b981;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 10px;
+}
+
+.daily-report-suggested-edit-card {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  transition: border-color var(--transition-fast);
+}
+
+.daily-report-suggested-edit-card:hover {
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 /* Mobile Responsive Optimization for Header, AI Card & Modals */
@@ -3644,10 +3828,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   border: 1px solid var(--border-subtle) !important;
   border-radius: var(--radius-lg);
   box-shadow: 0 16px 45px rgba(0, 0, 0, 0.5), 0 0 25px rgba(56, 189, 248, 0.12);
-  z-index: 1000;
+  z-index: 2500;
   padding: 14px;
   box-sizing: border-box;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme="light"] .custom-date-popover {
+  background: #ffffff !important;
+  border: 1px solid rgba(148, 163, 184, 0.35) !important;
+  box-shadow: 0 16px 45px rgba(15, 23, 42, 0.15), 0 0 1px 1px rgba(15, 23, 42, 0.08) !important;
 }
 
 .custom-date-popover.align-left {
@@ -3903,6 +4095,43 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .calendar-day-cell.is-start.is-end {
   border-radius: 7px !important;
+}
+
+/* Light Theme Overrides for Calendar Popover */
+:root[data-theme="light"] .preset-pill {
+  background: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #475569;
+}
+
+:root[data-theme="light"] .preset-pill:hover {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+:root[data-theme="light"] .custom-calendar-container {
+  background: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+:root[data-theme="light"] .calendar-day-cell {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .calendar-day-cell:hover {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+}
+
+:root[data-theme="light"] .calendar-day-cell.out-month {
+  color: #94a3b8;
+  opacity: 0.5;
+}
+
+:root[data-theme="light"] .calendar-day-cell.is-today:not(.is-start):not(.is-end) {
+  border-color: rgba(2, 132, 199, 0.6);
+  color: #0284c7;
 }
 
 /* Popover Footer */

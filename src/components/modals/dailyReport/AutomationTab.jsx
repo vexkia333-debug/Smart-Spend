@@ -1,5 +1,5 @@
 import React from 'react';
-import { Smartphone, Bell, RefreshCw, CheckCircle, Clock } from 'lucide-react';
+import { Smartphone, Bell, RefreshCw, CheckCircle, Clock, Sun, TrendingUp, Trophy } from 'lucide-react';
 
 export default function AutomationTab({
   pushStatus,
@@ -167,7 +167,8 @@ export default function AutomationTab({
         >
           <div>
             <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              ☀️ 1. Thông báo Báo cáo Cuối ngày
+              <Sun size={15} color="var(--accent-amber, #f59e0b)" />
+              <span>1. Thông báo Báo cáo Cuối ngày</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Tự động rà soát giao dịch trong ngày và gửi thông báo lúc {autoSettings.time}
@@ -210,7 +211,8 @@ export default function AutomationTab({
         >
           <div>
             <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              📈 2. Thông báo Tổng kết sau 1 tuần
+              <TrendingUp size={15} color="var(--accent-cyan, #38bdf8)" />
+              <span>2. Thông báo Tổng kết sau 1 tuần</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Tổng kết thói quen 7 ngày, cơ cấu chi tiêu & định hướng tuần mới (Tối Chủ Nhật)
@@ -253,7 +255,8 @@ export default function AutomationTab({
         >
           <div>
             <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🏆 3. Thông báo Tổng hợp sau 1 tháng
+              <Trophy size={15} color="var(--accent-purple, #c084fc)" />
+              <span>3. Thông báo Tổng hợp sau 1 tháng</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Đánh giá sức khỏe tài chính toàn diện, tỷ lệ tiết kiệm & chiến lược tháng mới (Tối ngày cuối tháng)

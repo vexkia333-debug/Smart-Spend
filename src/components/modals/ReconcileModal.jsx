@@ -48,8 +48,9 @@ export default function ReconcileModal({
           background: 'var(--bg-card-solid)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '20px',
-          boxShadow: 'var(--shadow-card)',
+          boxShadow: 'var(--shadow-modal)',
           backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           color: 'var(--text-main)'
         }}
       >

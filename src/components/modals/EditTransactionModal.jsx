@@ -111,8 +111,9 @@ export default function EditTransactionModal({
           border: '1px solid var(--border-subtle)',
           borderRadius: '20px',
           padding: 'clamp(16px, 4vw, 24px)',
-          boxShadow: 'var(--shadow-card)',
+          boxShadow: 'var(--shadow-modal)',
           backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           color: 'var(--text-main)',
           overflow: 'hidden'
         }}

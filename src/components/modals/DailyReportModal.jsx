@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Bell } from 'lucide-react';
+import { X, Sparkles, Bell, Clock } from 'lucide-react';
 import { checkPushSubscriptionStatus, subscribeUserToPush } from '../../utils/pushNotifications.js';
 import ReportTab from './dailyReport/ReportTab.jsx';
 import AutomationTab from './dailyReport/AutomationTab.jsx';
@@ -245,10 +245,14 @@ export default function DailyReportModal({
                     borderRadius: '9999px',
                     background: 'rgba(16, 185, 129, 0.15)',
                     color: '#10b981',
-                    border: '1px solid rgba(16, 185, 129, 0.3)'
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
                   }}
                 >
-                  🕒 {period === 'DAY' ? autoSettings.time : period === 'WEEK' ? `${autoSettings.weeklyTime} (CN)` : `${autoSettings.monthlyTime} (Cuối tháng)`} Tự động
+                  <Clock size={12} />
+                  <span>{period === 'DAY' ? autoSettings.time : period === 'WEEK' ? `${autoSettings.weeklyTime} (CN)` : `${autoSettings.monthlyTime} (Cuối tháng)`} Tự động</span>
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>

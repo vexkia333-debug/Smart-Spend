@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
-  Sparkles, AlertTriangle, CheckCircle2, TrendingUp, RefreshCw, 
-  Calendar, Edit3, BarChart3 
+  Sparkles, AlertTriangle, AlertCircle, CheckCircle2, TrendingUp, TrendingDown, RefreshCw, 
+  Calendar, Edit3, BarChart3, Sun, Trophy, Wallet, ArrowRight
 } from 'lucide-react';
 import { formatVND, formatDateVN } from '../../../utils/formatters.js';
 import CustomDatePopover from '../../common/CustomDatePopover.jsx';
@@ -32,42 +32,32 @@ export default function ReportTab({
           className={`report-period-pill ${period === 'DAY' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('DAY')}
         >
-          ☀️ Báo cáo ngày
+          <Sun size={15} />
+          <span>Báo cáo ngày</span>
         </button>
         <button
           type="button"
           className={`report-period-pill ${period === 'WEEK' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('WEEK')}
         >
-          📈 Sau 1 tuần (7 ngày)
+          <TrendingUp size={15} />
+          <span>Sau 1 tuần (7 ngày)</span>
         </button>
         <button
           type="button"
           className={`report-period-pill ${period === 'MONTH' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('MONTH')}
         >
-          🏆 Sau 1 tháng
+          <Trophy size={15} />
+          <span>Sau 1 tháng</span>
         </button>
       </div>
 
       {/* Date / Period Selector Bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'var(--bg-input)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '12px',
-          padding: '8px 12px',
-          marginBottom: '18px',
-          flexWrap: 'wrap',
-          gap: '8px'
-        }}
-      >
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div className="daily-report-filter-bar">
+        <div className="daily-report-date-container">
           <Calendar size={16} color="var(--accent-cyan, #38bdf8)" style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-dim)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <span className="daily-report-date-label">
             {period === 'DAY' ? 'Ngày xem:' : period === 'WEEK' ? 'Mốc tuần:' : 'Mốc tháng:'}
           </span>
           <button
@@ -94,17 +84,12 @@ export default function ReportTab({
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="daily-report-quick-actions">
           {period === 'DAY' && (
             <button
               type="button"
               onClick={() => setSelectedDate(getTodayStr())}
-              className="period-quick-btn"
-              style={{
-                background: selectedDate === getTodayStr() ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-input)',
-                borderColor: selectedDate === getTodayStr() ? 'var(--accent-cyan, #38bdf8)' : 'var(--border-subtle)',
-                color: selectedDate === getTodayStr() ? 'var(--accent-cyan, #38bdf8)' : 'var(--text-muted)'
-              }}
+              className={`period-quick-btn ${selectedDate === getTodayStr() ? 'active' : ''}`}
             >
               Hôm nay
             </button>
@@ -166,23 +151,11 @@ export default function ReportTab({
             type="button"
             onClick={() => fetchReport(selectedDate, true, period)}
             disabled={isLoading}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'rgba(139, 92, 246, 0.15)',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              color: 'var(--accent-purple, #c084fc)',
-              padding: '5px 11px',
-              borderRadius: '7px',
-              fontSize: '0.78rem',
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
+            className="period-refresh-btn"
             title="Kích hoạt Gemini AI phân tích lại toàn diện"
           >
-            <RefreshCw size={12} className={isLoading ? 'spin' : ''} />
-            Phân tích lại
+            <RefreshCw size={13} className={isLoading ? 'spin' : ''} />
+            <span>Phân tích lại</span>
           </button>
         </div>
       </div>
@@ -220,30 +193,39 @@ export default function ReportTab({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* Top Cards Row: Thu - Chi - Tích lũy - Đánh giá */}
           <div className="daily-report-stats-grid">
-            <div className="daily-report-stat-card">
-              <div className="daily-report-stat-label">
-                {period === 'DAY' ? 'Tổng thu hôm nay' : period === 'WEEK' ? 'Tổng thu 7 ngày' : 'Tổng thu cả tháng'}
+            <div className="daily-report-stat-card stat-income">
+              <div className="daily-report-stat-header">
+                <span className="daily-report-stat-label">
+                  {period === 'DAY' ? 'Tổng thu hôm nay' : period === 'WEEK' ? 'Tổng thu 7 ngày' : 'Tổng thu cả tháng'}
+                </span>
+                <TrendingUp size={15} className="stat-card-icon income" />
               </div>
-              <div className="daily-report-stat-value income">
+              <div className="daily-report-stat-value income tabular-nums">
                 +{formatVND(reportData.totalIncome)}
               </div>
             </div>
 
-            <div className="daily-report-stat-card">
-              <div className="daily-report-stat-label">
-                {period === 'DAY' ? 'Tổng chi hôm nay' : period === 'WEEK' ? 'Tổng chi 7 ngày' : 'Tổng chi cả tháng'}
+            <div className="daily-report-stat-card stat-expense">
+              <div className="daily-report-stat-header">
+                <span className="daily-report-stat-label">
+                  {period === 'DAY' ? 'Tổng chi hôm nay' : period === 'WEEK' ? 'Tổng chi 7 ngày' : 'Tổng chi cả tháng'}
+                </span>
+                <TrendingDown size={15} className="stat-card-icon expense" />
               </div>
-              <div className="daily-report-stat-value expense">
+              <div className="daily-report-stat-value expense tabular-nums">
                 -{formatVND(reportData.totalExpense)}
               </div>
             </div>
 
-            <div className="daily-report-stat-card">
-              <div className="daily-report-stat-label">
-                {period === 'MONTH' ? 'Tích lũy / Tiết kiệm' : 'Dòng tiền ròng'}
+            <div className="daily-report-stat-card stat-net">
+              <div className="daily-report-stat-header">
+                <span className="daily-report-stat-label">
+                  {period === 'MONTH' ? 'Tích lũy / Tiết kiệm' : 'Dòng tiền ròng'}
+                </span>
+                <Wallet size={15} className="stat-card-icon net" />
               </div>
               <div
-                className={`daily-report-stat-value ${
+                className={`daily-report-stat-value tabular-nums ${
                   reportData.netFlow >= 0 ? 'net-pos' : 'net-neg'
                 }`}
               >
@@ -252,25 +234,20 @@ export default function ReportTab({
             </div>
 
             <div className="daily-report-stat-card ai-rating">
-              <div className="daily-report-stat-label ai">
-                {period === 'MONTH' ? 'Sức khỏe tài chính' : period === 'WEEK' ? 'Kỷ luật tuần' : 'Xếp loại AI'}
+              <div className="daily-report-stat-header">
+                <span className="daily-report-stat-label ai">
+                  {period === 'MONTH' ? 'Sức khỏe tài chính' : period === 'WEEK' ? 'Kỷ luật tuần' : 'Xếp loại AI'}
+                </span>
+                <Sparkles size={15} className="stat-card-icon ai" />
               </div>
               <div className="daily-report-stat-value rating">
-                {ai?.rating || 'Cân đối 👍'}
+                {ai?.rating ? ai.rating.replace(/👍|🔥|⚠️|❌/g, '').trim() : 'Cân đối'}
               </div>
             </div>
           </div>
 
           {/* AI Overview Box */}
-          <div
-            style={{
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '16px',
-              padding: '16px',
-              position: 'relative'
-            }}
-          >
+          <div className="daily-report-ai-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
               <Sparkles size={16} color="var(--accent-purple, #c084fc)" />
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-purple, #c084fc)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -284,14 +261,7 @@ export default function ReportTab({
 
           {/* Phân tích chuyên sâu / Điểm nổi bật (Highlights) */}
           {ai?.highlights && ai.highlights.length > 0 && (
-            <div
-              style={{
-                background: 'rgba(56, 189, 248, 0.06)',
-                border: '1px solid rgba(56, 189, 248, 0.22)',
-                borderRadius: '16px',
-                padding: '16px'
-              }}
-            >
+            <div className="daily-report-highlights-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <BarChart3 size={16} color="var(--accent-cyan, #38bdf8)" />
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-cyan, #38bdf8)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -310,14 +280,7 @@ export default function ReportTab({
           )}
 
           {/* Khoản bất thường & Nghi vấn xếp sai */}
-          <div
-            style={{
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '16px',
-              padding: '16px'
-            }}
-          >
+          <div className="daily-report-anomalies-section">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <AlertTriangle size={18} color="var(--accent-amber, #f59e0b)" />
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -330,35 +293,17 @@ export default function ReportTab({
                 {ai.anomalies.map((item, idx) => (
                   <div
                     key={idx}
-                    style={{
-                      background: 'rgba(245, 158, 11, 0.12)',
-                      border: '1px solid rgba(245, 158, 11, 0.28)',
-                      borderRadius: '10px',
-                      padding: '10px 14px',
-                      fontSize: '0.85rem',
-                      color: 'var(--text-main)',
-                      lineHeight: '1.5'
-                    }}
+                    className="daily-report-anomaly-item"
                   >
-                    ⚠️ {item}
+                    <AlertCircle size={16} color="var(--accent-amber, #f59e0b)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{typeof item === 'string' ? item.replace(/^⚠️\s*/, '') : item}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: '#10b981',
-                  fontSize: '0.85rem',
-                  padding: '8px 12px',
-                  background: 'rgba(16, 185, 129, 0.08)',
-                  borderRadius: '8px'
-                }}
-              >
-                <CheckCircle2 size={16} />
-                Không phát hiện khoản chi tiêu nào bất thường. Toàn bộ giao dịch đều đúng chuẩn!
+              <div className="daily-report-anomaly-empty">
+                <CheckCircle2 size={16} color="var(--accent-emerald, #10b981)" style={{ flexShrink: 0 }} />
+                <span>Không phát hiện khoản chi tiêu nào bất thường. Toàn bộ giao dịch đều đúng chuẩn!</span>
               </div>
             )}
 
@@ -374,24 +319,18 @@ export default function ReportTab({
                     return (
                       <div
                         key={idx}
-                        style={{
-                          background: 'var(--bg-card-solid)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: '10px',
-                          padding: '10px 14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          flexWrap: 'wrap',
-                          gap: '10px'
-                        }}
+                        className="daily-report-suggested-edit-card"
                       >
                         <div>
                           <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                             {s.txDescription}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            Đang phân loại: <span style={{ color: '#f43f5e' }}>{s.currentCategory}</span> ➔ Đề xuất: <span style={{ color: '#10b981', fontWeight: 600 }}>{s.suggestedCategory}</span>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span>Đang phân loại:</span>
+                            <span style={{ color: 'var(--accent-rose, #f43f5e)', fontWeight: 600 }}>{s.currentCategory}</span>
+                            <ArrowRight size={12} color="var(--text-dim)" />
+                            <span>Đề xuất:</span>
+                            <span style={{ color: 'var(--accent-emerald, #10b981)', fontWeight: 700 }}>{s.suggestedCategory}</span>
                           </div>
                           <div style={{ fontSize: '0.74rem', color: 'var(--accent-purple, #c084fc)', marginTop: '2px' }}>
                             Lý do: {s.reason}

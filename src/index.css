@@ -1,12 +1,14 @@
 :root {
   color-scheme: dark;
   --bg-main: #0a0f1d;
-  --bg-card: rgba(18, 26, 47, 0.75);
-  --bg-card-hover: rgba(25, 36, 64, 0.9);
+  --bg-card: rgba(18, 26, 47, 0.78);
+  --bg-card-hover: rgba(25, 36, 64, 0.92);
   --bg-card-solid: #131c31;
   --bg-input: #1a243d;
+  --bg-subtle: rgba(255, 255, 255, 0.04);
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(56, 189, 248, 0.3);
+  --border-medium: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(56, 189, 248, 0.35);
 
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
@@ -33,18 +35,21 @@
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --shadow-modal: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 1px 1px rgba(255, 255, 255, 0.1);
   --shadow-glow: 0 0 25px -5px rgba(16, 185, 129, 0.3);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-main: #f8fafc;
-  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-main: #f1f5f9;
+  --bg-card: rgba(255, 255, 255, 0.92);
   --bg-card-hover: #ffffff;
   --bg-card-solid: #ffffff;
-  --bg-input: #f1f5f9;
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-glow: rgba(56, 189, 248, 0.4);
+  --bg-input: #f8fafc;
+  --bg-subtle: #f1f5f9;
+  --border-subtle: rgba(148, 163, 184, 0.28);
+  --border-medium: rgba(148, 163, 184, 0.45);
+  --border-glow: rgba(2, 132, 199, 0.35);
 
   --text-main: #0f172a;
   --text-muted: #475569;
@@ -60,7 +65,8 @@
   --accent-amber: #d97706;
   --accent-amber-glow: rgba(217, 119, 6, 0.15);
 
-  --shadow-card: 0 8px 24px -6px rgba(0, 0, 0, 0.06), 0 0 1px 1px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 8px 24px -6px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.05);
+  --shadow-modal: 0 20px 45px -10px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.08);
   --shadow-glow: 0 0 25px -5px rgba(16, 185, 129, 0.2);
 }
 
@@ -157,6 +163,19 @@ button {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
+}
+
+:root[data-theme="light"] .btn-secondary {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="light"] .btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: rgba(100, 116, 139, 0.5);
+  color: #0f172a;
 }
 
 .btn-danger {
@@ -281,4 +300,31 @@ button {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* UI/UX Pro Max: Tabular figures & Focus Accessibility */
+.tabular-nums,
+.stat-val,
+.daily-report-stat-value,
+.tx-amount,
+.range-box-val,
+.calendar-day-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-cyan, #38bdf8) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
