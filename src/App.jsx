@@ -21,6 +21,7 @@ import SettingsModal from './components/modals/SettingsModal.jsx';
 import PinLockScreen from './components/modals/PinLockScreen.jsx';
 import EditTransactionModal from './components/modals/EditTransactionModal.jsx';
 import DailyReportModal from './components/modals/DailyReportModal.jsx';
+import DebtLoanModal from './components/modals/DebtLoanModal.jsx';
 
 // Utilities & Constants
 import {
@@ -86,6 +87,15 @@ export default function App() {
   // Transaction Editing & Daily Report States
   const [editingTx, setEditingTx] = useState(null);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
+
+  // Debt & Loan Ledger Modal States
+  const [showDebtLoanModal, setShowDebtLoanModal] = useState(false);
+  const [debtLoanInitialData, setDebtLoanInitialData] = useState(null);
+
+  const handleOpenDebtLoanModal = (type = 'LOAN', initial = null) => {
+    setDebtLoanInitialData({ type, ...(initial || {}) });
+    setShowDebtLoanModal(true);
+  };
 
   // Category & Rule Form States
   const [newKeyword, setNewKeyword] = useState('');
@@ -833,7 +843,8 @@ export default function App() {
           (t) =>
             t.type === 'EXPENSE' &&
             t.status !== 'IGNORED' &&
-            !t.category_id?.startsWith('cat_transfer_')
+            !t.category_id?.startsWith('cat_transfer_') &&
+            t.category_id !== 'cat_loan'
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -846,7 +857,8 @@ export default function App() {
           (t) =>
             t.type === 'INCOME' &&
             t.status !== 'IGNORED' &&
-            !t.category_id?.startsWith('cat_transfer_')
+            !t.category_id?.startsWith('cat_transfer_') &&
+            t.category_id !== 'cat_debt_collect'
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -869,18 +881,21 @@ export default function App() {
       ? Math.max(0, Math.round(((displayedIncome - displayedExpense) / displayedIncome) * 100))
       : 0;
 
-  // Cơ cấu danh mục chi tiêu theo bộ lọc thời gian
+  // Cơ cấu danh mục chi tiêu theo bộ lọc thời gian (loại trừ nợ và chuyển khoản nội bộ)
   const categoryBreakdown = useMemo(() => {
     const map = {};
-    categories.forEach((c) => {
-      map[c.id] = { ...c, total_amount: 0, tx_count: 0 };
-    });
+    categories
+      .filter((c) => c.id !== 'cat_loan' && c.id !== 'cat_debt_collect' && !c.id.startsWith('cat_transfer_'))
+      .forEach((c) => {
+        map[c.id] = { ...c, total_amount: 0, tx_count: 0 };
+      });
     timeFilteredTransactions.forEach((t) => {
       if (
         t.type === 'EXPENSE' &&
         t.status !== 'IGNORED' &&
         t.category_id &&
-        !t.category_id?.startsWith('cat_transfer_')
+        !t.category_id?.startsWith('cat_transfer_') &&
+        t.category_id !== 'cat_loan'
       ) {
         if (!map[t.category_id]) {
           map[t.category_id] = {
@@ -900,7 +915,7 @@ export default function App() {
       .sort((a, b) => b.total_amount - a.total_amount);
   }, [categories, timeFilteredTransactions]);
 
-  // Xu hướng chi tiêu 7 ngày qua
+  // Xu hướng chi tiêu 7 ngày qua (loại trừ nợ và chuyển khoản nội bộ)
   const last7DaysData = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -917,7 +932,8 @@ export default function App() {
           if (
             t.type !== 'EXPENSE' ||
             t.status !== 'CONFIRMED' ||
-            t.category_id?.startsWith('cat_transfer_')
+            t.category_id?.startsWith('cat_transfer_') ||
+            t.category_id === 'cat_loan'
           )
             return false;
           const txDate = parseTxDate(t.transaction_time, t.created_at);
@@ -1085,6 +1101,8 @@ export default function App() {
             setShowReconcileModal(true);
           }}
           onOpenDailyReport={() => setShowDailyReportModal(true)}
+          onOpenDebtLoanModal={handleOpenDebtLoanModal}
+          onEditTransaction={(tx) => setEditingTx(tx)}
         />
       )}
 
@@ -1169,6 +1187,19 @@ export default function App() {
         onTransactionsChange={fetchTransactions}
         onEditTransaction={(tx, suggestedCategory) => {
           setEditingTx({ ...tx, suggestedCategory });
+        }}
+      />
+
+      <DebtLoanModal
+        isOpen={showDebtLoanModal}
+        onClose={() => setShowDebtLoanModal(false)}
+        authFetch={authFetch}
+        accounts={accounts}
+        initialData={debtLoanInitialData}
+        onSuccess={() => {
+          fetchTransactions();
+          fetchAccounts();
+          fetchStats();
         }}
       />
 

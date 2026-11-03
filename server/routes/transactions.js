@@ -11,15 +11,21 @@ router.get('/stats', async (req, res) => {
     const totalBalanceRow = await db.prepare('SELECT SUM(balance) as total FROM accounts').get();
     const pendingCountRow = await db.prepare("SELECT COUNT(*) as count FROM transactions WHERE status = 'PENDING'").get();
 
-    // Loại trừ chuyển tiền nội bộ (Rút tiền vào Ví) khỏi tổng chi tiêu để không bị tính trùng
+    // Chi tiêu sinh hoạt thuần túy (loại trừ chuyển tiền nội bộ & cho vay)
     const monthlyExpenseRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
-      WHERE type = 'EXPENSE' AND status != 'IGNORED' AND (category_id != 'cat_transfer_cash' OR category_id IS NULL)
+      WHERE type = 'EXPENSE' AND status != 'IGNORED' 
+        AND (category_id != 'cat_transfer_cash' OR category_id IS NULL)
+        AND (category_id != 'cat_loan' OR category_id IS NULL)
+        AND (category_id NOT LIKE 'cat_transfer_%' OR category_id IS NULL)
     `).get();
 
+    // Thu nhập thực tế (loại trừ thu hồi nợ và chuyển khoản nội bộ)
     const monthlyIncomeRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE type = 'INCOME' AND status != 'IGNORED'
+        AND (category_id != 'cat_debt_collect' OR category_id IS NULL)
+        AND (category_id NOT LIKE 'cat_transfer_%' OR category_id IS NULL)
     `).get();
 
     // Khoản tiền đang cho vay (Loans given)
@@ -34,7 +40,7 @@ router.get('/stats', async (req, res) => {
       WHERE category_id = 'cat_debt_collect' AND status != 'IGNORED'
     `).get();
 
-    // Thống kê chi tiêu theo từng danh mục
+    // Thống kê chi tiêu sinh hoạt theo từng danh mục (loại trừ nợ và chuyển tiền)
     const categoryStats = await db.prepare(`
       SELECT 
         c.id, c.name, c.color, c.icon,
@@ -42,7 +48,7 @@ router.get('/stats', async (req, res) => {
         COUNT(t.id) as tx_count
       FROM categories c
       LEFT JOIN transactions t ON c.id = t.category_id AND t.type = 'EXPENSE' AND t.status = 'CONFIRMED'
-      WHERE c.type = 'EXPENSE'
+      WHERE c.type = 'EXPENSE' AND c.id != 'cat_loan' AND c.id NOT LIKE 'cat_transfer_%'
       GROUP BY c.id
       ORDER BY total_amount DESC
     `).all();
@@ -56,6 +62,87 @@ router.get('/stats', async (req, res) => {
       totalDebtCollected: totalDebtCollectedRow?.total || 0,
       categories: categoryStats
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 1.1 Thêm nhanh giao dịch Cho vay & Thu hồi nợ (Debt / Loan Management)
+router.post('/debt-loan', async (req, res) => {
+  try {
+    const { type, amount, borrower, description, account_id, transaction_time } = req.body;
+    const numAmount = Math.abs(parseFloat(amount));
+    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: 'Số tiền không hợp lệ' });
+    }
+
+    const isLoan = type === 'LOAN'; // LOAN: Cho vay/Trả hộ (EXPENSE), COLLECT: Thu hồi nợ (INCOME)
+    const txType = isLoan ? 'EXPENSE' : 'INCOME';
+    const category_id = isLoan ? 'cat_loan' : 'cat_debt_collect';
+
+    // Xác định tài khoản
+    let targetAccId = account_id;
+    if (!targetAccId) {
+      const defaultAcc = await db.prepare('SELECT id FROM accounts ORDER BY balance DESC LIMIT 1').get();
+      targetAccId = defaultAcc?.id || 'acc_cash';
+    }
+
+    const acc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAccId);
+    if (!acc) {
+      return res.status(404).json({ error: 'Tài khoản không tồn tại' });
+    }
+
+    const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
+    const borrowerName = (borrower || '').trim();
+    let finalDesc = (description || '').trim();
+
+    if (!finalDesc) {
+      if (isLoan) {
+        finalDesc = borrowerName ? `Cho ${borrowerName} vay tiền` : 'Khoản cho vay';
+      } else {
+        finalDesc = borrowerName ? `${borrowerName} trả nợ` : 'Thu hồi nợ';
+      }
+    }
+
+    const now = new Date();
+    const defaultTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    const txTime = transaction_time && transaction_time.trim() ? transaction_time.trim() : defaultTimeStr;
+
+    // Cập nhật số dư tài khoản
+    if (txType === 'EXPENSE') {
+      await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(numAmount, targetAccId);
+    } else {
+      await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(numAmount, targetAccId);
+    }
+
+    // Thêm giao dịch đã xác nhận (CONFIRMED)
+    await db.prepare(`
+      INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, datetime('now', 'localtime'), datetime('now', 'localtime'), datetime('now', 'localtime'))
+    `).run(
+      txId,
+      targetAccId,
+      category_id,
+      numAmount,
+      txType,
+      finalDesc,
+      `${isLoan ? 'Cho vay/Trả hộ' : 'Thu hồi nợ'}: ${finalDesc} - ${numAmount.toLocaleString('vi-VN')} VND`,
+      acc.name,
+      txTime
+    );
+
+    const createdTx = await db.prepare(`
+      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+      FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = ?
+    `).get(txId);
+
+    const updatedAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAccId);
+
+    broadcastEvent('TRANSACTION_CREATED', createdTx);
+    if (updatedAcc) broadcastEvent('ACCOUNT_UPDATED', updatedAcc);
+
+    res.json({ success: true, transaction: createdTx, account: updatedAcc });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

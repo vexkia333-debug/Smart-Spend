@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
+import DebtLoanTracker from '../debt/DebtLoanTracker.jsx';
 import { formatVND } from '../../utils/formatters.js';
 
 export default function DashboardTab({
@@ -23,7 +24,9 @@ export default function DashboardTab({
   accounts = [],
   totalBalance = 0,
   onReconcile,
-  onOpenDailyReport
+  onOpenDailyReport,
+  onOpenDebtLoanModal,
+  onEditTransaction
 }) {
   return (
     <div className="dashboard-content-wrapper">
@@ -248,10 +251,15 @@ export default function DashboardTab({
               marginBottom: '18px'
             }}
           >
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-              <PieChartIcon size={20} color="#06b6d4" />
-              Cơ cấu chi tiêu theo nhóm ({timeLabel})
-            </h3>
+            <div>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <PieChartIcon size={20} color="#06b6d4" />
+                Cơ cấu chi tiêu sinh hoạt ({timeLabel})
+              </h3>
+              <p style={{ margin: '4px 0 0 28px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Loại trừ các khoản cho vay & chuyển tiền nội bộ
+              </p>
+            </div>
             <span className="cat-count-badge">{categoryBreakdown.length} danh mục</span>
           </div>
 
@@ -267,7 +275,7 @@ export default function DashboardTab({
           {/* Danh sách phân bổ chi tiết với Progress Bars */}
           {categoryBreakdown.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>
-              Chưa có dữ liệu chi tiêu trong kỳ ({timeLabel}).
+              Chưa có dữ liệu chi tiêu sinh hoạt trong kỳ ({timeLabel}).
             </p>
           ) : (
             <div className="cat-breakdown-list" style={{ marginTop: '20px' }}>
@@ -286,9 +294,7 @@ export default function DashboardTab({
                     onMouseLeave={() => setHoveredCatId(null)}
                   >
                     <div className="cat-breakdown-meta">
-                      <span
-                        style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600 }}
-                      >
+                      <span className="cat-breakdown-left">
                         <span
                           className="cat-dot-indicator"
                           style={{
@@ -299,12 +305,12 @@ export default function DashboardTab({
                         <span className="cat-name-text">{cat.name}</span>
                         <span className="cat-tx-pill">{cat.tx_count} GD</span>
                       </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                      <div className="cat-breakdown-right">
+                        <span className="cat-amount-val tabular-nums">
                           {formatVND(cat.total_amount)}
                         </span>
                         <span
-                          className="cat-percent-pill"
+                          className="cat-percent-pill tabular-nums"
                           style={{ backgroundColor: `${cat.color}22`, color: cat.color }}
                         >
                           {percent}%
@@ -414,6 +420,14 @@ export default function DashboardTab({
           </div>
         </div>
       </div>
+
+      {/* Sổ theo dõi Cho vay & Thu hồi nợ (Debt & Loan Ledger) */}
+      <DebtLoanTracker
+        transactions={transactions}
+        accounts={accounts}
+        onOpenModal={onOpenDebtLoanModal}
+        onEditTransaction={onEditTransaction}
+      />
     </div>
   );
 }

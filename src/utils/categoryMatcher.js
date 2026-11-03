@@ -166,3 +166,4 @@ export async function ensureCategoryExists(authFetch, categories = [], suggested
     return { category: null, wasCreated: false, error: err.message };
   }
 }
+
