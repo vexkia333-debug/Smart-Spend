@@ -218,7 +218,9 @@ export default function InteractiveTrendLineChart({
     });
 
     return points;
-  }, [transactions, rangeDays, displayAccounts]);
+  }, [transactions, timeFilter, customStartDate, customEndDate, displayAccounts]);
+
+  const rangeDays = dailyPoints.length;
 
   // Các mốc so sánh quan trọng: Hôm nay so với Hôm qua
   const todayPoint = dailyPoints[dailyPoints.length - 1];
@@ -594,14 +596,14 @@ export default function InteractiveTrendLineChart({
         ) : (
           <>
             <div className="summary-pill-item">
-              <span className="summary-pill-label">Tổng thu {rangeDays} ngày:</span>
+              <span className="summary-pill-label">Tổng thu ({timeLabel}):</span>
               <span className="summary-pill-val income">
                 +{formatVND(dailyPoints.reduce((s, p) => s + p.income, 0))}
               </span>
             </div>
             <div className="summary-pill-divider"></div>
             <div className="summary-pill-item">
-              <span className="summary-pill-label">Tổng chi {rangeDays} ngày:</span>
+              <span className="summary-pill-label">Tổng chi ({timeLabel}):</span>
               <span className="summary-pill-val expense">
                 -{formatVND(dailyPoints.reduce((s, p) => s + p.expense, 0))}
               </span>
@@ -610,7 +612,7 @@ export default function InteractiveTrendLineChart({
             <div className="summary-pill-item">
               <span className="summary-pill-label">Trung bình mỗi ngày:</span>
               <span className="summary-pill-val">
-                ~{formatVND(Math.round(dailyPoints.reduce((s, p) => s + p.expense, 0) / rangeDays))}/ngày
+                ~{formatVND(Math.round(dailyPoints.reduce((s, p) => s + p.expense, 0) / Math.max(1, rangeDays)))}/ngày
               </span>
             </div>
           </>
