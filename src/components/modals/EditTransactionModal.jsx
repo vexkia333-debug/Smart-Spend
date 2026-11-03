@@ -215,15 +215,10 @@ export default function EditTransactionModal({
           <button
             type="button"
             onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '6px'
-            }}
+            className="modal-close-btn"
+            title="Đóng (Esc)"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 

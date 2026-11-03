@@ -101,6 +101,16 @@ export default function DailyReportModal({
     }
   }, [isOpen, selectedDate, period]);
 
+  // Phím Esc để đóng modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
     fetchReport(selectedDate, false, newPeriod);
@@ -264,8 +274,8 @@ export default function DailyReportModal({
           <button
             type="button"
             onClick={onClose}
-            className="btn-icon"
-            style={{ borderRadius: '50%', padding: '6px', color: 'var(--text-dim)' }}
+            className="modal-close-btn"
+            title="Đóng (Esc)"
           >
             <X size={18} />
           </button>

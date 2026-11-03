@@ -770,16 +770,34 @@
   color: #38bdf8;
 }
 
+.modal-close-btn,
 .prompt-close {
-  background: transparent;
-  color: var(--text-dim);
-  border-radius: 50%;
-  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 
+.modal-close-btn:hover,
 .prompt-close:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-main);
+  transform: translateY(-1px);
+}
+
+.modal-close-btn:active,
+.prompt-close:active {
+  transform: scale(0.95);
 }
 
 .prompt-body {
@@ -983,13 +1001,19 @@
   color: #0284c7;
 }
 
+:root[data-theme="light"] .modal-close-btn,
 :root[data-theme="light"] .prompt-close {
+  background: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   color: #64748b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+:root[data-theme="light"] .modal-close-btn:hover,
 :root[data-theme="light"] .prompt-close:hover {
+  background: #e2e8f0;
+  border-color: rgba(100, 116, 139, 0.45);
   color: #0f172a;
-  background: rgba(0, 0, 0, 0.06);
 }
 
 :root[data-theme="light"] .prompt-bank-name {
