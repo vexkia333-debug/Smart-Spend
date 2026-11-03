@@ -122,17 +122,39 @@ export default function DebtLoanModal({
   };
 
   return (
-    <div className="modal-backdrop active" onClick={onClose}>
+    <div
+      className="prompt-modal-backdrop"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        background: 'rgba(5, 7, 15, 0.75)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'clamp(12px, 3vw, 24px)',
+        overflowY: 'auto'
+      }}
+    >
       <div
-        className="modal-card glass-panel debt-loan-modal"
+        className="glass-panel debt-loan-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: '540px',
-          width: '94%',
+          position: 'relative',
+          maxWidth: '520px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          background: 'var(--bg-card-solid)',
           borderRadius: '24px',
           padding: '24px',
           border: '1px solid var(--border-glass-bright)',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.45)'
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.45)',
+          color: 'var(--text-main)',
+          margin: 'auto'
         }}
       >
         {/* Modal Header */}
@@ -159,9 +181,6 @@ export default function DebtLoanModal({
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 {type === 'LOAN' ? 'Ghi nhận Khoản Cho vay / Trả hộ' : 'Ghi nhận Thu hồi nợ / Nhận trả'}
               </h3>
-              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Sổ theo dõi công nợ cá nhân • Tách biệt khỏi chi tiêu sinh hoạt
-              </p>
             </div>
           </div>
           <button
@@ -567,3 +586,4 @@ export default function DebtLoanModal({
     </div>
   );
 }
+

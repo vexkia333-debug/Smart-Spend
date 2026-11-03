@@ -41,6 +41,7 @@ Quy tắc:
 2. Nếu có >=2 khoản chi/thu nối bằng "+", ",", "và" hoặc vừa chi cá nhân vừa trả hộ: đặt isSplit=true, amount=tổng, splits=[{amount, categoryId, description, type}].
 3. Nếu thuộc lĩnh vực hoàn toàn mới chưa có trong danh mục: isNewCategory=true, categoryId=null, newCategory={name, icon, color}.
 4. description lịch sự, viết hoa chữ đầu, bỏ số tiền.
+5. Nếu câu thể hiện người khác trả tiền, thanh toán nợ, nhận lại tiền (VD: "Lộc trả nợ", "Đăng chuyển tiền trả", "nhận trả nợ"): bắt buộc type="INCOME" và categoryId="cat_debt_collect". Nếu là cho vay/cho mượn/trả hộ bạn bè: bắt buộc type="EXPENSE" và categoryId="cat_loan".
 Trả về 1 JSON object:
 {"amount":number,"type":"EXPENSE"|"INCOME","categoryId":string|null,"customDate":"YYYY-MM-DD"|null,"customTime":"HH:mm"|null,"isSplit":boolean,"splits":[{"amount":number,"categoryId":string,"description":string,"type":"EXPENSE"|"INCOME"}]|null,"isNewCategory":boolean,"newCategory":{"name":string,"icon":string,"color":string}|null,"description":string,"wallet":"CASH"|"BANK"|"TRANSFER_TO_CASH"|"INTERNAL_TRANSFER","sourceBank":string|null,"targetBank":string|null,"reasoning":string}`;
 

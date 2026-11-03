@@ -14,23 +14,32 @@ import {
 } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
 
+// Chuẩn hóa tên người (Title Case): "lộc" -> "Lộc", "anh tùng" -> "Anh Tùng"
+function normalizePersonName(name) {
+  if (!name) return 'Khác';
+  return name.trim().toLowerCase().replace(/(?:^|\s)\S/g, (c) => c.toUpperCase());
+}
+
 // Hàm trích xuất tên người liên quan từ nội dung giao dịch
 function extractBorrowerName(desc) {
   if (!desc) return 'Khác';
   const d = desc.trim();
-  let m = d.match(/Cho\s+([A-Za-zÀ-ỹ\s]+?)\s+(?:vay|mượn)/i);
-  if (m) return m[1].trim();
-  m = d.match(/Trả\s+hộ\s+tiền\s+ăn\s+cho\s+([A-Za-zÀ-ỹ\s,]+)/i);
-  if (m) return m[1].trim();
-  m = d.match(/Trả\s+hộ\s+([A-Za-zÀ-ỹ\s,]+)/i);
-  if (m) return m[1].trim();
-  m = d.match(/^([A-Za-zÀ-ỹ\s]+?)\s+(?:trả nợ|chuyển tiền|trả trước|trả|bắn tiền)/i);
-  if (m) return m[1].trim();
+  // 1. 'Cho X vay/mượn' hoặc 'X vay/mượn' (VD: 'Cho Lộc vay', 'Lộc vay 200', 'Lộc mượn')
+  let m = d.match(/(?:Cho\s+)?([A-Za-zÀ-ỹ\s]+?)\s+(?:vay|mượn)/i);
+  if (m && m[1].trim()) return normalizePersonName(m[1].trim());
+  // 2. 'Trả hộ [tiền ăn cho] X'
+  m = d.match(/Trả\s+hộ\s+(?:tiền\s+(?:ăn|uống)\s+cho\s+)?([A-Za-zÀ-ỹ\s,]+)/i);
+  if (m && m[1].trim()) return normalizePersonName(m[1].trim());
+  // 3. 'X trả nợ' / 'X trả tiền' / 'X trả trước' / 'X ck' / 'X chuyển tiền' / 'X trả'
+  m = d.match(/^([A-Za-zÀ-ỹ\s]+?)\s+(?:trả\s*nợ|trả\s*tiền|trả\s*trước|trả|bắn\s*tiền|ck|chuyển\s*tiền|chuyển)/i);
+  if (m && m[1].trim()) return normalizePersonName(m[1].trim());
+  // 4. 'Trả nợ cho X'
   m = d.match(/Trả\s+nợ\s+(?:cho\s+)?([A-Za-zÀ-ỹ\s]+)/i);
-  if (m) return m[1].trim();
+  if (m && m[1].trim()) return normalizePersonName(m[1].trim());
+  // 5. 'Nhận tiền từ/của X'
   m = d.match(/(?:từ|của)\s+([A-Za-zÀ-ỹ\s]+)/i);
-  if (m) return m[1].trim();
-  return d;
+  if (m && m[1].trim()) return normalizePersonName(m[1].trim());
+  return normalizePersonName(d);
 }
 
 export default function DebtLoanTracker({
@@ -108,6 +117,15 @@ export default function DebtLoanTracker({
     }).sort((a, b) => b.balance - a.balance || b.lent - a.lent);
   }, [debtTransactions]);
 
+  // Tra cứu nhanh đối soát theo tên người (cho phép tự động triệt tiêu trạng thái khoản vay)
+  const peopleMap = useMemo(() => {
+    const map = {};
+    peopleSummary.forEach((p) => {
+      map[p.name] = p;
+    });
+    return map;
+  }, [peopleSummary]);
+
   // Danh sách giao dịch hiển thị theo bộ lọc và tìm kiếm
   const filteredTxs = useMemo(() => {
     return debtTransactions.filter((t) => {
@@ -154,27 +172,9 @@ export default function DebtLoanTracker({
             <HandCoins size={22} />
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                Sổ theo dõi Cho vay & Thu hồi nợ
-              </h3>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
-                }}
-              >
-                Công nợ độc lập
-              </span>
-            </div>
-            <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Tách biệt hoàn toàn khỏi cơ cấu chi tiêu sinh hoạt • Theo dõi thu nợ và người vay minh bạch
-            </p>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              Sổ theo dõi Cho vay & Thu hồi nợ
+            </h3>
           </div>
         </div>
 
@@ -200,7 +200,7 @@ export default function DebtLoanTracker({
             }}
           >
             <Plus size={15} />
-            <span>+ Cho vay / Trả hộ</span>
+            <span>Cho vay / Trả hộ</span>
           </button>
 
           <button
@@ -223,7 +223,7 @@ export default function DebtLoanTracker({
             }}
           >
             <Plus size={15} />
-            <span>+ Thu hồi nợ</span>
+            <span>Thu hồi nợ</span>
           </button>
         </div>
       </div>
@@ -614,6 +614,8 @@ export default function DebtLoanTracker({
             filteredTxs.map((t) => {
               const isLoan = t.category_id === 'cat_loan';
               const borrowerName = extractBorrowerName(t.description);
+              const personInfo = peopleMap[borrowerName];
+              const isSettled = personInfo && personInfo.isSettled;
 
               return (
                 <div
@@ -696,36 +698,75 @@ export default function DebtLoanTracker({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {isLoan && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onOpenModal) {
-                              onOpenModal('COLLECT', {
-                                borrower: borrowerName,
-                                amount: t.amount,
-                                description: `${borrowerName} trả tiền`
-                              });
-                            }
-                          }}
-                          title="Ghi nhận người này trả nợ"
+                      {isLoan ? (
+                        isSettled ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              padding: '4px 8px',
+                              borderRadius: '8px',
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981',
+                              border: '1px solid rgba(16, 185, 129, 0.3)'
+                            }}
+                          >
+                            <CheckCircle2 size={13} />
+                            <span>Đã thu hồi đủ</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenModal) {
+                                onOpenModal('COLLECT', {
+                                  borrower: borrowerName,
+                                  amount: personInfo ? personInfo.balance : t.amount,
+                                  description: `${borrowerName} trả nợ`
+                                });
+                              }
+                            }}
+                            title="Bấm để ghi nhận thu hồi nếu nhận tiền mặt"
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '8px',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              color: '#f59e0b',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <Check size={12} />
+                            <span>Thu nợ {personInfo && personInfo.balance < personInfo.lent ? `(còn ${formatVND(personInfo.balance)})` : ''}</span>
+                          </button>
+                        )
+                      ) : (
+                        <span
                           style={{
-                            padding: '6px 10px',
-                            borderRadius: '8px',
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            border: '1px solid rgba(16, 185, 129, 0.35)',
-                            color: '#10b981',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                             fontSize: '0.74rem',
                             fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
+                            padding: '4px 8px',
+                            borderRadius: '8px',
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.25)'
                           }}
                         >
-                          <Check size={12} />
-                          <span>Đã trả</span>
-                        </button>
+                          <CheckCircle2 size={13} />
+                          <span>Đã cấn trừ nợ</span>
+                        </span>
                       )}
 
                       {onEditTransaction && (
@@ -756,3 +797,4 @@ export default function DebtLoanTracker({
     </div>
   );
 }
+
