@@ -1078,14 +1078,15 @@ export default function App() {
 
       {activeTab === 'dashboard' && (
         <DashboardTab
+          timeFilter={timeFilter}
           timeLabel={timeLabel}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
           spendRatio={spendRatio}
           savingsRate={savingsRate}
           netSavings={netSavings}
           displayedIncome={displayedIncome}
           displayedExpense={displayedExpense}
-          last7DaysData={last7DaysData}
-          maxDayAmount={maxDayAmount}
           transactions={transactions}
           categoryBreakdown={categoryBreakdown}
           hoveredCatId={hoveredCatId}
@@ -1101,7 +1102,6 @@ export default function App() {
             setShowReconcileModal(true);
           }}
           onOpenDailyReport={() => setShowDailyReportModal(true)}
-          onOpenDebtLoanModal={handleOpenDebtLoanModal}
           onEditTransaction={(tx) => setEditingTx(tx)}
         />
       )}

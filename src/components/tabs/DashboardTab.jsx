@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Activity, TrendingUp, PieChart as PieChartIcon, Wallet, Sparkles, 
+  Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
   Coins, Smartphone, Building2, SlidersHorizontal 
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
@@ -9,14 +9,15 @@ import DebtLoanTracker from '../debt/DebtLoanTracker.jsx';
 import { formatVND } from '../../utils/formatters.js';
 
 export default function DashboardTab({
-  timeLabel,
-  spendRatio,
-  savingsRate,
-  netSavings,
-  displayedIncome,
-  displayedExpense,
-  last7DaysData = [],
-  maxDayAmount = 1,
+  timeFilter = 'ALL',
+  timeLabel = 'Toàn bộ thời gian',
+  customStartDate = null,
+  customEndDate = null,
+  spendRatio = 0,
+  savingsRate = 0,
+  netSavings = 0,
+  displayedIncome = 0,
+  displayedExpense = 0,
   transactions = [],
   categoryBreakdown = [],
   hoveredCatId,
@@ -25,137 +26,11 @@ export default function DashboardTab({
   totalBalance = 0,
   onReconcile,
   onOpenDailyReport,
-  onOpenDebtLoanModal,
   onEditTransaction
 }) {
   return (
     <div className="dashboard-content-wrapper">
-      {/* Top Analytics Banner: Sức khỏe dòng tiền & Xu hướng 7 ngày */}
-      <div className="analytics-top-grid">
-        {/* Card 1: Sức khỏe dòng tiền & Tỷ lệ tích lũy */}
-        <div className="glass-panel analytics-health-card">
-          <div className="card-header-clean">
-            <div className="card-header-left">
-              <div className="card-badge-icon pulse">
-                <Activity size={18} color="#10b981" />
-              </div>
-              <div>
-                <h4>Dòng tiền & Tiết kiệm ({timeLabel})</h4>
-                <p className="card-sub-desc">Cân đối dòng tiền thực tế giữa Thu nhập & Chi tiêu</p>
-              </div>
-            </div>
-            <span
-              className={`health-status-badge ${
-                spendRatio <= 50
-                  ? 'safe'
-                  : spendRatio <= 80
-                  ? 'good'
-                  : spendRatio <= 100
-                  ? 'warning'
-                  : 'danger'
-              }`}
-            >
-              {spendRatio <= 50
-                ? 'Dòng tiền rất tốt'
-                : spendRatio <= 80
-                ? 'Dòng tiền ổn định'
-                : spendRatio <= 100
-                ? 'Cận biên thu nhập'
-                : 'Chi vượt thu'}
-            </span>
-          </div>
-
-          <div className="health-metrics-row">
-            <div className="health-metric-item">
-              <span className="health-metric-label">Tổng thu nhập</span>
-              <span className="health-metric-val income-val tabular-nums">+{formatVND(displayedIncome)}</span>
-            </div>
-            <div className="health-metric-divider"></div>
-            <div className="health-metric-item">
-              <span className="health-metric-label">Tổng chi tiêu</span>
-              <span className="health-metric-val expense-val tabular-nums">-{formatVND(displayedExpense)}</span>
-            </div>
-            <div className="health-metric-divider"></div>
-            <div className="health-metric-item">
-              <span className="health-metric-label">Dòng tiền ròng</span>
-              <span
-                className={`health-metric-val tabular-nums ${
-                  netSavings >= 0 ? 'savings-positive' : 'savings-negative'
-                }`}
-              >
-                {netSavings >= 0 ? '+' : ''}
-                {formatVND(netSavings)}
-              </span>
-            </div>
-          </div>
-
-          {/* Thanh tỷ trọng Thu - Chi Dual-tone */}
-          <div className="dual-progress-wrapper">
-            <div className="dual-progress-header">
-              <span>
-                Tỷ lệ chi tiêu: <strong>{spendRatio}%</strong>
-              </span>
-              <span>
-                Tích lũy ròng: <strong>{savingsRate}%</strong>
-              </span>
-            </div>
-            <div className="dual-progress-track">
-              <div
-                className="dual-progress-expense"
-                style={{ width: `${Math.min(spendRatio, 100)}%` }}
-                title={`Chi tiêu: ${spendRatio}%`}
-              ></div>
-              <div
-                className="dual-progress-savings"
-                style={{ width: `${Math.max(0, 100 - Math.min(spendRatio, 100))}%` }}
-                title={`Tích lũy: ${savingsRate}%`}
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Xu hướng chi tiêu 7 ngày gần nhất */}
-        <div className="glass-panel spending-trend-card">
-          <div className="card-header-clean">
-            <div className="card-header-left">
-              <div className="card-badge-icon trend">
-                <TrendingUp size={18} color="#38bdf8" />
-              </div>
-              <div>
-                <h4>Xu hướng chi tiêu 7 ngày</h4>
-                <p className="card-sub-desc">Biểu đồ chi tiêu sinh hoạt theo từng ngày</p>
-              </div>
-            </div>
-            <div className="trend-total-pill">
-              7 ngày: <strong>{formatVND(last7DaysData.reduce((s, d) => s + d.amount, 0))}</strong>
-            </div>
-          </div>
-
-          <div className="trend-chart-container">
-            {last7DaysData.map((d, idx) => {
-              const barHeightPct =
-                maxDayAmount > 0 ? Math.max(8, Math.round((d.amount / maxDayAmount) * 100)) : 8;
-              return (
-                <div key={idx} className={`trend-bar-column ${d.isToday ? 'is-today' : ''}`}>
-                  <div className="trend-bar-tooltip">
-                    <span className="tooltip-amount">{formatVND(d.amount)}</span>
-                    <span className="tooltip-date">{d.label}</span>
-                  </div>
-                  <div className="trend-bar-track">
-                    <div
-                      className="trend-bar-fill"
-                      style={{ height: `${barHeightPct}%` }}
-                    ></div>
-                  </div>
-                  <span className="trend-bar-label">{d.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Banner Báo cáo tài chính cuối ngày AI */}
+      {/* 1. Banner Báo cáo tài chính cuối ngày AI Briefing (Đẩy lên đầu trang) */}
       <div
         className="glass-panel"
         style={{
@@ -237,9 +112,100 @@ export default function DashboardTab({
         </button>
       </div>
 
-      {/* Biểu đồ đường xu hướng Nguồn tiền & Thu - Chi */}
-      <InteractiveTrendLineChart transactions={transactions} accounts={accounts} formatVND={formatVND} />
+      {/* 2. Dòng tiền & Tiết kiệm ({timeLabel}) - Toàn chiều rộng, sang trọng, rõ ràng */}
+      <div className="glass-panel analytics-health-card" style={{ marginBottom: '20px', padding: '24px' }}>
+        <div className="card-header-clean">
+          <div className="card-header-left">
+            <div className="card-badge-icon pulse">
+              <Activity size={18} color="#10b981" />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Dòng tiền & Tiết kiệm ({timeLabel})</h4>
+              <p className="card-sub-desc">Cân đối dòng tiền thực tế giữa Thu nhập & Chi tiêu sinh hoạt</p>
+            </div>
+          </div>
+          <span
+            className={`health-status-badge ${
+              spendRatio <= 50
+                ? 'safe'
+                : spendRatio <= 80
+                ? 'good'
+                : spendRatio <= 100
+                ? 'warning'
+                : 'danger'
+            }`}
+          >
+            {spendRatio <= 50
+              ? 'Dòng tiền rất tốt'
+              : spendRatio <= 80
+              ? 'Dòng tiền ổn định'
+              : spendRatio <= 100
+              ? 'Cận biên thu nhập'
+              : 'Chi vượt thu'}
+          </span>
+        </div>
 
+        <div className="health-metrics-row">
+          <div className="health-metric-item">
+            <span className="health-metric-label">Tổng thu nhập ({timeLabel})</span>
+            <span className="health-metric-val income-val tabular-nums">+{formatVND(displayedIncome)}</span>
+          </div>
+          <div className="health-metric-divider"></div>
+          <div className="health-metric-item">
+            <span className="health-metric-label">Chi tiêu sinh hoạt ({timeLabel})</span>
+            <span className="health-metric-val expense-val tabular-nums">-{formatVND(displayedExpense)}</span>
+          </div>
+          <div className="health-metric-divider"></div>
+          <div className="health-metric-item">
+            <span className="health-metric-label">Dòng tiền ròng tích lũy</span>
+            <span
+              className={`health-metric-val tabular-nums ${
+                netSavings >= 0 ? 'savings-positive' : 'savings-negative'
+              }`}
+            >
+              {netSavings >= 0 ? '+' : ''}
+              {formatVND(netSavings)}
+            </span>
+          </div>
+        </div>
+
+        {/* Thanh tỷ trọng Thu - Chi Dual-tone */}
+        <div className="dual-progress-wrapper" style={{ marginTop: '18px' }}>
+          <div className="dual-progress-header">
+            <span>
+              Tỷ lệ chi tiêu: <strong>{spendRatio}%</strong>
+            </span>
+            <span>
+              Tích lũy ròng: <strong>{savingsRate}%</strong>
+            </span>
+          </div>
+          <div className="dual-progress-track">
+            <div
+              className="dual-progress-expense"
+              style={{ width: `${Math.min(spendRatio, 100)}%` }}
+              title={`Chi tiêu sinh hoạt: ${spendRatio}%`}
+            ></div>
+            <div
+              className="dual-progress-savings"
+              style={{ width: `${Math.max(0, 100 - Math.min(spendRatio, 100))}%` }}
+              title={`Tích lũy ròng: ${savingsRate}%`}
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Biểu đồ đường xu hướng Nguồn tiền (Follow theo bộ lọc thời gian) */}
+      <InteractiveTrendLineChart
+        transactions={transactions}
+        accounts={accounts}
+        formatVND={formatVND}
+        timeFilter={timeFilter}
+        timeLabel={timeLabel}
+        customStartDate={customStartDate}
+        customEndDate={customEndDate}
+      />
+
+      {/* 4. Hai cột cân xứng: Cơ cấu chi tiêu & Danh sách Tài khoản */}
       <div className="dashboard-columns">
         {/* Cột trái: Phân bổ danh mục chi tiêu với Interactive Donut */}
         <div className="glass-panel" style={{ padding: '24px' }}>
@@ -421,11 +387,10 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* Sổ theo dõi Cho vay & Thu hồi nợ (Debt & Loan Ledger) */}
+      {/* 5. Sổ theo dõi Cho vay & Thu hồi nợ (Debt & Loan Ledger) */}
       <DebtLoanTracker
         transactions={transactions}
         accounts={accounts}
-        onOpenModal={onOpenDebtLoanModal}
         onEditTransaction={onEditTransaction}
       />
     </div>

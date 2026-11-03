@@ -9,8 +9,15 @@ const ACCOUNT_COLORS = {
   acc_cash: '#f59e0b'     // Ví Tiền Mặt - Amber
 };
 
-export default function InteractiveTrendLineChart({ transactions = [], accounts = [], formatVND }) {
-  const [rangeDays, setRangeDays] = useState(7); // 7 | 14 | 30
+export default function InteractiveTrendLineChart({
+  transactions = [],
+  accounts = [],
+  formatVND,
+  timeFilter = 'ALL',
+  timeLabel = 'Toàn bộ thời gian',
+  customStartDate = null,
+  customEndDate = null
+}) {
   const [chartMode, setChartMode] = useState('ACCOUNTS'); // 'ACCOUNTS' (Từng nguồn) | 'TOTAL' (Tổng số dư) | 'CASH_FLOW' (Thu/Chi phát sinh)
 
   // Series visibility for Cash Flow mode
@@ -50,19 +57,68 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
     ];
   }, [accounts]);
 
-  // TÍNH TOÁN SỐ DƯ THỰC TẾ (SỐ TIỀN CÓ) THEO TỪNG NGÀY
+  // TÍNH TOÁN SỐ DƯ THỰC TẾ (SỐ TIỀN CÓ) THEO BỘ LỌC THỜI GIAN
   const dailyPoints = useMemo(() => {
     const points = [];
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // Tạo danh sách các ngày theo thứ tự tăng dần từ quá khứ đến Hôm nay
-    for (let i = rangeDays - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
+    let startDate = new Date(now);
+    let endDate = new Date(now);
+
+    if (timeFilter === 'DAY') {
+      // Hôm nay: Hiển thị 2 ngày (Hôm qua và Hôm nay) để thấy rõ biến động so sánh trong ngày
+      startDate.setDate(now.getDate() - 1);
+    } else if (timeFilter === 'WEEK') {
+      // Tuần này: Từ thứ 2 đầu tuần đến Hôm nay
+      const dayOfWeek = now.getDay() || 7; // 1 = T2, 7 = CN
+      startDate.setDate(now.getDate() - (dayOfWeek - 1));
+    } else if (timeFilter === 'MONTH') {
+      // Tháng này: Từ ngày 1 của tháng đến Hôm nay
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (timeFilter === 'CUSTOM') {
+      if (customStartDate) {
+        startDate = new Date(customStartDate);
+        startDate.setHours(0, 0, 0, 0);
+      }
+      if (customEndDate) {
+        endDate = new Date(customEndDate);
+        endDate.setHours(0, 0, 0, 0);
+      }
+    } else {
+      // 'ALL': Tìm ngày giao dịch sớm nhất trong danh sách transactions
+      let earliestTime = now.getTime();
+      transactions.forEach((t) => {
+        if (t.status === 'IGNORED') return;
+        const txDate = parseTxDate(t.transaction_time, t.created_at);
+        if (txDate && !isNaN(txDate.getTime()) && txDate.getTime() < earliestTime) {
+          earliestTime = txDate.getTime();
+        }
+      });
+      startDate = new Date(earliestTime);
+      startDate.setHours(0, 0, 0, 0);
+
+      // Giới hạn tối đa 30 ngày nếu khoảng thời gian quá dài để biểu đồ không bị dày đặc
+      const diffDays = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
+      if (diffDays > 30) {
+        startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 29);
+      }
+    }
+
+    // Đảm bảo startDate <= endDate và ít nhất 2 điểm
+    if (startDate > endDate) startDate = new Date(endDate);
+    const dayCount = Math.max(2, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1);
+
+    // Tạo danh sách các ngày theo thứ tự tăng dần từ startDate đến endDate
+    for (let i = 0; i < dayCount; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
       const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-      const label = i === 0 ? 'Hôm nay' : i === 1 ? 'Hôm qua' : `${d.getDate()}/${d.getMonth() + 1}`;
+      const isToday = d.getTime() === now.getTime();
+      const isYesterday = d.getTime() === (now.getTime() - 86400000);
+      const label = isToday ? 'Hôm nay' : isYesterday ? 'Hôm qua' : `${d.getDate()}/${d.getMonth() + 1}`;
       const weekdayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
       const fullDate = `${weekdayNames[d.getDay()]}, ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
 
@@ -70,8 +126,8 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
         dateKey,
         label,
         fullDate,
-        isToday: i === 0,
-        isYesterday: i === 1,
+        isToday,
+        isYesterday,
         income: 0,
         expense: 0,
         netFlow: 0,
@@ -311,7 +367,7 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
                 {chartMode === 'CASH_FLOW' && 'Dòng tiền Thu - Chi phát sinh'}
               </h4>
               <span className="trend-range-indicator">
-                {rangeDays} ngày qua
+                {timeLabel}
               </span>
             </div>
             <p className="card-sub-desc">
@@ -323,7 +379,7 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
         </div>
 
         {/* View Mode & Range Controls */}
-        <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           {/* Chuyển đổi giữa 3 chế độ biểu đồ */}
           <div className="trend-range-tabs">
             <button
@@ -355,28 +411,21 @@ export default function InteractiveTrendLineChart({ transactions = [], accounts 
             </button>
           </div>
 
-          <div className="trend-range-tabs">
-            <button
-              type="button"
-              className={`range-tab-btn ${rangeDays === 7 ? 'active' : ''}`}
-              onClick={() => setRangeDays(7)}
-            >
-              7 ngày
-            </button>
-            <button
-              type="button"
-              className={`range-tab-btn ${rangeDays === 14 ? 'active' : ''}`}
-              onClick={() => setRangeDays(14)}
-            >
-              14 ngày
-            </button>
-            <button
-              type="button"
-              className={`range-tab-btn ${rangeDays === 30 ? 'active' : ''}`}
-              onClick={() => setRangeDays(30)}
-            >
-              30 ngày
-            </button>
+          <div
+            style={{
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              padding: '6px 12px',
+              borderRadius: '10px',
+              background: 'rgba(56, 189, 248, 0.1)',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>Đồng bộ: <strong>{timeLabel}</strong> ({dailyPoints.length} ngày)</span>
           </div>
         </div>
       </div>

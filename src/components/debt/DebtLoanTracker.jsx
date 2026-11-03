@@ -177,55 +177,6 @@ export default function DebtLoanTracker({
             </h3>
           </div>
         </div>
-
-        {/* Nút thao tác nhanh */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            type="button"
-            onClick={() => onOpenModal && onOpenModal('LOAN')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
-              borderRadius: '12px',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(244, 63, 94, 0.3))',
-              border: '1px solid rgba(244, 63, 94, 0.45)',
-              color: '#ff6b8b',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 2px 10px rgba(244, 63, 94, 0.15)'
-            }}
-          >
-            <Plus size={15} />
-            <span>Cho vay / Trả hộ</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onOpenModal && onOpenModal('COLLECT')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
-              borderRadius: '12px',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.3))',
-              border: '1px solid rgba(16, 185, 129, 0.45)',
-              color: '#10b981',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.15)'
-            }}
-          >
-            <Plus size={15} />
-            <span>Thu hồi nợ</span>
-          </button>
-        </div>
       </div>
 
       {/* 3 KPI Cards */}
@@ -565,40 +516,6 @@ export default function DebtLoanTracker({
                     </strong>
                   </div>
                 </div>
-
-                {p.balance > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onOpenModal) {
-                        onOpenModal('COLLECT', {
-                          borrower: p.name,
-                          amount: p.balance,
-                          description: `${p.name} trả nợ`
-                        });
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '7px 12px',
-                      borderRadius: '8px',
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      border: '1px solid rgba(16, 185, 129, 0.35)',
-                      color: '#10b981',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    <Check size={14} />
-                    <span>Ghi nhận {p.name} trả nợ ({formatVND(p.balance)})</span>
-                  </button>
-                )}
               </div>
             );
           })}
@@ -718,36 +635,23 @@ export default function DebtLoanTracker({
                             <span>Đã thu hồi đủ</span>
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onOpenModal) {
-                                onOpenModal('COLLECT', {
-                                  borrower: borrowerName,
-                                  amount: personInfo ? personInfo.balance : t.amount,
-                                  description: `${borrowerName} trả nợ`
-                                });
-                              }
-                            }}
-                            title="Bấm để ghi nhận thu hồi nếu nhận tiền mặt"
+                          <span
                             style={{
-                              padding: '5px 10px',
-                              borderRadius: '8px',
-                              background: 'rgba(245, 158, 11, 0.15)',
-                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                              color: '#f59e0b',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
+                              display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
-                              transition: 'all 0.15s'
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              padding: '4px 8px',
+                              borderRadius: '8px',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              color: '#f59e0b',
+                              border: '1px solid rgba(245, 158, 11, 0.3)'
                             }}
                           >
-                            <Check size={12} />
-                            <span>Thu nợ {personInfo && personInfo.balance < personInfo.lent ? `(còn ${formatVND(personInfo.balance)})` : ''}</span>
-                          </button>
+                            <Clock size={12} />
+                            <span>Chờ hoàn trả {personInfo && personInfo.balance < personInfo.lent ? `(còn ${formatVND(personInfo.balance)})` : ''}</span>
+                          </span>
                         )
                       ) : (
                         <span
@@ -775,15 +679,21 @@ export default function DebtLoanTracker({
                           onClick={() => onEditTransaction(t)}
                           title="Chỉnh sửa giao dịch"
                           style={{
-                            padding: '6px',
+                            padding: '5px 8px',
                             borderRadius: '8px',
-                            background: 'rgba(255, 255, 255, 0.05)',
+                            background: 'rgba(255, 255, 255, 0.06)',
                             border: '1px solid var(--border-glass)',
                             color: 'var(--text-muted)',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '0.74rem',
+                            transition: 'all 0.15s'
                           }}
                         >
-                          <Edit2 size={13} />
+                          <Edit2 size={12} />
+                          <span>Sửa</span>
                         </button>
                       )}
                     </div>
