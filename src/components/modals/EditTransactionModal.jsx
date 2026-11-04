@@ -54,6 +54,8 @@ export default function EditTransactionModal({
       } else {
         setCategoryId('');
         setSuggestedNewCatName(tx.suggestedCategory);
+        // Tự động kích hoạt tạo mới và chọn danh mục theo đề xuất của AI
+        handleCreateAndSelectCategory(tx.suggestedCategory);
       }
     } else {
       setCategoryId(tx.category_id || '');

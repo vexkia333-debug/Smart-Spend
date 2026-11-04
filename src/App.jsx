@@ -1111,7 +1111,9 @@ export default function App() {
             setShowReconcileModal(true);
           }}
           onOpenDailyReport={() => setShowDailyReportModal(true)}
-          onEditTransaction={(tx) => setEditingTx(tx)}
+          onEditTransaction={(tx, suggestedCategory) => {
+            setEditingTx(suggestedCategory ? { ...tx, suggestedCategory } : tx);
+          }}
         />
       )}
 
@@ -1131,7 +1133,9 @@ export default function App() {
           setTxSortOrder={setTxSortOrder}
           onOpenResetModal={() => setShowResetModal(true)}
           onNavigateToPending={() => setActiveTab('pending')}
-          onEditTransaction={(tx) => setEditingTx(tx)}
+          onEditTransaction={(tx, suggestedCategory) => {
+            setEditingTx(suggestedCategory ? { ...tx, suggestedCategory } : tx);
+          }}
           timeFilter={timeFilter}
           timeLabel={timeLabel}
           onOpenCustomDateModal={() => {
@@ -1145,7 +1149,9 @@ export default function App() {
       {(activeTab === 'audit' || activeTab === 'rules') && (
         <SystemAuditTab
           authFetch={authFetch}
-          onEditTransaction={(tx) => setEditingTx(tx)}
+          onEditTransaction={(tx, suggestedCategory) => {
+            setEditingTx(suggestedCategory ? { ...tx, suggestedCategory } : tx);
+          }}
           categories={categories}
           newCatName={newCatName}
           setNewCatName={setNewCatName}

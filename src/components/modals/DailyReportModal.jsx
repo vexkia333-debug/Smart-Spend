@@ -221,7 +221,6 @@ export default function DailyReportModal({
           overflowY: 'auto',
           background: 'var(--bg-card-solid)',
           borderRadius: '24px',
-          padding: '24px',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-card)',
           color: 'var(--text-main)',
@@ -230,7 +229,7 @@ export default function DailyReportModal({
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <div
               style={{
@@ -248,7 +247,7 @@ export default function DailyReportModal({
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: 'clamp(1rem, 4vw, 1.15rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                <h3 style={{ margin: 0, fontSize: 'clamp(0.95rem, 3.8vw, 1.15rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                   {period === 'DAY' ? 'Báo cáo tài chính cuối ngày' : period === 'WEEK' ? 'Tổng kết tài chính 1 tuần' : 'Tổng hợp tài chính 1 tháng'}
                 </h3>
                 <span
@@ -270,7 +269,7 @@ export default function DailyReportModal({
                   <span>{period === 'DAY' ? autoSettings.time : period === 'WEEK' ? `${autoSettings.weeklyTime} (CN)` : `${autoSettings.monthlyTime} (Cuối tháng)`} Tự động</span>
                 </span>
               </div>
-              <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                 AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo ứng dụng
               </p>
             </div>
@@ -281,6 +280,19 @@ export default function DailyReportModal({
             onClick={onClose}
             className="modal-close-btn"
             title="Đóng (Esc)"
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: 'var(--text-main)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
           >
             <X size={18} />
           </button>

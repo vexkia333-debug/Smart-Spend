@@ -42,80 +42,15 @@ export default function Header({
   return (
     <>
       <header className="app-header glass-panel">
-        <div className="logo-group">
-          <div className="logo-icon">
-            <img src="/logo.png" alt="SmartSpend" className="logo-img" />
-          </div>
-          <div className="logo-text">
-            <h1>SmartSpend</h1>
-            <p>Hệ thống tự động hóa chi tiêu & Prompt tương tác di động</p>
-          </div>
-        </div>
-
-        <div className="header-actions">
-          {/* Bộ lọc thời gian: Tất cả / Tháng / Tuần / Ngày / Tùy chọn */}
-          <div className="time-filter-wrapper">
-            <div className="time-filter-bar">
-              <button
-                className={`time-filter-btn ${timeFilter === 'ALL' ? 'active' : ''}`}
-                onClick={() => {
-                  setTimeFilter('ALL');
-                  if (setShowCustomDatePopover) setShowCustomDatePopover(false);
-                }}
-              >
-                Tất cả
-              </button>
-              <button
-                className={`time-filter-btn ${timeFilter === 'MONTH' ? 'active' : ''}`}
-                onClick={() => {
-                  setTimeFilter('MONTH');
-                  if (setShowCustomDatePopover) setShowCustomDatePopover(false);
-                }}
-              >
-                Tháng này
-              </button>
-              <button
-                className={`time-filter-btn ${timeFilter === 'WEEK' ? 'active' : ''}`}
-                onClick={() => {
-                  setTimeFilter('WEEK');
-                  if (setShowCustomDatePopover) setShowCustomDatePopover(false);
-                }}
-              >
-                Tuần này
-              </button>
-              <button
-                className={`time-filter-btn ${timeFilter === 'DAY' ? 'active' : ''}`}
-                onClick={() => {
-                  setTimeFilter('DAY');
-                  if (setShowCustomDatePopover) setShowCustomDatePopover(false);
-                }}
-              >
-                Hôm nay
-              </button>
-              <button
-                className={`time-filter-btn ${timeFilter === 'CUSTOM' ? 'active' : ''}`}
-                onClick={() => {
-                  if (setShowCustomDatePopover) {
-                    setShowCustomDatePopover(!showCustomDatePopover);
-                  }
-                }}
-                title="Lọc theo khoảng thời gian tùy chọn"
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
-              >
-                <Calendar size={13} />
-                <span>Tùy chọn</span>
-              </button>
+        <div className="header-top-row">
+          <div className="logo-group">
+            <div className="logo-icon">
+              <img src="/logo.png" alt="SmartSpend" className="logo-img" />
             </div>
-
-            {/* Custom Date Range Popover hiển thị ngay bên dưới bộ lọc */}
-            <CustomDatePopover
-              isOpen={showCustomDatePopover}
-              onClose={() => setShowCustomDatePopover && setShowCustomDatePopover(false)}
-              startDate={customStartDate}
-              endDate={customEndDate}
-              onApply={onApplyCustomDate}
-              onReset={onResetTimeFilter}
-            />
+            <div className="logo-text">
+              <h1>SmartSpend</h1>
+              <p>Hệ thống tự động hóa chi tiêu & Prompt tương tác di động</p>
+            </div>
           </div>
 
           <div className="header-utility-btns">
@@ -159,6 +94,74 @@ export default function Header({
               {theme === 'dark' ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#3b82f6" />}
             </button>
           </div>
+        </div>
+
+        {/* Bộ lọc thời gian: Tất cả / Tháng / Tuần / Ngày / Tùy chọn */}
+        <div className="time-filter-wrapper">
+          <div className="time-filter-bar">
+            <button
+              className={`time-filter-btn ${timeFilter === 'ALL' ? 'active' : ''}`}
+              onClick={() => {
+                setTimeFilter('ALL');
+                if (setShowCustomDatePopover) setShowCustomDatePopover(false);
+              }}
+            >
+              Tất cả
+            </button>
+            <button
+              className={`time-filter-btn ${timeFilter === 'MONTH' ? 'active' : ''}`}
+              onClick={() => {
+                setTimeFilter('MONTH');
+                if (setShowCustomDatePopover) setShowCustomDatePopover(false);
+              }}
+            >
+              <span className="filter-label-full">Tháng này</span>
+              <span className="filter-label-short">Tháng</span>
+            </button>
+            <button
+              className={`time-filter-btn ${timeFilter === 'WEEK' ? 'active' : ''}`}
+              onClick={() => {
+                setTimeFilter('WEEK');
+                if (setShowCustomDatePopover) setShowCustomDatePopover(false);
+              }}
+            >
+              <span className="filter-label-full">Tuần này</span>
+              <span className="filter-label-short">Tuần</span>
+            </button>
+            <button
+              className={`time-filter-btn ${timeFilter === 'DAY' ? 'active' : ''}`}
+              onClick={() => {
+                setTimeFilter('DAY');
+                if (setShowCustomDatePopover) setShowCustomDatePopover(false);
+              }}
+            >
+              <span className="filter-label-full">Hôm nay</span>
+              <span className="filter-label-short">Ngày</span>
+            </button>
+            <button
+              className={`time-filter-btn ${timeFilter === 'CUSTOM' ? 'active' : ''}`}
+              onClick={() => {
+                if (setShowCustomDatePopover) {
+                  setShowCustomDatePopover(!showCustomDatePopover);
+                }
+              }}
+              title="Lọc theo khoảng thời gian tùy chọn"
+            >
+              <Calendar size={13} style={{ flexShrink: 0 }} />
+              <span className="filter-label-full">Tùy chọn</span>
+              <span className="filter-label-short">Lịch</span>
+            </button>
+          </div>
+
+          {/* Custom Date Range Popover hiển thị ngay bên dưới bộ lọc */}
+          <CustomDatePopover
+            isOpen={showCustomDatePopover}
+            onClose={() => setShowCustomDatePopover && setShowCustomDatePopover(false)}
+            startDate={customStartDate}
+            endDate={customEndDate}
+            onApply={onApplyCustomDate}
+            onReset={onResetTimeFilter}
+          />
         </div>
       </header>
 
