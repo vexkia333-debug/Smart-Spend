@@ -317,11 +317,14 @@ export default function DebtLoanTracker({
       >
         <div
           style={{
-            display: 'inline-flex',
-            padding: '4px',
+            display: 'flex',
+            width: '100%',
+            maxWidth: '100%',
+            padding: '3px',
             background: 'rgba(255, 255, 255, 0.05)',
             borderRadius: '12px',
-            gap: '4px'
+            gap: '3px',
+            boxSizing: 'border-box'
           }}
         >
           {[
@@ -335,27 +338,34 @@ export default function DebtLoanTracker({
               type="button"
               onClick={() => setActiveFilter(tab.id)}
               style={{
-                padding: '6px 14px',
+                flex: '1 1 0px',
+                minWidth: 0,
+                padding: '6px 4px',
                 borderRadius: '8px',
-                fontSize: '0.8rem',
+                fontSize: '0.76rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 border: 'none',
                 background: activeFilter === tab.id ? 'var(--bg-glass-card)' : 'transparent',
                 color: activeFilter === tab.id ? 'var(--text-main)' : 'var(--text-muted)',
                 boxShadow: activeFilter === tab.id ? '0 2px 8px rgba(0,0,0,0.2)' : 'none',
-                transition: 'all 0.15s'
+                transition: 'all 0.15s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                whiteSpace: 'nowrap'
               }}
             >
-              <span>{tab.label}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
               <span
                 style={{
-                  marginLeft: '6px',
-                  fontSize: '0.72rem',
+                  fontSize: '0.7rem',
                   opacity: 0.75,
                   padding: '1px 5px',
                   borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.08)'
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  flexShrink: 0
                 }}
               >
                 {tab.count}

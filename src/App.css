@@ -1931,7 +1931,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .header-top-row {
@@ -2661,6 +2661,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .btn-reconcile:hover {
@@ -4466,11 +4470,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 /* Mobile Responsiveness for Popover */
 @media (max-width: 768px) {
   .custom-date-popover {
-    left: 0;
-    right: 0;
-    margin: 0 auto;
-    width: 100%;
-    max-width: 340px;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: calc(100vw - 28px) !important;
+    max-width: 360px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    z-index: 99999 !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 100vmax rgba(0, 0, 0, 0.6) !important;
   }
 }
 
@@ -4800,14 +4811,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .dashboard-card-title {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-main);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .dashboard-card-sub-p {
@@ -4818,20 +4829,24 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 @media (max-width: 768px) {
   .ai-briefing-banner {
-    padding: 12px 14px !important;
-    gap: 12px !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
+    padding: 10px 14px !important;
+    gap: 10px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
   }
 
   .ai-briefing-left {
     gap: 10px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
 
   .ai-briefing-action-btn {
-    width: 100% !important;
-    padding: 11px 16px !important;
-    font-size: 0.84rem !important;
+    width: auto !important;
+    padding: 8px 14px !important;
+    font-size: 0.8rem !important;
+    flex-shrink: 0 !important;
   }
 
   .dashboard-card-panel {

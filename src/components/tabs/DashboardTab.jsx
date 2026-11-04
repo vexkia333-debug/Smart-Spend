@@ -34,19 +34,19 @@ export default function DashboardTab({
       <div className="glass-panel ai-briefing-banner">
         <div className="ai-briefing-left">
           <div className="ai-briefing-icon-box">
-            <Sparkles size={22} color="#fff" />
+            <Sparkles size={20} color="#fff" />
           </div>
           <div className="ai-briefing-text-wrap">
             <div className="ai-briefing-title-row">
               <h4 className="ai-briefing-heading">
-                Báo cáo tài chính cuối ngày (AI Briefing)
+                Báo cáo tài chính cuối ngày
               </h4>
               <span className="ai-briefing-gemini-pill">
                 Trợ lý Gemini
               </span>
             </div>
             <p className="ai-briefing-desc">
-              Rà soát mức chi tiêu hôm nay, phát hiện các khoản bất thường và tư vấn chỉnh sửa danh mục kịp thời
+              Rà soát chi tiêu & cảnh báo biến động
             </p>
           </div>
         </div>
@@ -56,8 +56,8 @@ export default function DashboardTab({
           onClick={onOpenDailyReport}
           className="ai-briefing-action-btn"
         >
-          <Sparkles size={16} />
-          <span>Xem báo cáo hôm nay</span>
+          <Sparkles size={15} />
+          <span>Xem báo cáo</span>
         </button>
       </div>
 
@@ -159,11 +159,13 @@ export default function DashboardTab({
         {/* Cột trái: Phân bổ danh mục chi tiêu với Interactive Donut */}
         <div className="glass-panel dashboard-card-panel">
           <div className="dashboard-card-header">
-            <div>
-              <h3 className="dashboard-card-title">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <PieChartIcon size={20} color="#06b6d4" style={{ flexShrink: 0 }} />
-                <span>Cơ cấu chi tiêu sinh hoạt ({timeLabel})</span>
-              </h3>
+                <h3 className="dashboard-card-title" style={{ margin: 0 }}>
+                  Cơ cấu chi tiêu sinh hoạt ({timeLabel})
+                </h3>
+              </div>
               <p className="dashboard-card-sub-p">
                 Loại trừ các khoản cho vay & chuyển tiền nội bộ
               </p>
@@ -245,10 +247,12 @@ export default function DashboardTab({
         {/* Cột phải: Danh sách Tài khoản & Số dư */}
         <div className="glass-panel dashboard-card-panel">
           <div className="dashboard-card-header">
-            <h3 className="dashboard-card-title">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wallet size={20} color="#10b981" style={{ flexShrink: 0 }} />
-              <span>Tài khoản & Ví liên kết</span>
-            </h3>
+              <h3 className="dashboard-card-title" style={{ margin: 0 }}>
+                Tài khoản & Ví liên kết
+              </h3>
+            </div>
             <div className="total-balance-pill">
               Tổng: <strong>{formatVND(totalBalance)}</strong>
             </div>
@@ -300,8 +304,8 @@ export default function DashboardTab({
                     }}
                   >
                     <div className="account-balance tabular-nums">{formatVND(acc.balance)}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+                      <span style={{ fontSize: '0.73rem', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
                         {accPercent}% tài sản
                       </span>
                       <button
@@ -309,8 +313,9 @@ export default function DashboardTab({
                         className="btn-reconcile"
                         onClick={() => onReconcile(acc)}
                         title="Kiểm kê và điều chỉnh số dư"
+                        style={{ whiteSpace: 'nowrap' }}
                       >
-                        <SlidersHorizontal size={11} style={{ display: 'inline', marginRight: '4px' }} />
+                        <SlidersHorizontal size={11} style={{ display: 'inline', marginRight: '4px', flexShrink: 0 }} />
                         <span>Kiểm kê</span>
                       </button>
                     </div>
