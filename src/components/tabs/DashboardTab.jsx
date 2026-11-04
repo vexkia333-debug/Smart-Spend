@@ -282,7 +282,7 @@ export default function DashboardTab({
                       )}
                     </div>
                     <div className="account-info">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="account-title-row">
                         <h4>{acc.name}</h4>
                         <span className={`acc-type-pill ${acc.id === 'acc_cash' ? 'cash' : acc.bank_code === 'VTM' ? 'ewallet' : 'bank'}`}>
                           {acc.id === 'acc_cash' ? 'Tiền mặt' : acc.bank_code === 'VTM' ? 'Ví điện tử' : 'Ngân hàng'}
@@ -294,18 +294,10 @@ export default function DashboardTab({
                       </p>
                     </div>
                   </div>
-                  <div
-                    style={{
-                      textAlign: 'right',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      gap: '4px'
-                    }}
-                  >
+                  <div className="account-right">
                     <div className="account-balance tabular-nums">{formatVND(acc.balance)}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-                      <span style={{ fontSize: '0.73rem', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                    <div className="account-action-row">
+                      <span className="account-asset-percent">
                         {accPercent}% tài sản
                       </span>
                       <button
@@ -313,9 +305,8 @@ export default function DashboardTab({
                         className="btn-reconcile"
                         onClick={() => onReconcile(acc)}
                         title="Kiểm kê và điều chỉnh số dư"
-                        style={{ whiteSpace: 'nowrap' }}
                       >
-                        <SlidersHorizontal size={11} style={{ display: 'inline', marginRight: '4px', flexShrink: 0 }} />
+                        <SlidersHorizontal size={11} style={{ flexShrink: 0 }} />
                         <span>Kiểm kê</span>
                       </button>
                     </div>

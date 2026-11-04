@@ -1132,12 +1132,15 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   margin-bottom: 10px;
+  gap: 12px;
 }
 
 .account-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .account-icon-box {
@@ -1147,16 +1150,59 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.account-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.account-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .account-info h4 {
   font-size: 0.92rem;
   color: var(--text-main);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .account-info p {
   font-size: 0.78rem;
   color: var(--text-dim);
+  margin: 2px 0 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.account-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.account-asset-percent {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .account-balance {
@@ -1164,6 +1210,7 @@
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 /* Category Breakdown Bars */
@@ -4851,6 +4898,47 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
   .dashboard-card-panel {
     padding: 14px 12px !important;
+  }
+
+  .account-card {
+    padding: 10px 10px !important;
+    gap: 8px !important;
+  }
+
+  .account-left {
+    gap: 8px !important;
+  }
+
+  .account-icon-box {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .account-info h4 {
+    font-size: 0.85rem !important;
+  }
+
+  .account-info p {
+    font-size: 0.72rem !important;
+  }
+
+  .account-balance {
+    font-size: 0.92rem !important;
+  }
+
+  .btn-reconcile {
+    padding: 3px 6px !important;
+    font-size: 0.7rem !important;
+    gap: 3px !important;
+  }
+
+  .btn-reconcile svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  .account-asset-percent {
+    display: none !important;
   }
 
   .dashboard-card-header {
