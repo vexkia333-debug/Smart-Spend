@@ -31,58 +31,21 @@ export default function DashboardTab({
   return (
     <div className="dashboard-content-wrapper">
       {/* 1. Banner Báo cáo tài chính cuối ngày AI Briefing (Đẩy lên đầu trang) */}
-      <div
-        className="glass-panel"
-        style={{
-          marginBottom: '20px',
-          padding: '16px 20px',
-          borderRadius: '18px',
-          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.16), rgba(59, 130, 246, 0.12))',
-          border: '1px solid rgba(139, 92, 246, 0.35)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '14px',
-          boxShadow: '0 8px 24px rgba(139, 92, 246, 0.15)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(139, 92, 246, 0.45)',
-              flexShrink: 0
-            }}
-          >
+      <div className="glass-panel ai-briefing-banner">
+        <div className="ai-briefing-left">
+          <div className="ai-briefing-icon-box">
             <Sparkles size={22} color="#fff" />
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
+          <div className="ai-briefing-text-wrap">
+            <div className="ai-briefing-title-row">
+              <h4 className="ai-briefing-heading">
                 Báo cáo tài chính cuối ngày (AI Briefing)
               </h4>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  background: 'rgba(139, 92, 246, 0.25)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(139, 92, 246, 0.4)'
-                }}
-              >
+              <span className="ai-briefing-gemini-pill">
                 Trợ lý Gemini
               </span>
             </div>
-            <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <p className="ai-briefing-desc">
               Rà soát mức chi tiêu hôm nay, phát hiện các khoản bất thường và tư vấn chỉnh sửa danh mục kịp thời
             </p>
           </div>
@@ -91,21 +54,7 @@ export default function DashboardTab({
         <button
           type="button"
           onClick={onOpenDailyReport}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            borderRadius: '12px',
-            fontSize: '0.86rem',
-            fontWeight: 700,
-            background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-            border: 'none',
-            color: '#fff',
-            boxShadow: '0 4px 16px rgba(139, 92, 246, 0.4)',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
+          className="ai-briefing-action-btn"
         >
           <Sparkles size={16} />
           <span>Xem báo cáo hôm nay</span>
@@ -113,14 +62,14 @@ export default function DashboardTab({
       </div>
 
       {/* 2. Dòng tiền & Tiết kiệm ({timeLabel}) - Toàn chiều rộng, sang trọng, rõ ràng */}
-      <div className="glass-panel analytics-health-card" style={{ marginBottom: '20px', padding: '24px' }}>
+      <div className="glass-panel analytics-health-card">
         <div className="card-header-clean">
           <div className="card-header-left">
             <div className="card-badge-icon pulse">
               <Activity size={18} color="#10b981" />
             </div>
             <div>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Dòng tiền & Tiết kiệm ({timeLabel})</h4>
+              <h4 className="health-card-title">Dòng tiền & Tiết kiệm ({timeLabel})</h4>
               <p className="card-sub-desc">Cân đối dòng tiền thực tế giữa Thu nhập & Chi tiêu sinh hoạt</p>
             </div>
           </div>
@@ -147,17 +96,17 @@ export default function DashboardTab({
 
         <div className="health-metrics-row">
           <div className="health-metric-item">
-            <span className="health-metric-label">Tổng thu nhập ({timeLabel})</span>
+            <span className="health-metric-label">Tổng thu nhập</span>
             <span className="health-metric-val income-val tabular-nums">+{formatVND(displayedIncome)}</span>
           </div>
           <div className="health-metric-divider"></div>
           <div className="health-metric-item">
-            <span className="health-metric-label">Chi tiêu sinh hoạt ({timeLabel})</span>
+            <span className="health-metric-label">Chi tiêu sinh hoạt</span>
             <span className="health-metric-val expense-val tabular-nums">-{formatVND(displayedExpense)}</span>
           </div>
           <div className="health-metric-divider"></div>
           <div className="health-metric-item">
-            <span className="health-metric-label">Dòng tiền ròng tích lũy</span>
+            <span className="health-metric-label">Dòng tiền ròng</span>
             <span
               className={`health-metric-val tabular-nums ${
                 netSavings >= 0 ? 'savings-positive' : 'savings-negative'
@@ -170,7 +119,7 @@ export default function DashboardTab({
         </div>
 
         {/* Thanh tỷ trọng Thu - Chi Dual-tone */}
-        <div className="dual-progress-wrapper" style={{ marginTop: '18px' }}>
+        <div className="dual-progress-wrapper">
           <div className="dual-progress-header">
             <span>
               Tỷ lệ chi tiêu: <strong>{spendRatio}%</strong>
@@ -208,21 +157,14 @@ export default function DashboardTab({
       {/* 4. Hai cột cân xứng: Cơ cấu chi tiêu & Danh sách Tài khoản */}
       <div className="dashboard-columns">
         {/* Cột trái: Phân bổ danh mục chi tiêu với Interactive Donut */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '18px'
-            }}
-          >
+        <div className="glass-panel dashboard-card-panel">
+          <div className="dashboard-card-header">
             <div>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                <PieChartIcon size={20} color="#06b6d4" />
-                Cơ cấu chi tiêu sinh hoạt ({timeLabel})
+              <h3 className="dashboard-card-title">
+                <PieChartIcon size={20} color="#06b6d4" style={{ flexShrink: 0 }} />
+                <span>Cơ cấu chi tiêu sinh hoạt ({timeLabel})</span>
               </h3>
-              <p style={{ margin: '4px 0 0 28px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              <p className="dashboard-card-sub-p">
                 Loại trừ các khoản cho vay & chuyển tiền nội bộ
               </p>
             </div>
@@ -301,18 +243,11 @@ export default function DashboardTab({
         </div>
 
         {/* Cột phải: Danh sách Tài khoản & Số dư */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '18px'
-            }}
-          >
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-              <Wallet size={20} color="#10b981" />
-              Tài khoản & Ví liên kết
+        <div className="glass-panel dashboard-card-panel">
+          <div className="dashboard-card-header">
+            <h3 className="dashboard-card-title">
+              <Wallet size={20} color="#10b981" style={{ flexShrink: 0 }} />
+              <span>Tài khoản & Ví liên kết</span>
             </h3>
             <div className="total-balance-pill">
               Tổng: <strong>{formatVND(totalBalance)}</strong>

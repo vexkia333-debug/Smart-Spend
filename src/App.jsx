@@ -36,7 +36,31 @@ import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('pending');
+  const getInitialTab = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['pending', 'dashboard', 'transactions', 'audit'].includes(tabParam)) {
+        return tabParam;
+      }
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['pending', 'dashboard', 'transactions', 'audit'].includes(hash)) {
+        return hash;
+      }
+    } catch (e) {}
+    return 'pending';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+
+  const handleSelectTab = (tabId) => {
+    setActiveTab(tabId);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tabId);
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+  };
   const [stats, setStats] = useState({
     totalBalance: 0,
     totalExpense: 0,
@@ -1055,7 +1079,7 @@ export default function App() {
       {/* Navigation Tabs */}
       <NavTabs
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSelectTab}
         pendingCount={displayedPendingCount}
       />
 

@@ -361,9 +361,9 @@ export default function InteractiveTrendLineChart({
           <div className="card-badge-icon line-chart-badge">
             <LineChartIcon size={20} color="#38bdf8" />
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h4 style={{ margin: 0, fontSize: 'clamp(0.92rem, 3.8vw, 1.05rem)', fontWeight: 700, wordBreak: 'break-word' }}>
                 {chartMode === 'ACCOUNTS' && 'Biến động Số dư từng Nguồn tiền'}
                 {chartMode === 'TOTAL' && 'Biến động Tổng số dư tài sản'}
                 {chartMode === 'CASH_FLOW' && 'Dòng tiền Thu - Chi phát sinh'}
@@ -381,35 +381,35 @@ export default function InteractiveTrendLineChart({
         </div>
 
         {/* View Mode & Range Controls */}
-        <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+        <div className="trend-line-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', width: '100%' }}>
           {/* Chuyển đổi giữa 3 chế độ biểu đồ */}
           <div className="trend-range-tabs">
             <button
               type="button"
               className={`range-tab-btn ${chartMode === 'ACCOUNTS' ? 'active' : ''}`}
               onClick={() => setChartMode('ACCOUNTS')}
-              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Xem số dư riêng biệt của từng tài khoản"
             >
-              <Wallet size={13} />
-              Từng Nguồn tiền
+              <Wallet size={13} style={{ flexShrink: 0 }} />
+              <span>Nguồn tiền</span>
             </button>
             <button
               type="button"
               className={`range-tab-btn ${chartMode === 'TOTAL' ? 'active' : ''}`}
               onClick={() => setChartMode('TOTAL')}
-              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Xem tổng tài sản gộp của mọi tài khoản"
             >
-              <TrendingUp size={13} />
-              Tổng số dư
+              <TrendingUp size={13} style={{ flexShrink: 0 }} />
+              <span>Tổng số dư</span>
             </button>
             <button
               type="button"
               className={`range-tab-btn ${chartMode === 'CASH_FLOW' ? 'active' : ''}`}
               onClick={() => setChartMode('CASH_FLOW')}
-              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Xem các khoản thu và chi phát sinh theo ngày"
             >
-              <Layers size={13} />
-              Thu - Chi ngày
+              <Layers size={13} style={{ flexShrink: 0 }} />
+              <span>Thu - Chi</span>
             </button>
           </div>
 
