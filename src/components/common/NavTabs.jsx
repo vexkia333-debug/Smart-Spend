@@ -24,8 +24,8 @@ export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0 }) {
     },
     {
       id: 'audit',
-      label: 'Lịch sử xử lý hệ thống',
-      shortLabel: 'Lịch sử xử lý',
+      label: 'Lịch sử hệ thống xử lý',
+      shortLabel: 'Nhật ký',
       icon: History
     }
   ];

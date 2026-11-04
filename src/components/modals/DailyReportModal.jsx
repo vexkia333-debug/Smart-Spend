@@ -230,8 +230,8 @@ export default function DailyReportModal({
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <div
               style={{
                 width: '38px',
@@ -240,14 +240,15 @@ export default function DailyReportModal({
                 background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(56, 189, 248, 0.2))',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <Sparkles size={20} color="var(--accent-purple, #c084fc)" />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 'clamp(1rem, 4vw, 1.15rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                   {period === 'DAY' ? 'Báo cáo tài chính cuối ngày' : period === 'WEEK' ? 'Tổng kết tài chính 1 tuần' : 'Tổng hợp tài chính 1 tháng'}
                 </h3>
                 <span
@@ -261,14 +262,15 @@ export default function DailyReportModal({
                     border: '1px solid rgba(16, 185, 129, 0.3)',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <Clock size={12} />
                   <span>{period === 'DAY' ? autoSettings.time : period === 'WEEK' ? `${autoSettings.weeklyTime} (CN)` : `${autoSettings.monthlyTime} (Cuối tháng)`} Tự động</span>
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
                 AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo ứng dụng
               </p>
             </div>

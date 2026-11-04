@@ -247,8 +247,8 @@ export default function EditTransactionModal({
           </div>
         )}
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <div
               style={{
                 width: '38px',
@@ -257,13 +257,14 @@ export default function EditTransactionModal({
                 background: 'rgba(56, 189, 248, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
             >
               <Edit3 size={19} color="var(--accent-cyan)" />
             </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>Chỉnh sửa giao dịch</h3>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: 'clamp(1rem, 4vw, 1.15rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>Chỉnh sửa giao dịch</h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Cập nhật chi tiết số tiền, phân loại hoặc tài khoản
               </p>

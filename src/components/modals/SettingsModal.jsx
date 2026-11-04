@@ -47,15 +47,16 @@ export default function SettingsModal({
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '18px'
+            alignItems: 'flex-start',
+            marginBottom: '18px',
+            gap: '10px'
           }}
         >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
-            <Settings size={20} color="var(--accent-cyan)" />
-            Cài đặt kết nối & Webhook điện thoại
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: 'clamp(0.95rem, 4vw, 1.1rem)', fontWeight: 800, flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+            <Settings size={20} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
+            <span>Cài đặt kết nối & Webhook</span>
           </h3>
-          <button className="prompt-close" onClick={onClose}>
+          <button className="prompt-close" onClick={onClose} style={{ flexShrink: 0 }}>
             <X size={18} />
           </button>
         </div>

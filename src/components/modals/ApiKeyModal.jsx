@@ -45,15 +45,16 @@ export default function ApiKeyModal({
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '16px'
+            alignItems: 'flex-start',
+            marginBottom: '16px',
+            gap: '10px'
           }}
         >
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
-            <Key size={20} color="var(--accent-purple)" />
-            Cấu hình Google AI Studio API Key (Gemini)
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', margin: 0, fontSize: 'clamp(0.95rem, 4vw, 1.1rem)', fontWeight: 800, flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+            <Key size={20} color="var(--accent-purple)" style={{ flexShrink: 0 }} />
+            <span>Cấu hình Google AI Studio API Key (Gemini)</span>
           </h3>
-          <button className="prompt-close" onClick={onClose}>
+          <button className="prompt-close" onClick={onClose} style={{ flexShrink: 0 }}>
             <X size={18} />
           </button>
         </div>

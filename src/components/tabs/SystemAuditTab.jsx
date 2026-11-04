@@ -294,7 +294,7 @@ export default function SystemAuditTab({
             }}
           >
             {/* Filter Pills */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="audit-filter-pills-bar">
               <button
                 type="button"
                 onClick={() => setFilterType('ALL')}
@@ -669,3 +669,4 @@ export default function SystemAuditTab({
     </div>
   );
 }
+
