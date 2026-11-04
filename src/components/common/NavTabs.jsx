@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, PieChart as PieChartIcon, Layers, Tag } from 'lucide-react';
+import { Bell, PieChart as PieChartIcon, Layers, History } from 'lucide-react';
 
 export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0 }) {
   const tabs = [
@@ -23,10 +23,10 @@ export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0 }) {
       icon: Layers
     },
     {
-      id: 'rules',
-      label: 'Danh mục & Quy tắc',
-      shortLabel: 'Quy tắc',
-      icon: Tag
+      id: 'audit',
+      label: 'Lịch sử xử lý hệ thống',
+      shortLabel: 'Lịch sử xử lý',
+      icon: History
     }
   ];
 

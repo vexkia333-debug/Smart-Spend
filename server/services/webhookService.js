@@ -31,10 +31,36 @@ async function processIncomingWebhookInternal(body = {}) {
   const parsed = parseBankNotification(content, effectiveTitle, rawAppName);
 
   if (!parsed || parsed.isIgnored) {
+    const reason = parsed ? parsed.reason : 'UNRECOGNIZED_NOTIFICATION';
+    let reasonDetail = 'Hệ thống tự động lược bỏ (Không tìm thấy biến động số dư)';
+    if (reason === 'PROMOTIONAL_NOTIFICATION') {
+      reasonDetail = 'Hệ thống tự động lược bỏ: Tin quảng cáo, gói cước, ưu đãi không làm thay đổi số dư';
+    } else if (reason === 'NO_TRANSACTION_AMOUNT') {
+      reasonDetail = 'Hệ thống tự động lược bỏ: Không tìm thấy số tiền giao dịch hợp lệ';
+    }
+
+    try {
+      await db.prepare(`
+        INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
+        VALUES (?, NULL, ?, ?, ?, 'DISMISSED')
+      `).run(
+        'log_' + crypto.randomUUID().slice(0, 8),
+        effectiveTitle || 'Thông báo tự động lược bỏ',
+        content,
+        JSON.stringify({
+          action_type: 'IGNORED',
+          reason,
+          action_detail: reasonDetail
+        })
+      );
+    } catch (e) {
+      console.error('Lỗi ghi notification_logs khi ignore:', e.message);
+    }
+
     return {
       success: true,
       ignored: true,
-      reason: parsed ? parsed.reason : 'UNRECOGNIZED_NOTIFICATION'
+      reason
     };
   }
 
@@ -88,6 +114,24 @@ async function processIncomingWebhookInternal(body = {}) {
   `).get(targetAccountId, parsed.amount, parsed.type, parsed.rawContent, parsed.description);
 
   if (recentDuplicate) {
+    try {
+      await db.prepare(`
+        INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
+        VALUES (?, ?, ?, ?, ?, 'DISMISSED')
+      `).run(
+        'log_' + crypto.randomUUID().slice(0, 8),
+        recentDuplicate.id,
+        effectiveTitle || 'Thông báo trùng lặp',
+        content,
+        JSON.stringify({
+          action_type: 'DUPLICATE',
+          reason: 'DUPLICATE_WITHIN_90S',
+          action_detail: 'Hệ thống tự động lược bỏ: Chống spam và khử trùng lặp webhook trong 90 giây',
+          duplicateTxId: recentDuplicate.id
+        })
+      );
+    } catch (e) {}
+
     return {
       success: true,
       duplicate: true,
@@ -251,15 +295,45 @@ async function processIncomingWebhookInternal(body = {}) {
 
   // Ghi nhật ký webhook vào notification_logs SAU KHI đã tạo transaction để không phạm Foreign Key
   try {
+    let actionType = 'PENDING_CLASSIFY';
+    let actionDetail = 'Giao dịch mới đang chờ phân loại danh mục';
+
+    if (isInternalTransfer) {
+      actionType = 'INTERNAL_TRANSFER';
+      actionDetail = parsed.type === 'EXPENSE'
+        ? `Tự động nhận diện Chuyển tiền nội bộ sang ${account?.name || 'tài khoản khác'} (không tính vào chi tiêu)`
+        : `Tự động nhận diện Nhận tiền chuyển khoản nội bộ (không tính vào thu nhập)`;
+    } else if (categoryId === 'cat_debt_collect') {
+      actionType = 'DEBT_COLLECT';
+      actionDetail = 'Tự động nhận diện Nhận tiền trả nợ / Thu hồi nợ và đối soát cấn trừ công nợ';
+    } else if (categoryId === 'cat_loan') {
+      actionType = 'LOAN_RECORD';
+      actionDetail = 'Tự động ghi nhận Khoản cho vay / Trả hộ vào Sổ theo dõi công nợ';
+    } else if (status === 'CONFIRMED' && suggested) {
+      actionType = 'RULE_MATCH';
+      actionDetail = `Tự động phân loại theo quy tắc từ khóa "${suggested.keyword}"`;
+    }
+
     await db.prepare(`
       INSERT INTO notification_logs (id, transaction_id, title, body, actions_payload, status)
-      VALUES (?, ?, ?, ?, ?, 'SENT')
+      VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       'log_' + crypto.randomUUID().slice(0, 8),
       txId,
-      effectiveTitle || parsed.bankName,
+      effectiveTitle || parsed.bankName || 'Thông báo ngân hàng',
       content,
-      JSON.stringify({ bankCode: parsed.bankCode, amount: parsed.amount, type: parsed.type, balance: parsed.balance, status })
+      JSON.stringify({
+        bankCode: parsed.bankCode,
+        amount: parsed.amount,
+        type: parsed.type,
+        balance: parsed.balance,
+        status,
+        action_type: actionType,
+        action_detail: actionDetail,
+        category_id: categoryId,
+        is_internal_transfer: isInternalTransfer
+      }),
+      status === 'CONFIRMED' ? 'INTERACTED' : 'SENT'
     );
   } catch (e) {
     console.error('Lỗi ghi notification_logs:', e.message);

@@ -11,6 +11,9 @@ export default function TransactionsTab({
   setFilterStatus,
   filterType,
   setFilterType,
+  filterCategory = 'ALL',
+  setFilterCategory,
+  categories = [],
   txSortOrder,
   setTxSortOrder,
   onOpenResetModal,
@@ -21,6 +24,17 @@ export default function TransactionsTab({
   onOpenCustomDateModal,
   onResetTimeFilter
 }) {
+  const categoryOptions = [
+    { value: 'ALL', label: 'Tất cả danh mục' },
+    { value: 'UNCATEGORIZED', label: 'Chưa phân loại' },
+    ...categories.map((c) => ({
+      value: c.id,
+      label: c.name,
+      color: c.color
+    }))
+  ];
+
+  const currentCategoryObj = categories.find((c) => c.id === filterCategory);
   return (
     <div className="glass-panel" style={{ padding: '24px' }}>
       <div
@@ -80,7 +94,7 @@ export default function TransactionsTab({
           <CustomSelect
             value={filterStatus}
             onChange={setFilterStatus}
-            style={{ minWidth: '165px' }}
+            style={{ minWidth: '160px' }}
             options={[
               { value: 'ALL', label: 'Tất cả trạng thái' },
               { value: 'PENDING', label: 'Chờ phân loại' },
@@ -92,48 +106,105 @@ export default function TransactionsTab({
           <CustomSelect
             value={filterType}
             onChange={setFilterType}
-            style={{ minWidth: '140px' }}
+            style={{ minWidth: '135px' }}
             options={[
               { value: 'ALL', label: 'Tất cả loại' },
               { value: 'EXPENSE', label: 'Chi tiêu (-)' },
               { value: 'INCOME', label: 'Thu nhập (+)' }
             ]}
           />
+
+          {setFilterCategory && (
+            <CustomSelect
+              value={filterCategory}
+              onChange={setFilterCategory}
+              style={{ minWidth: '175px' }}
+              options={categoryOptions}
+            />
+          )}
         </div>
       </div>
 
-      {timeFilter !== 'ALL' && (
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '5px 12px',
-            background: 'rgba(56, 189, 248, 0.12)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: '20px',
-            fontSize: '0.82rem',
-            color: 'var(--text-main)',
-            marginBottom: '16px'
-          }}
-        >
-          <span>📅 Đang lọc: <strong>{timeLabel}</strong></span>
-          <button
-            type="button"
-            onClick={onResetTimeFilter}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '2px',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-            title="Xem toàn bộ thời gian"
-          >
-            <X size={14} />
-          </button>
+      {(timeFilter !== 'ALL' || filterCategory !== 'ALL') && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {timeFilter !== 'ALL' && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '20px',
+                fontSize: '0.82rem',
+                color: 'var(--text-main)'
+              }}
+            >
+              <span>📅 Thời gian: <strong>{timeLabel}</strong></span>
+              <button
+                type="button"
+                onClick={onResetTimeFilter}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Xem toàn bộ thời gian"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {filterCategory !== 'ALL' && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
+                background: currentCategoryObj ? `${currentCategoryObj.color}20` : 'rgba(139, 92, 246, 0.15)',
+                border: `1px solid ${currentCategoryObj ? `${currentCategoryObj.color}45` : 'rgba(139, 92, 246, 0.35)'}`,
+                borderRadius: '20px',
+                fontSize: '0.82rem',
+                color: 'var(--text-main)'
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: currentCategoryObj?.color || '#a855f7',
+                  display: 'inline-block'
+                }}
+              />
+              <span>
+                Danh mục: <strong>{filterCategory === 'UNCATEGORIZED' ? 'Chưa phân loại' : (currentCategoryObj?.name || filterCategory)}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilterCategory('ALL')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Bỏ lọc danh mục"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

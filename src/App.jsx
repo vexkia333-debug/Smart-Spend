@@ -11,6 +11,7 @@ import PendingTab from './components/tabs/PendingTab.jsx';
 import DashboardTab from './components/tabs/DashboardTab.jsx';
 import TransactionsTab from './components/tabs/TransactionsTab.jsx';
 import RulesTab from './components/tabs/RulesTab.jsx';
+import SystemAuditTab from './components/tabs/SystemAuditTab.jsx';
 
 // Modal Components
 import LivePromptOverlay from './components/modals/LivePromptOverlay.jsx';
@@ -82,6 +83,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterCategory, setFilterCategory] = useState('ALL');
   const [txSortOrder, setTxSortOrder] = useState('DESC'); // 'DESC' = Gần nhất lên đầu
 
   // Transaction Editing & Daily Report States
@@ -993,6 +995,13 @@ export default function App() {
         if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
         if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
         if (filterType !== 'ALL' && t.type !== filterType) return false;
+        if (filterCategory !== 'ALL') {
+          if (filterCategory === 'UNCATEGORIZED') {
+            if (t.category_id) return false;
+          } else if (t.category_id !== filterCategory) {
+            return false;
+          }
+        }
         if (
           searchQuery &&
           !t.description?.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -1008,7 +1017,7 @@ export default function App() {
         const timeB = parseTxDate(b.transaction_time, b.created_at).getTime();
         return txSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
       });
-  }, [transactions, timeFilter, customStartDate, customEndDate, filterStatus, filterType, searchQuery, txSortOrder]);
+  }, [transactions, timeFilter, customStartDate, customEndDate, filterStatus, filterType, filterCategory, searchQuery, txSortOrder]);
 
   if (isLocked) {
     return <PinLockScreen onUnlock={handleUnlock} />;
@@ -1115,6 +1124,9 @@ export default function App() {
           setFilterStatus={setFilterStatus}
           filterType={filterType}
           setFilterType={setFilterType}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          categories={categories}
           txSortOrder={txSortOrder}
           setTxSortOrder={setTxSortOrder}
           onOpenResetModal={() => setShowResetModal(true)}
@@ -1130,8 +1142,10 @@ export default function App() {
         />
       )}
 
-      {activeTab === 'rules' && (
-        <RulesTab
+      {(activeTab === 'audit' || activeTab === 'rules') && (
+        <SystemAuditTab
+          authFetch={authFetch}
+          onEditTransaction={(tx) => setEditingTx(tx)}
           categories={categories}
           newCatName={newCatName}
           setNewCatName={setNewCatName}
