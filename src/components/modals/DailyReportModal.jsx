@@ -215,12 +215,15 @@ export default function DailyReportModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
-          maxWidth: '750px',
+          maxWidth: '720px',
           width: '100%',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
           background: 'var(--bg-card-solid)',
-          borderRadius: '24px',
+          borderRadius: '22px',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-card)',
           color: 'var(--text-main)',
@@ -229,13 +232,14 @@ export default function DailyReportModal({
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', gap: '12px' }}>
+        <div className="daily-report-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px', gap: '10px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <div
+              className="daily-report-icon-box"
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '12px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '11px',
                 background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(56, 189, 248, 0.2))',
                 display: 'flex',
                 alignItems: 'center',
@@ -243,18 +247,18 @@ export default function DailyReportModal({
                 flexShrink: 0
               }}
             >
-              <Sparkles size={20} color="var(--accent-purple, #c084fc)" />
+              <Sparkles size={18} color="var(--accent-purple, #c084fc)" />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: 'clamp(0.95rem, 3.8vw, 1.15rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+              <div className="daily-report-title-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: 'clamp(0.95rem, 3.6vw, 1.12rem)', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                   {period === 'DAY' ? 'Báo cáo tài chính cuối ngày' : period === 'WEEK' ? 'Tổng kết tài chính 1 tuần' : 'Tổng hợp tài chính 1 tháng'}
                 </h3>
                 <span
                   style={{
-                    fontSize: '0.72rem',
+                    fontSize: '0.7rem',
                     fontWeight: 700,
-                    padding: '2px 8px',
+                    padding: '2px 7px',
                     borderRadius: '9999px',
                     background: 'rgba(16, 185, 129, 0.15)',
                     color: '#10b981',
@@ -265,12 +269,12 @@ export default function DailyReportModal({
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  <Clock size={12} />
+                  <Clock size={11} />
                   <span>{period === 'DAY' ? autoSettings.time : period === 'WEEK' ? `${autoSettings.weeklyTime} (CN)` : `${autoSettings.monthlyTime} (Cuối tháng)`} Tự động</span>
                 </span>
               </div>
-              <p style={{ margin: '3px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động bắn thông báo ứng dụng
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.35' }}>
+                AI Gemini rà soát dòng tiền, phát hiện bất thường & tự động thông báo
               </p>
             </div>
           </div>
@@ -281,9 +285,9 @@ export default function DailyReportModal({
             className="modal-close-btn"
             title="Đóng (Esc)"
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '12px',
+              width: '34px',
+              height: '34px',
+              borderRadius: '10px',
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
               color: 'var(--text-main)',
@@ -294,115 +298,134 @@ export default function DailyReportModal({
               flexShrink: 0
             }}
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
         {/* Tab Switcher: Báo cáo AI vs Thông báo & Tự động hóa */}
         <div
+          className="daily-report-tabs-bar"
           style={{
             display: 'flex',
-            gap: '8px',
+            gap: '6px',
             background: 'var(--bg-input)',
             padding: '4px',
             borderRadius: '12px',
-            marginBottom: '16px'
+            marginBottom: '12px',
+            flexShrink: 0,
+            width: '100%',
+            boxSizing: 'border-box'
           }}
         >
           <button
             type="button"
+            className="daily-report-tab-btn"
             onClick={() => setActiveTab('report')}
             style={{
-              flex: 1,
-              padding: '8px 14px',
+              flex: '1 1 0px',
+              minWidth: 0,
+              padding: '7px 8px',
               borderRadius: '9px',
               border: '1px solid',
               background: activeTab === 'report' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
               borderColor: activeTab === 'report' ? 'var(--accent-purple, #c084fc)' : 'transparent',
               fontWeight: 700,
-              fontSize: '0.84rem',
+              fontSize: '0.8rem',
               color: activeTab === 'report' ? 'var(--accent-purple, #a855f7)' : 'var(--text-dim)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px',
+              gap: '5px',
               whiteSpace: 'nowrap'
             }}
           >
-            <Sparkles size={15} />
-            Báo cáo AI & Bất thường
+            <Sparkles size={14} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Báo cáo & Bất thường</span>
           </button>
 
           <button
             type="button"
+            className="daily-report-tab-btn"
             onClick={() => setActiveTab('automation')}
             style={{
-              flex: 1,
-              padding: '8px 14px',
+              flex: '1 1 0px',
+              minWidth: 0,
+              padding: '7px 8px',
               borderRadius: '9px',
               border: '1px solid',
               background: activeTab === 'automation' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
               borderColor: activeTab === 'automation' ? 'var(--accent-cyan, #38bdf8)' : 'transparent',
               fontWeight: 700,
-              fontSize: '0.84rem',
+              fontSize: '0.8rem',
               color: activeTab === 'automation' ? 'var(--accent-cyan, #0284c7)' : 'var(--text-dim)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px',
+              gap: '5px',
               whiteSpace: 'nowrap'
             }}
           >
-            <Bell size={15} />
-            Thông báo app & Lịch tự động
+            <Bell size={14} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Thông báo & Lịch</span>
           </button>
         </div>
 
-        {/* Render Tab Contents */}
-        {activeTab === 'report' ? (
-          <ReportTab
-            period={period}
-            handlePeriodChange={handlePeriodChange}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            showDatePicker={showDatePicker}
-            setShowDatePicker={setShowDatePicker}
-            isLoading={isLoading}
-            error={error}
-            reportData={reportData}
-            fetchReport={fetchReport}
-            authFetch={authFetch}
-            categories={categories}
-            onCategoriesChange={onCategoriesChange}
-            onTransactionsChange={onTransactionsChange}
-            onEditTransaction={onEditTransaction}
-            onClose={onClose}
-            getTodayStr={getTodayStr}
-          />
-        ) : (
-          <AutomationTab
-            pushStatus={pushStatus}
-            handleEnablePush={handleEnablePush}
-            isSubscribingPush={isSubscribingPush}
-            handleTestPeriodPush={handleTestPeriodPush}
-            isTestingPush={isTestingPush}
-            testResult={testResult}
-            autoSettings={autoSettings}
-            setAutoSettings={setAutoSettings}
-            handleSaveSettings={handleSaveSettings}
-            isSavingSettings={isSavingSettings}
-          />
-        )}
+        {/* Render Tab Contents (Scrollable Body) */}
+        <div
+          className="daily-report-scroll-body"
+          style={{
+            flex: '1 1 auto',
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: '2px'
+          }}
+        >
+          {activeTab === 'report' ? (
+            <ReportTab
+              period={period}
+              handlePeriodChange={handlePeriodChange}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              showDatePicker={showDatePicker}
+              setShowDatePicker={setShowDatePicker}
+              isLoading={isLoading}
+              error={error}
+              reportData={reportData}
+              fetchReport={fetchReport}
+              authFetch={authFetch}
+              categories={categories}
+              onCategoriesChange={onCategoriesChange}
+              onTransactionsChange={onTransactionsChange}
+              onEditTransaction={onEditTransaction}
+              onClose={onClose}
+              getTodayStr={getTodayStr}
+            />
+          ) : (
+            <AutomationTab
+              pushStatus={pushStatus}
+              handleEnablePush={handleEnablePush}
+              isSubscribingPush={isSubscribingPush}
+              handleTestPeriodPush={handleTestPeriodPush}
+              isTestingPush={isTestingPush}
+              testResult={testResult}
+              autoSettings={autoSettings}
+              setAutoSettings={setAutoSettings}
+              handleSaveSettings={handleSaveSettings}
+              isSavingSettings={isSavingSettings}
+            />
+          )}
+        </div>
 
         {/* Footer Close */}
-        <div style={{ marginTop: '20px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)', textAlign: 'right' }}>
+        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', textAlign: 'right', flexShrink: 0 }}>
           <button
             type="button"
             className="btn btn-secondary"
             onClick={onClose}
-            style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+            style={{ padding: '7px 18px', fontSize: '0.84rem' }}
           >
             Đóng
           </button>

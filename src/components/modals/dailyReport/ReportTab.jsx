@@ -93,7 +93,7 @@ export default function ReportTab({
           className={`report-period-pill ${period === 'DAY' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('DAY')}
         >
-          <Sun size={15} />
+          <Sun size={14} style={{ flexShrink: 0 }} />
           <span>Báo cáo ngày</span>
         </button>
         <button
@@ -101,15 +101,15 @@ export default function ReportTab({
           className={`report-period-pill ${period === 'WEEK' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('WEEK')}
         >
-          <TrendingUp size={15} />
-          <span>Sau 1 tuần (7 ngày)</span>
+          <TrendingUp size={14} style={{ flexShrink: 0 }} />
+          <span>Sau 1 tuần</span>
         </button>
         <button
           type="button"
           className={`report-period-pill ${period === 'MONTH' ? 'active' : ''}`}
           onClick={() => handlePeriodChange('MONTH')}
         >
-          <Trophy size={15} />
+          <Trophy size={14} style={{ flexShrink: 0 }} />
           <span>Sau 1 tháng</span>
         </button>
       </div>

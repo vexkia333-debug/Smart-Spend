@@ -174,7 +174,7 @@ export default function EditTransactionModal({
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           color: 'var(--text-main)',
-          overflow: 'hidden'
+          overflow: 'visible'
         }}
       >
         {/* Custom Confirmation Dialog khi bấm Xóa GD */}
@@ -183,6 +183,7 @@ export default function EditTransactionModal({
             style={{
               position: 'absolute',
               inset: 0,
+              borderRadius: '20px',
               background: 'rgba(0, 0, 0, 0.7)',
               backdropFilter: 'blur(8px)',
               display: 'flex',
@@ -335,7 +336,7 @@ export default function EditTransactionModal({
               </label>
               <input
                 type="number"
-                step="1000"
+                step="any"
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
