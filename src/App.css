@@ -653,11 +653,20 @@
 .pending-ai-input {
   flex: 1;
   background: transparent;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   color: var(--text-main);
   font-size: 0.88rem;
   min-width: 0;
+  -webkit-appearance: none;
+}
+
+.pending-ai-input:focus,
+.pending-ai-input:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .pending-ai-input::placeholder {
@@ -955,11 +964,20 @@
   flex: 1;
   min-width: 0;
   background: transparent;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   color: var(--text-main);
   font-size: 0.88rem;
   padding: 4px 0;
+  -webkit-appearance: none;
+}
+
+.prompt-ai-input:focus,
+.prompt-ai-input:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .prompt-ai-btn {
