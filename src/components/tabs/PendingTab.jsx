@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, CheckCircle2, Zap, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, Zap, Sparkles, Wallet, Landmark } from 'lucide-react';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function PendingTab({
@@ -86,8 +86,9 @@ export default function PendingTab({
               <div className="pending-card-top">
                 <div style={{ flex: 1, minWidth: '240px' }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span className="pending-bank-badge">
-                      🏦 {tx.account_name || tx.bank_name || 'Ngân hàng'}
+                    <span className="pending-bank-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <Landmark size={13} style={{ flexShrink: 0 }} />
+                      <span>{tx.account_name || tx.bank_name || 'Ngân hàng'}</span>
                     </span>
                     <span className="badge badge-pending">Chờ gắn thẻ</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
@@ -173,8 +174,10 @@ export default function PendingTab({
                       className="cat-pill-btn special-cash-pill"
                       onClick={() => handleCategorize(tx.id, 'cat_transfer_cash', 'Rút tiền vào Ví Tiền Mặt')}
                       title="Chuyển tiền từ ATM/ngân hàng vào Ví Tiền Mặt"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     >
-                      💵 Rút vào Ví Tiền Mặt
+                      <Wallet size={13} style={{ flexShrink: 0 }} />
+                      <span>Rút vào Ví Tiền Mặt</span>
                     </button>
                   )}
                   {categories

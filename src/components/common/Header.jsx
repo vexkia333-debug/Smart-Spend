@@ -198,7 +198,8 @@ export default function Header({
             onClick={() => setAiIsCash(!aiIsCash)}
             title="Mặc định: Ghi vào Ví Tiền Mặt (nhấn để đổi)"
           >
-            💵 Tiền mặt {aiIsCash ? '✓' : ''}
+            <Wallet size={15} style={{ flexShrink: 0 }} />
+            <span>Tiền mặt {aiIsCash ? '✓' : ''}</span>
           </button>
           <button type="submit" className="btn ai-submit-btn" disabled={isAnalyzingAi}>
             <Bot size={18} />

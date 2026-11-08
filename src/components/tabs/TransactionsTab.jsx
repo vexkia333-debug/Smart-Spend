@@ -149,7 +149,10 @@ export default function TransactionsTab({
                 color: 'var(--text-main)'
               }}
             >
-              <span>📅 Thời gian: <strong>{timeLabel}</strong></span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Calendar size={14} color="#38bdf8" style={{ flexShrink: 0 }} />
+                <span>Thời gian: <strong>{timeLabel}</strong></span>
+              </span>
               <button
                 type="button"
                 onClick={onResetTimeFilter}

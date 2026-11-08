@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Sparkles, Send } from 'lucide-react';
+import { X, Sparkles, Send, Landmark } from 'lucide-react';
 import { formatVND } from '../../utils/formatters.js';
 
 export default function LivePromptOverlay({
@@ -55,8 +55,9 @@ export default function LivePromptOverlay({
 
         <div className="prompt-body">
           <div className="prompt-bank-row">
-            <span className="prompt-bank-name">
-              🏦 {tx.account_name || tx.bank_name || 'Ngân hàng'}
+            <span className="prompt-bank-name" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Landmark size={15} color="var(--accent-cyan, #38bdf8)" style={{ flexShrink: 0 }} />
+              <span>{tx.account_name || tx.bank_name || 'Ngân hàng'}</span>
             </span>
             <span
               className={`prompt-amount ${isIncome ? 'income' : 'expense'}`}
