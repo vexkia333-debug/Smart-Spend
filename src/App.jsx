@@ -106,7 +106,7 @@ export default function App() {
   // Filters & Sorting for Transactions Tab
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterAccount, setFilterAccount] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [txSortOrder, setTxSortOrder] = useState('DESC'); // 'DESC' = Gần nhất lên đầu
 
@@ -1017,7 +1017,7 @@ export default function App() {
     return transactions
       .filter((t) => {
         if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
-        if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
+        if (filterAccount !== 'ALL' && t.account_id !== filterAccount) return false;
         if (filterType !== 'ALL' && t.type !== filterType) return false;
         if (filterCategory !== 'ALL') {
           if (filterCategory === 'UNCATEGORIZED') {
@@ -1030,6 +1030,7 @@ export default function App() {
           searchQuery &&
           !t.description?.toLowerCase().includes(searchQuery.toLowerCase()) &&
           !t.bank_name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !t.account_name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
           !t.category_name?.toLowerCase().includes(searchQuery.toLowerCase())
         ) {
           return false;
@@ -1041,7 +1042,7 @@ export default function App() {
         const timeB = parseTxDate(b.transaction_time, b.created_at).getTime();
         return txSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
       });
-  }, [transactions, timeFilter, customStartDate, customEndDate, filterStatus, filterType, filterCategory, searchQuery, txSortOrder]);
+  }, [transactions, timeFilter, customStartDate, customEndDate, filterAccount, filterType, filterCategory, searchQuery, txSortOrder]);
 
   if (isLocked) {
     return <PinLockScreen onUnlock={handleUnlock} />;
@@ -1146,8 +1147,9 @@ export default function App() {
           filteredTransactions={filteredTransactions}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          filterStatus={filterStatus}
-          setFilterStatus={setFilterStatus}
+          filterAccount={filterAccount}
+          setFilterAccount={setFilterAccount}
+          accounts={accounts}
           filterType={filterType}
           setFilterType={setFilterType}
           filterCategory={filterCategory}

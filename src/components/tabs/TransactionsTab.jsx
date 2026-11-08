@@ -7,8 +7,9 @@ export default function TransactionsTab({
   filteredTransactions = [],
   searchQuery,
   setSearchQuery,
-  filterStatus,
-  setFilterStatus,
+  filterAccount = 'ALL',
+  setFilterAccount,
+  accounts = [],
   filterType,
   setFilterType,
   filterCategory = 'ALL',
@@ -24,6 +25,15 @@ export default function TransactionsTab({
   onOpenCustomDateModal,
   onResetTimeFilter
 }) {
+  const accountOptions = [
+    { value: 'ALL', label: 'Tất cả ngân hàng' },
+    ...accounts.map((acc) => ({
+      value: acc.id,
+      label: acc.name,
+      color: acc.color
+    }))
+  ];
+
   const categoryOptions = [
     { value: 'ALL', label: 'Tất cả danh mục' },
     { value: 'UNCATEGORIZED', label: 'Chưa phân loại' },
@@ -34,6 +44,7 @@ export default function TransactionsTab({
     }))
   ];
 
+  const currentAccountObj = accounts.find((a) => a.id === filterAccount);
   const currentCategoryObj = categories.find((c) => c.id === filterCategory);
   return (
     <div className="glass-panel" style={{ padding: '24px' }}>
@@ -91,17 +102,14 @@ export default function TransactionsTab({
             <span>{timeFilter === 'ALL' ? 'Thời gian' : timeLabel}</span>
           </button>
 
-          <CustomSelect
-            value={filterStatus}
-            onChange={setFilterStatus}
-            style={{ minWidth: '160px' }}
-            options={[
-              { value: 'ALL', label: 'Tất cả trạng thái' },
-              { value: 'PENDING', label: 'Chờ phân loại' },
-              { value: 'CONFIRMED', label: 'Đã phân loại' },
-              { value: 'IGNORED', label: 'Đã bỏ qua' }
-            ]}
-          />
+          {setFilterAccount && (
+            <CustomSelect
+              value={filterAccount}
+              onChange={setFilterAccount}
+              style={{ minWidth: '165px' }}
+              options={accountOptions}
+            />
+          )}
 
           <CustomSelect
             value={filterType}
@@ -125,7 +133,7 @@ export default function TransactionsTab({
         </div>
       </div>
 
-      {(timeFilter !== 'ALL' || filterCategory !== 'ALL') && (
+      {(timeFilter !== 'ALL' || filterAccount !== 'ALL' || filterCategory !== 'ALL') && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
           {timeFilter !== 'ALL' && (
             <div
@@ -155,6 +163,51 @@ export default function TransactionsTab({
                   alignItems: 'center'
                 }}
                 title="Xem toàn bộ thời gian"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {filterAccount !== 'ALL' && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
+                background: currentAccountObj?.color ? `${currentAccountObj.color}20` : 'rgba(16, 185, 129, 0.15)',
+                border: `1px solid ${currentAccountObj?.color ? `${currentAccountObj.color}45` : 'rgba(16, 185, 129, 0.35)'}`,
+                borderRadius: '20px',
+                fontSize: '0.82rem',
+                color: 'var(--text-main)'
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: currentAccountObj?.color || '#10b981',
+                  display: 'inline-block'
+                }}
+              />
+              <span>
+                Ngân hàng: <strong>{currentAccountObj?.name || filterAccount}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilterAccount('ALL')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Bỏ lọc ngân hàng"
               >
                 <X size={14} />
               </button>
