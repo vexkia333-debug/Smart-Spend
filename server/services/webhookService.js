@@ -60,7 +60,9 @@ async function processIncomingWebhookInternal(body = {}) {
     return {
       success: true,
       ignored: true,
-      reason
+      reason,
+      launchDecision: 'SKIP',
+      recommendedDelaySeconds: 0
     };
   }
 
@@ -108,8 +110,8 @@ async function processIncomingWebhookInternal(body = {}) {
     WHERE account_id = ? 
       AND amount = ? 
       AND type = ? 
-      AND (raw_content = ? OR (datetime(created_at) >= datetime('now', '-90 seconds') AND description = ?))
-      AND datetime(created_at) >= datetime('now', '-90 seconds')
+      AND (raw_content = ? OR (datetime(created_at) >= datetime('now', 'localtime', '-90 seconds') AND description = ?))
+      AND datetime(created_at) >= datetime('now', 'localtime', '-90 seconds')
     LIMIT 1
   `).get(targetAccountId, parsed.amount, parsed.type, parsed.rawContent, parsed.description);
 
@@ -136,6 +138,8 @@ async function processIncomingWebhookInternal(body = {}) {
       success: true,
       duplicate: true,
       transactionId: recentDuplicate.id,
+      launchDecision: 'SKIP',
+      recommendedDelaySeconds: 0,
       message: 'Giao dịch đã được ghi nhận trước đó, bỏ qua để tránh trùng lặp'
     };
   }
@@ -183,7 +187,7 @@ async function processIncomingWebhookInternal(body = {}) {
       AND t.type = ?
       AND t.account_id != ?
       AND (t.category_id IS NULL OR t.category_id LIKE 'cat_transfer_%' OR t.status = 'PENDING')
-      AND datetime(t.created_at) >= datetime('now', '-15 minutes')
+      AND datetime(t.created_at) >= datetime('now', 'localtime', '-15 minutes')
     ORDER BY t.created_at DESC
     LIMIT 1
   `).get(parsed.amount, oppositeType, targetAccountId);
@@ -379,15 +383,140 @@ async function processIncomingWebhookInternal(body = {}) {
     broadcastEvent('TRANSACTION_CREATED', newTx);
   }
 
+  const launchDecision = status === 'PENDING' ? 'WAIT_AND_RECHECK' : 'SKIP';
+  const recommendedDelaySeconds = launchDecision === 'WAIT_AND_RECHECK' ? 120 : 0;
+
   return {
     success: true,
     transactionId: txId,
     isInternalTransfer,
     parsed,
     status,
+    launchDecision,
+    recommendedDelaySeconds,
     quickActions: quickCategories,
     message: isInternalTransfer
       ? '⚡ Đã tự động khớp lệnh chuyển tiền giữa các tài khoản của bạn'
       : (status === 'PENDING' ? 'Giao dịch đã được lưu và đang chờ bạn phân loại' : 'Đã tự động phân loại')
+  };
+}
+
+/**
+ * Kiểm tra lại sau thời gian chờ (1-2 phút) xem giao dịch có thực sự cần người dùng mở app nhập không.
+ * Hỗ trợ:
+ *  - Kiểm tra đích danh theo txId (hoặc chuỗi ref dạng "WAIT:tx_xxxx")
+ *  - Fallback an toàn nếu biến MacroDroid bị ghi đè khi có thông báo rác xen vào giữa lúc chờ:
+ *    tìm các giao dịch PENDING chưa được nhắc (prompted_at IS NULL) đã đủ thời gian chờ minWaitSec.
+ */
+export async function checkPromptAfterDelay({ ref = '', txId = '', minWaitSec = 90, maxWindowMin = 15 } = {}) {
+  const rawRef = String(txId || ref || '').trim();
+  const cleaned = rawRef.replace(/^WAIT:/i, '').trim();
+  const parsedTxId = /^tx_[a-zA-Z0-9-]+$/i.test(cleaned) ? cleaned : null;
+
+  const safeMinWaitSec = Math.max(0, Math.min(600, Number.isFinite(Number(minWaitSec)) ? Math.floor(Number(minWaitSec)) : 90));
+  const safeMaxWindowMin = Math.max(1, Math.min(120, Number.isFinite(Number(maxWindowMin)) ? Math.floor(Number(maxWindowMin)) : 15));
+
+  // 1. Kiểm tra đích danh giao dịch nếu có txId hợp lệ
+  if (parsedTxId) {
+    const tx = await db.prepare(`
+      SELECT id, status, type, amount, description, bank_name, created_at, prompted_at
+      FROM transactions
+      WHERE id = ?
+    `).get(parsedTxId);
+
+    if (tx) {
+      if (tx.status === 'PENDING') {
+        if (tx.prompted_at) {
+          return {
+            success: true,
+            shouldLaunch: false,
+            action: 'SKIP',
+            transactionId: tx.id,
+            reason: 'ALREADY_PROMPTED'
+          };
+        }
+
+        const upd = await db.prepare(`
+          UPDATE transactions
+          SET prompted_at = datetime('now', 'localtime')
+          WHERE id = ? AND status = 'PENDING' AND prompted_at IS NULL
+        `).run(tx.id);
+
+        if (upd.changes > 0) {
+          return {
+            success: true,
+            shouldLaunch: true,
+            action: 'LAUNCH',
+            transactionId: tx.id,
+            reason: 'PENDING_AFTER_DELAY',
+            transaction: {
+              id: tx.id,
+              type: tx.type,
+              amount: tx.amount,
+              description: tx.description,
+              bank_name: tx.bank_name
+            }
+          };
+        }
+
+        return {
+          success: true,
+          shouldLaunch: false,
+          action: 'SKIP',
+          transactionId: tx.id,
+          reason: 'STATUS_CHANGED_DURING_CHECK'
+        };
+      }
+      // Nếu tx đích danh đã CONFIRMED (khớp chuyển khoản nội bộ hoặc người dùng đã tự nhập) -> thử kiểm tra thêm fallback các giao dịch PENDING khác đã đủ tuổi chờ (chống case ghi đè biến khi 2 GD sát nhau)
+    }
+  }
+
+  // 2. Fallback: tìm giao dịch PENDING chưa nhắc đã tồn tại >= safeMinWaitSec trong cửa sổ safeMaxWindowMin phút
+  const maturedPendings = await db.prepare(`
+    SELECT id, type, amount, description, bank_name, created_at
+    FROM transactions
+    WHERE status = 'PENDING'
+      AND prompted_at IS NULL
+      AND datetime(created_at) <= datetime('now', 'localtime', ?)
+      AND datetime(created_at) >= datetime('now', 'localtime', ?)
+    ORDER BY created_at DESC
+    LIMIT 10
+  `).all(`-${safeMinWaitSec} seconds`, `-${safeMaxWindowMin} minutes`);
+
+  if (maturedPendings.length > 0) {
+    const ids = maturedPendings.map(t => t.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const upd = await db.prepare(`
+      UPDATE transactions
+      SET prompted_at = datetime('now', 'localtime')
+      WHERE id IN (${placeholders}) AND status = 'PENDING' AND prompted_at IS NULL
+    `).run(...ids);
+
+    if (upd.changes > 0) {
+      const leadTx = maturedPendings[0];
+      return {
+        success: true,
+        shouldLaunch: true,
+        action: 'LAUNCH',
+        transactionId: leadTx.id,
+        pendingCount: maturedPendings.length,
+        reason: 'MATURED_PENDING_AFTER_DELAY',
+        transaction: {
+          id: leadTx.id,
+          type: leadTx.type,
+          amount: leadTx.amount,
+          description: leadTx.description,
+          bank_name: leadTx.bank_name
+        }
+      };
+    }
+  }
+
+  return {
+    success: true,
+    shouldLaunch: false,
+    action: 'SKIP',
+    transactionId: parsedTxId,
+    reason: parsedTxId ? 'RESOLVED_OR_NOT_PENDING' : 'NO_MATURED_PENDING'
   };
 }

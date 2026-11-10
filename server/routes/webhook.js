@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { parseBankNotification, matchSuggestedCategory } from '../parser.js';
 import { broadcastEvent } from '../services/sse.js';
-import { processIncomingWebhook } from '../services/webhookService.js';
+import { processIncomingWebhook, checkPromptAfterDelay } from '../services/webhookService.js';
 
 const router = Router();
 
@@ -73,9 +73,41 @@ router.post([
   try {
     console.log('[Webhook Incoming]', JSON.stringify(req.body));
     const result = await processIncomingWebhook(req.body);
+    const format = String(req.query.format || req.body?.format || '').toLowerCase();
+    if (format === 'plain' || format === 'macrodroid') {
+      const textResponse = result.launchDecision === 'WAIT_AND_RECHECK' && result.transactionId
+        ? `WAIT:${result.transactionId}`
+        : 'SKIP';
+      return res.type('text/plain').send(textResponse);
+    }
     res.json(result);
   } catch (err) {
     console.error('Lỗi xử lý webhook:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Kiểm tra lại sau thời gian delay (1-2 phút) xem có thực sự cần bật app cho người dùng nhập không
+router.all([
+  '/webhook/prompt-check',
+  '/webhook/prompt-check/'
+], async (req, res) => {
+  try {
+    const ref = req.query.ref || req.body?.ref || '';
+    const txId = req.query.txId || req.body?.txId || '';
+    const minWaitSec = req.query.minWaitSec ?? req.body?.minWaitSec ?? 90;
+    const maxWindowMin = req.query.maxWindowMin ?? req.body?.maxWindowMin ?? 15;
+    const format = String(req.query.format || req.body?.format || '').toLowerCase();
+
+    const result = await checkPromptAfterDelay({ ref, txId, minWaitSec, maxWindowMin });
+    console.log(`[PromptCheck] ref=${ref || txId || '(none)'} -> ${result.action} (${result.reason})`);
+
+    if (format === 'plain' || format === 'macrodroid') {
+      return res.type('text/plain').send(result.shouldLaunch ? 'LAUNCH' : 'SKIP');
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('Lỗi kiểm tra prompt sau delay:', err);
     res.status(500).json({ error: err.message });
   }
 });

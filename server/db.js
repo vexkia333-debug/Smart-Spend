@@ -113,6 +113,7 @@ export async function initDatabase() {
       source TEXT NOT NULL DEFAULT 'BANK_NOTIFICATION' CHECK(source IN ('BANK_NOTIFICATION', 'SMS', 'MANUAL')),
       transaction_time TEXT NOT NULL,
       confirmed_at TEXT,
+      prompted_at TEXT,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
@@ -180,6 +181,16 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_trans_acc ON transactions(account_id);
     CREATE INDEX IF NOT EXISTS idx_daily_rep_date ON daily_reports(report_date);
   `);
+
+  // Migration an toàn cho DB hiện có: bổ sung cột prompted_at nếu chưa có
+  try {
+    const txCols = await db.all('PRAGMA table_info(transactions)');
+    if (!txCols.some(col => col.name === 'prompted_at')) {
+      await client.execute('ALTER TABLE transactions ADD COLUMN prompted_at TEXT');
+    }
+  } catch (err) {
+    console.warn('[Database] Không thể kiểm tra/thêm cột prompted_at:', err.message);
+  }
 
   await seedInitialData();
 }
