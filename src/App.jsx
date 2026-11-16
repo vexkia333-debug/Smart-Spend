@@ -19,6 +19,7 @@ import ResetTransactionsModal from './components/modals/ResetTransactionsModal.j
 import ReconcileModal from './components/modals/ReconcileModal.jsx';
 import ApiKeyModal from './components/modals/ApiKeyModal.jsx';
 import SettingsModal from './components/modals/SettingsModal.jsx';
+import QuickAddModal from './components/modals/QuickAddModal.jsx';
 import PinLockScreen from './components/modals/PinLockScreen.jsx';
 import EditTransactionModal from './components/modals/EditTransactionModal.jsx';
 import DailyReportModal from './components/modals/DailyReportModal.jsx';
@@ -48,7 +49,7 @@ export default function App() {
         return hash;
       }
     } catch (e) {}
-    return 'pending';
+    return 'dashboard';
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
@@ -97,6 +98,8 @@ export default function App() {
 
   // Settings & Reconcile Modals
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [monthlyBudgetGoal, setMonthlyBudgetGoal] = useState(5000000);
   const [showReconcileModal, setShowReconcileModal] = useState(false);
   const [reconcileAccount, setReconcileAccount] = useState(null);
   const [reconcileAmount, setReconcileAmount] = useState('');
@@ -301,9 +304,31 @@ export default function App() {
         const data = await res.json();
         setHasGeminiKey(data.hasGeminiKey);
         setMaskedKey(data.maskedKey || '');
+        if (data.monthlyBudgetGoal) {
+          setMonthlyBudgetGoal(Number(data.monthlyBudgetGoal));
+        }
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleUpdateBudgetGoal = async (newGoal) => {
+    try {
+      const res = await authFetch('/api/settings/budget-goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monthlyBudgetGoal: newGoal })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data.monthlyBudgetGoal) {
+        setMonthlyBudgetGoal(Number(data.monthlyBudgetGoal));
+      }
+      return true;
+    } catch (e) {
+      console.error('Lỗi cập nhật mục tiêu chi tiêu tháng:', e);
+      return false;
     }
   };
 
@@ -977,6 +1002,28 @@ export default function App() {
     return days;
   }, [transactions]);
 
+  const currentMonthExpense = useMemo(() => {
+    const now = new Date();
+    const curMonth = now.getMonth();
+    const curYear = now.getFullYear();
+    return transactions
+      .filter((t) => {
+        if (
+          t.type !== 'EXPENSE' ||
+          t.status === 'IGNORED' ||
+          t.category_id?.startsWith('cat_transfer_') ||
+          t.category_id === 'cat_loan' ||
+          t.category_id === 'cat_debt_repay'
+        ) {
+          return false;
+        }
+        const txDate = parseTxDate(t.transaction_time, t.created_at);
+        if (!txDate || isNaN(txDate.getTime())) return false;
+        return txDate.getMonth() === curMonth && txDate.getFullYear() === curYear;
+      })
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  }, [transactions]);
+
   const maxDayAmount = Math.max(...last7DaysData.map((d) => d.amount), 1);
 
   const handleApplyCustomDate = (start, end) => {
@@ -1085,6 +1132,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={handleSelectTab}
         pendingCount={displayedPendingCount}
+        onOpenQuickAdd={() => setShowQuickAddModal(true)}
       />
 
       {/* 4 khối Thống kê tổng số dư khả dụng, tổng chi tiêu, tổng thu nhập, chờ phân loại - CHỈ hiển thị ở menu Cần bổ sung */}
@@ -1128,6 +1176,10 @@ export default function App() {
           categoryBreakdown={categoryBreakdown}
           hoveredCatId={hoveredCatId}
           setHoveredCatId={setHoveredCatId}
+          last7DaysData={last7DaysData}
+          monthlyBudgetGoal={monthlyBudgetGoal}
+          currentMonthExpense={currentMonthExpense}
+          onUpdateBudgetGoal={handleUpdateBudgetGoal}
           accounts={accounts}
           totalBalance={stats.totalBalance}
           onReconcile={(acc) => {
@@ -1199,6 +1251,15 @@ export default function App() {
           handleCreateRule={handleCreateRule}
           onToggleRule={handleToggleRule}
           onDeleteRule={handleDeleteRule}
+          monthlyBudgetGoal={monthlyBudgetGoal}
+          currentMonthExpense={currentMonthExpense}
+          onUpdateBudgetGoal={handleUpdateBudgetGoal}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          onOpenDailyReport={() => setShowDailyReportModal(true)}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenApiKeyModal={() => setShowApiKeyModal(true)}
+          onOpenResetModal={() => setShowResetModal(true)}
         />
       )}
 
@@ -1291,6 +1352,21 @@ export default function App() {
         hasGeminiKey={hasGeminiKey}
         maskedKey={maskedKey}
         onOpenApiKeyModal={() => setShowApiKeyModal(true)}
+      />
+
+      <QuickAddModal
+        isOpen={showQuickAddModal}
+        onClose={() => setShowQuickAddModal(false)}
+        hasGeminiKey={hasGeminiKey}
+        maskedKey={maskedKey}
+        onOpenApiKeyModal={() => setShowApiKeyModal(true)}
+        aiInputText={aiInputText}
+        setAiInputText={setAiInputText}
+        aiIsCash={aiIsCash}
+        setAiIsCash={setAiIsCash}
+        isAnalyzingAi={isAnalyzingAi}
+        handleAnalyzeAi={handleAnalyzeAi}
+        aiMessage={aiMessage}
       />
     </div>
   );

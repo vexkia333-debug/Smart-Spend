@@ -3,9 +3,10 @@ import {
   History, ArrowLeftRight, CheckCircle2, ShieldAlert, Sparkles, 
   RefreshCw, Search, Layers, Clock, AlertTriangle, ArrowUpRight, 
   ArrowDownLeft, Tag, FileText, Smartphone, Building2, ChevronDown, 
-  ChevronUp, Edit2, SlidersHorizontal
+  ChevronUp, Edit2, SlidersHorizontal, Bell, Key, RotateCcw, Sun, Moon, ChevronRight
 } from 'lucide-react';
 import RulesTab from './RulesTab.jsx';
+import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function SystemAuditTab({
@@ -28,7 +29,16 @@ export default function SystemAuditTab({
   setNewRuleCat,
   handleCreateRule,
   onToggleRule,
-  onDeleteRule
+  onDeleteRule,
+  monthlyBudgetGoal = 5000000,
+  currentMonthExpense = 0,
+  onUpdateBudgetGoal,
+  theme = 'dark',
+  toggleTheme,
+  onOpenDailyReport,
+  onOpenSettings,
+  onOpenApiKeyModal,
+  onOpenResetModal
 }) {
   const [subTab, setSubTab] = useState('audit'); // 'audit' | 'rules'
   const [logs, setLogs] = useState([]);
@@ -93,8 +103,104 @@ export default function SystemAuditTab({
     return true;
   });
 
+  const quickSettingItems = [
+    {
+      id: 'report',
+      label: 'Báo cáo & Nhắc nhở AI',
+      desc: 'Lịch gửi tổng hợp chi tiêu hàng ngày qua Ntfy',
+      icon: Bell,
+      bg: 'rgba(139, 92, 246, 0.16)',
+      color: '#a78bfa',
+      onClick: onOpenDailyReport
+    },
+    {
+      id: 'webhook',
+      label: 'Webhook MacroDroid & Mã PIN',
+      desc: 'Cấu hình đồng bộ ngân hàng & bảo mật thiết bị',
+      icon: Smartphone,
+      bg: 'rgba(56, 189, 248, 0.16)',
+      color: '#38bdf8',
+      onClick: onOpenSettings
+    },
+    {
+      id: 'apikey',
+      label: 'Khóa Google Gemini AI',
+      desc: 'Quản lý API Key phân tách giao dịch thông minh',
+      icon: Key,
+      bg: 'rgba(16, 185, 129, 0.16)',
+      color: '#34d399',
+      onClick: onOpenApiKeyModal
+    },
+    {
+      id: 'reset',
+      label: 'Đặt lại dữ liệu hệ thống',
+      desc: 'Xóa giao dịch mẫu hoặc khởi tạo lại số dư ban đầu',
+      icon: RotateCcw,
+      bg: 'rgba(244, 63, 94, 0.15)',
+      color: '#fb7185',
+      onClick: onOpenResetModal
+    }
+  ];
+
   return (
-    <div className="system-audit-wrapper">
+    <div className="system-audit-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Mục tiêu chi tiêu tháng + Cài đặt nhanh */}
+      <div className="dashboard-columns">
+        <MonthlyGoalCard
+          monthlyBudgetGoal={monthlyBudgetGoal}
+          currentMonthExpense={currentMonthExpense}
+          formatVND={formatVND}
+          onUpdateBudgetGoal={onUpdateBudgetGoal}
+        />
+
+        <section className="glass-panel quick-settings-card">
+          <h4 className="quick-settings-title">Cài đặt nhanh</h4>
+          <div className="quick-setting-list">
+            {quickSettingItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="quick-setting-row"
+                  onClick={() => item.onClick?.()}
+                >
+                  <div className="quick-setting-left">
+                    <span className="quick-setting-icon" style={{ background: item.bg, color: item.color }}>
+                      <Icon size={17} />
+                    </span>
+                    <div className="quick-setting-text">
+                      <strong>{item.label}</strong>
+                      <span>{item.desc}</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={17} color="var(--text-muted)" />
+                </button>
+              );
+            })}
+
+            <button type="button" className="quick-setting-row" onClick={() => toggleTheme?.()}>
+              <div className="quick-setting-left">
+                <span
+                  className="quick-setting-icon"
+                  style={{ background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24' }}
+                >
+                  {theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
+                </span>
+                <div className="quick-setting-text">
+                  <strong>Giao diện hiển thị</strong>
+                  <span>{theme === 'dark' ? 'Indigo Dark Fintech' : 'Pastel Light Fintech'}</span>
+                </div>
+              </div>
+              <span className="theme-switch-pill">
+                {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
+                <span>{theme === 'dark' ? 'Tối' : 'Sáng'}</span>
+              </span>
+            </button>
+          </div>
+        </section>
+      </div>
+
       {/* Thanh chuyển chế độ: Nhật ký xử lý hệ thống vs Danh mục & Quy tắc */}
       <div
         className="glass-panel"
@@ -105,7 +211,6 @@ export default function SystemAuditTab({
           flexWrap: 'wrap',
           gap: '12px',
           padding: '12px 18px',
-          marginBottom: '20px',
           borderRadius: '16px'
         }}
       >

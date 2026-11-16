@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
-  Coins, Smartphone, Building2, SlidersHorizontal 
+  Coins, Smartphone, Building2, SlidersHorizontal,
+  Eye, EyeOff, ArrowUpRight, ArrowDownLeft
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
 import DebtLoanTracker from '../debt/DebtLoanTracker.jsx';
+import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
 import { formatVND } from '../../utils/formatters.js';
 
 export default function DashboardTab({
@@ -24,42 +26,155 @@ export default function DashboardTab({
   setHoveredCatId,
   accounts = [],
   totalBalance = 0,
+  last7DaysData = [],
+  monthlyBudgetGoal = 5000000,
+  currentMonthExpense = 0,
+  onUpdateBudgetGoal,
   onReconcile,
   onOpenDailyReport,
   onEditTransaction
 }) {
+  const [hideBalance, setHideBalance] = useState(() => {
+    try {
+      return localStorage.getItem('smartspend_hide_balance') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHideBalance = () => {
+    setHideBalance((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('smartspend_hide_balance', String(next));
+      } catch {
+        // Ignore storage write failure in private browsing
+      }
+      return next;
+    });
+  };
+
+  const sparkValues =
+    last7DaysData.length > 0
+      ? last7DaysData.map((d) => Number(d.amount || 0))
+      : [0, 0, 0, 0, 0, 0, 0];
+  const sparkMax = Math.max(...sparkValues, 1);
+  const sparkMin = Math.min(...sparkValues, 0);
+  const sparkSpan = Math.max(sparkMax - sparkMin, 1);
+  const sparkCoords = sparkValues.map((val, idx) => {
+    const x = sparkValues.length > 1 ? (idx / (sparkValues.length - 1)) * 114 + 3 : 60;
+    const y = 40 - ((val - sparkMin) / sparkSpan) * 28;
+    return { x, y };
+  });
+  const sparkPoints = sparkCoords.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const sparkLastPoint = sparkCoords[sparkCoords.length - 1] || { x: 117, y: 40 };
+
   return (
     <div className="dashboard-content-wrapper">
-      {/* 1. Banner Báo cáo tài chính cuối ngày AI Briefing (Đẩy lên đầu trang) */}
-      <div className="glass-panel ai-briefing-banner">
-        <div className="ai-briefing-left">
-          <div className="ai-briefing-icon-box">
-            <Sparkles size={20} color="#fff" />
-          </div>
-          <div className="ai-briefing-text-wrap">
-            <div className="ai-briefing-title-row">
-              <h4 className="ai-briefing-heading">
-                Báo cáo tài chính cuối ngày
-              </h4>
-              <span className="ai-briefing-gemini-pill">
-                Trợ lý Gemini
-              </span>
+      {/* 1. Hero Tổng số dư khả dụng + Sparkline 7 ngày + Báo cáo AI */}
+      <section className="fintech-hero-card">
+        <div className="hero-top-row">
+          <div className="hero-balance-block">
+            <div className="hero-label-row">
+              <span>Tổng số dư khả dụng</span>
+              <button
+                type="button"
+                className="hero-eye-btn"
+                onClick={toggleHideBalance}
+                aria-label={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
+                title={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
+              >
+                {hideBalance ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </div>
-            <p className="ai-briefing-desc">
-              Rà soát chi tiêu & cảnh báo biến động
-            </p>
+            <div className="hero-balance-amount tabular-nums">
+              {hideBalance ? '•••••••• ₫' : formatVND(totalBalance)}
+            </div>
+          </div>
+
+          <div className="hero-sparkline-box" aria-hidden="true">
+            <svg viewBox="0 0 120 48" width="100%" height="100%">
+              <defs>
+                <linearGradient id="heroSparkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.4)" />
+                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                </linearGradient>
+              </defs>
+              <polygon
+                fill="url(#heroSparkFill)"
+                points={`3,44 ${sparkPoints} ${sparkLastPoint.x.toFixed(1)},44`}
+              />
+              <polyline
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={sparkPoints}
+              />
+              <circle
+                cx={sparkLastPoint.x}
+                cy={sparkLastPoint.y}
+                r="3.5"
+                fill="#38bdf8"
+                stroke="#ffffff"
+                strokeWidth="1.5"
+              />
+            </svg>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenDailyReport}
-          className="ai-briefing-action-btn"
-        >
-          <Sparkles size={15} />
-          <span>Xem báo cáo</span>
-        </button>
+        <div className="hero-footer-row">
+          <span className="hero-meta-pill">
+            {accounts.length} ví liên kết · {timeLabel}
+          </span>
+          <button type="button" onClick={onOpenDailyReport} className="hero-briefing-pill">
+            <Sparkles size={13} />
+            <span>Báo cáo AI cuối ngày</span>
+          </button>
+        </div>
+      </section>
+
+      {/* 2. Cụm 2 thẻ Tổng chi tiêu / Tổng thu nhập */}
+      <div className="fintech-dual-stats">
+        <div className="dual-stat-card expense">
+          <div className="dual-stat-header">
+            <span className="dual-stat-label">Tổng chi tiêu ({timeLabel})</span>
+            <span className="dual-stat-icon">
+              <ArrowUpRight size={17} />
+            </span>
+          </div>
+          <div className="dual-stat-value tabular-nums">
+            {hideBalance ? '•••••• ₫' : formatVND(displayedExpense)}
+          </div>
+          <div className="dual-stat-sub">
+            {displayedIncome > 0 ? `Chiếm ${spendRatio}% thu nhập` : `Kỳ: ${timeLabel}`}
+          </div>
+        </div>
+
+        <div className="dual-stat-card income">
+          <div className="dual-stat-header">
+            <span className="dual-stat-label">Tổng thu nhập ({timeLabel})</span>
+            <span className="dual-stat-icon">
+              <ArrowDownLeft size={17} />
+            </span>
+          </div>
+          <div className="dual-stat-value tabular-nums">
+            {hideBalance ? '•••••• ₫' : formatVND(displayedIncome)}
+          </div>
+          <div className="dual-stat-sub tabular-nums">
+            Tiết kiệm ròng: {hideBalance ? '••••' : formatVND(netSavings)}
+          </div>
+        </div>
       </div>
+
+      {/* 3. Mục tiêu chi tiêu tháng */}
+      <MonthlyGoalCard
+        monthlyBudgetGoal={monthlyBudgetGoal}
+        currentMonthExpense={currentMonthExpense}
+        formatVND={formatVND}
+        onUpdateBudgetGoal={onUpdateBudgetGoal}
+      />
 
       {/* 2. Dòng tiền & Tiết kiệm ({timeLabel}) - Toàn chiều rộng, sang trọng, rõ ràng */}
       <div className="glass-panel analytics-health-card">
