@@ -5195,11 +5195,62 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: #ffffff;
 }
 
+.hero-delta-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hero-delta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+
+.hero-delta-pill.up {
+  background: rgba(16, 185, 129, 0.24);
+  border: 1px solid rgba(110, 231, 183, 0.36);
+  color: #a7f3d0;
+}
+
+.hero-delta-pill.down {
+  background: rgba(244, 63, 94, 0.25);
+  border: 1px solid rgba(253, 164, 175, 0.36);
+  color: #fecdd3;
+}
+
+.hero-delta-pill.flat {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.hero-sparkline-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .hero-sparkline-box {
-  width: 120px;
+  width: 136px;
   height: 54px;
   flex-shrink: 0;
-  opacity: 0.92;
+  opacity: 0.96;
+}
+
+.hero-sparkline-caption {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.01em;
 }
 
 .hero-footer-row {
@@ -5964,8 +6015,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .hero-sparkline-box {
-    width: 88px;
+    width: 96px;
     height: 44px;
+  }
+
+  .hero-delta-pill {
+    font-size: 0.69rem;
+    padding: 3px 8px;
+  }
+
+  .hero-sparkline-caption {
+    font-size: 0.62rem;
   }
 
   .fintech-dual-stats {

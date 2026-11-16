@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
   Coins, Smartphone, Building2, SlidersHorizontal,
@@ -9,7 +9,7 @@ import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
 import DebtLoanTracker from '../debt/DebtLoanTracker.jsx';
 import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
-import { formatVND, formatTxTime } from '../../utils/formatters.js';
+import { formatVND, formatTxTime, formatCompactVND, parseTxDate } from '../../utils/formatters.js';
 
 export default function DashboardTab({
   timeFilter = 'MONTH',
@@ -27,7 +27,6 @@ export default function DashboardTab({
   setHoveredCatId,
   accounts = [],
   totalBalance = 0,
-  last7DaysData = [],
   monthlyBudgetGoal = 500000,
   currentMonthSavings = 0,
   currentMonthIncome = 0,
@@ -71,24 +70,185 @@ export default function DashboardTab({
     });
   };
 
-  const sparkValues =
-    last7DaysData.length > 0
-      ? last7DaysData.map((d) => Number(d.amount || 0))
-      : [0, 0, 0, 0, 0, 0, 0];
-  const sparkMax = Math.max(...sparkValues, 1);
-  const sparkMin = Math.min(...sparkValues, 0);
-  const sparkSpan = Math.max(sparkMax - sparkMin, 1);
-  const sparkCoords = sparkValues.map((val, idx) => {
-    const x = sparkValues.length > 1 ? (idx / (sparkValues.length - 1)) * 114 + 3 : 60;
-    const y = 40 - ((val - sparkMin) / sparkSpan) * 28;
-    return { x, y };
-  });
-  const sparkPoints = sparkCoords.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const sparkLastPoint = sparkCoords[sparkCoords.length - 1] || { x: 117, y: 40 };
+  const balanceSparkData = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const toDateKey = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayKey = toDateKey(today);
+    const currentTotal = Number(totalBalance || 0);
+
+    const validTx = [];
+    for (const t of transactions) {
+      if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
+      const txDate = parseTxDate(t.transaction_time, t.created_at);
+      if (!txDate || isNaN(txDate.getTime())) continue;
+      const amt = Number(t.amount || 0);
+      const delta = t.type === 'INCOME' ? amt : -amt;
+      validTx.push({
+        txDate,
+        dateKey: toDateKey(txDate),
+        delta
+      });
+    }
+
+    let points = [];
+    let periodLabel = 'Tháng này';
+
+    if (timeFilter === 'DAY') {
+      periodLabel = 'Hôm nay';
+      const todayTxs = validTx
+        .filter((item) => item.dateKey === todayKey)
+        .sort((a, b) => a.txDate.getTime() - b.txDate.getTime());
+      const todayNetFlow = todayTxs.reduce((sum, item) => sum + item.delta, 0);
+      const startOfDayBal = Math.max(0, currentTotal - todayNetFlow);
+      const checkpoints = [0, 6, 10, 14, 18, 24];
+
+      points = checkpoints.map((hourMark) => {
+        if (hourMark === 0) return { balance: startOfDayBal };
+        if (hourMark === 24) return { balance: currentTotal };
+        let bal = startOfDayBal;
+        for (const item of todayTxs) {
+          if (item.txDate.getHours() < hourMark) {
+            bal = Math.max(0, bal + item.delta);
+          }
+        }
+        return { balance: bal };
+      });
+    } else {
+      let startDate = new Date(today);
+      let endDate = new Date(today);
+
+      if (timeFilter === 'WEEK') {
+        periodLabel = '7 ngày qua';
+        startDate.setDate(today.getDate() - 6);
+      } else if (timeFilter === 'MONTH') {
+        periodLabel = 'Tháng này';
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      } else if (timeFilter === 'CUSTOM') {
+        periodLabel = 'Kỳ đã chọn';
+        if (customStartDate) {
+          const parsedStart = new Date(customStartDate);
+          if (!isNaN(parsedStart.getTime())) {
+            startDate = new Date(parsedStart.getFullYear(), parsedStart.getMonth(), parsedStart.getDate());
+          }
+        } else {
+          startDate.setDate(today.getDate() - 13);
+        }
+        if (customEndDate) {
+          const parsedEnd = new Date(customEndDate);
+          if (!isNaN(parsedEnd.getTime())) {
+            endDate = new Date(parsedEnd.getFullYear(), parsedEnd.getMonth(), parsedEnd.getDate());
+          }
+        }
+      } else {
+        periodLabel = '30 ngày qua';
+        startDate.setDate(today.getDate() - 29);
+      }
+
+      if (startDate > endDate) startDate = new Date(endDate);
+      let dayCount = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+      if (dayCount < 2) {
+        startDate.setDate(startDate.getDate() - 1);
+        dayCount = 2;
+      }
+      if (dayCount > 45) {
+        startDate = new Date(endDate);
+        startDate.setDate(endDate.getDate() - 44);
+        dayCount = 45;
+      }
+
+      const flowsByKey = {};
+      for (const item of validTx) {
+        flowsByKey[item.dateKey] = (flowsByKey[item.dateKey] || 0) + item.delta;
+      }
+
+      const endDateKey = toDateKey(endDate);
+      let endBalance = currentTotal;
+      if (endDate.getTime() < today.getTime()) {
+        for (const item of validTx) {
+          if (item.dateKey > endDateKey && item.dateKey <= todayKey) {
+            endBalance = Math.max(0, endBalance - item.delta);
+          }
+        }
+      }
+
+      const dayList = [];
+      for (let i = 0; i < dayCount; i++) {
+        const d = new Date(startDate);
+        d.setDate(startDate.getDate() + i);
+        dayList.push({ dateKey: toDateKey(d), balance: 0 });
+      }
+
+      dayList[dayList.length - 1].balance = endBalance;
+      for (let i = dayList.length - 1; i >= 1; i--) {
+        const dayDelta = flowsByKey[dayList[i].dateKey] || 0;
+        dayList[i - 1].balance = Math.max(0, dayList[i].balance - dayDelta);
+      }
+
+      points = dayList;
+    }
+
+    const startBalance = points[0]?.balance ?? currentTotal;
+    const endBalance = points[points.length - 1]?.balance ?? currentTotal;
+    const deltaAmount = endBalance - startBalance;
+    const deltaPct =
+      startBalance > 0
+        ? Number(((deltaAmount / startBalance) * 100).toFixed(1))
+        : endBalance > 0 && deltaAmount > 0
+          ? 100
+          : 0;
+
+    const vals = points.map((p) => Number(p.balance || 0));
+    const maxVal = Math.max(...vals);
+    const minVal = Math.min(...vals);
+    const span = maxVal - minVal;
+
+    const coords = vals.map((val, idx) => {
+      const x = vals.length > 1 ? 4 + (idx / (vals.length - 1)) * 126 : 68;
+      const y = span === 0 ? 27 : 44 - ((val - minVal) / span) * 34;
+      return { x, y };
+    });
+
+    let linePath = '';
+    if (coords.length > 0) {
+      linePath = `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const p0 = coords[i];
+        const p1 = coords[i + 1];
+        const midX = (p0.x + p1.x) / 2;
+        linePath += ` C ${midX.toFixed(1)},${p0.y.toFixed(1)} ${midX.toFixed(1)},${p1.y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+      }
+    }
+    const firstCoord = coords[0] || { x: 4, y: 27 };
+    const lastCoord = coords[coords.length - 1] || { x: 130, y: 27 };
+    const areaPath = linePath
+      ? `${linePath} L ${lastCoord.x.toFixed(1)},50 L ${firstCoord.x.toFixed(1)},50 Z`
+      : '';
+
+    return {
+      periodLabel,
+      deltaAmount,
+      deltaPct,
+      linePath,
+      areaPath,
+      lastCoord
+    };
+  }, [transactions, totalBalance, timeFilter, customStartDate, customEndDate]);
+
+  const sparkStrokeColor =
+    balanceSparkData.deltaAmount < 0
+      ? '#fda4af'
+      : balanceSparkData.deltaAmount > 0
+        ? '#6ee7b7'
+        : '#7dd3fc';
+
+  const heroDeltaTone =
+    balanceSparkData.deltaAmount > 0 ? 'up' : balanceSparkData.deltaAmount < 0 ? 'down' : 'flat';
 
   return (
     <div className="dashboard-content-wrapper">
-      {/* 1. Hero Tổng số dư khả dụng + Sparkline 7 ngày + Báo cáo AI */}
+      {/* 1. Hero Tổng số dư khả dụng + Sparkline biến động số dư + Báo cáo AI */}
       <section className="fintech-hero-card">
         <div className="hero-top-row">
           <div className="hero-balance-block">
@@ -107,37 +267,59 @@ export default function DashboardTab({
             <div className="hero-balance-amount tabular-nums">
               {hideBalance ? '•••••••• ₫' : formatVND(totalBalance)}
             </div>
+            <div className="hero-delta-row">
+              <span className={`hero-delta-pill ${heroDeltaTone} tabular-nums`}>
+                {hideBalance
+                  ? `••• · ${balanceSparkData.periodLabel}`
+                  : balanceSparkData.deltaAmount > 0
+                    ? `↑ +${balanceSparkData.deltaPct}% (+${formatCompactVND(balanceSparkData.deltaAmount)}) · ${balanceSparkData.periodLabel}`
+                    : balanceSparkData.deltaAmount < 0
+                      ? `↓ ${balanceSparkData.deltaPct}% (-${formatCompactVND(Math.abs(balanceSparkData.deltaAmount))}) · ${balanceSparkData.periodLabel}`
+                      : `→ 0% (Số dư ổn định) · ${balanceSparkData.periodLabel}`}
+              </span>
+            </div>
           </div>
 
-          <div className="hero-sparkline-box" aria-hidden="true">
-            <svg viewBox="0 0 120 48" width="100%" height="100%">
-              <defs>
-                <linearGradient id="heroSparkFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(255,255,255,0.4)" />
-                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                </linearGradient>
-              </defs>
-              <polygon
-                fill="url(#heroSparkFill)"
-                points={`3,44 ${sparkPoints} ${sparkLastPoint.x.toFixed(1)},44`}
-              />
-              <polyline
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={sparkPoints}
-              />
-              <circle
-                cx={sparkLastPoint.x}
-                cy={sparkLastPoint.y}
-                r="3.5"
-                fill="#38bdf8"
-                stroke="#ffffff"
-                strokeWidth="1.5"
-              />
-            </svg>
+          <div className="hero-sparkline-wrap" aria-hidden="true">
+            <div className="hero-sparkline-box">
+              <svg viewBox="0 0 136 54" width="100%" height="100%">
+                <defs>
+                  <linearGradient id="heroSparkFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={sparkStrokeColor} stopOpacity="0.42" />
+                    <stop offset="100%" stopColor={sparkStrokeColor} stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {balanceSparkData.areaPath && (
+                  <path fill="url(#heroSparkFill)" d={balanceSparkData.areaPath} />
+                )}
+                {balanceSparkData.linePath && (
+                  <path
+                    fill="none"
+                    stroke={sparkStrokeColor}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d={balanceSparkData.linePath}
+                  />
+                )}
+                <circle
+                  cx={balanceSparkData.lastCoord.x}
+                  cy={balanceSparkData.lastCoord.y}
+                  r="6"
+                  fill={sparkStrokeColor}
+                  opacity="0.28"
+                />
+                <circle
+                  cx={balanceSparkData.lastCoord.x}
+                  cy={balanceSparkData.lastCoord.y}
+                  r="3.4"
+                  fill={sparkStrokeColor}
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                />
+              </svg>
+            </div>
+            <span className="hero-sparkline-caption">Biến động số dư</span>
           </div>
         </div>
 
