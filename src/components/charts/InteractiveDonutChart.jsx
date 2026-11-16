@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PieChart as PieChartIcon } from 'lucide-react';
 
-export default function InteractiveDonutChart({ categories = [], totalExpense = 0, formatVND, activeCatId, onHoverCat }) {
+export default function InteractiveDonutChart({ categories = [], totalExpense = 0, formatVND, activeCatId, onHoverCat, onSelectCat }) {
   const [internalHoveredCat, setInternalHoveredCat] = useState(null);
 
   const activeCategories = categories.filter((c) => c.total_amount > 0 && !c.id.startsWith('cat_transfer_'));
@@ -75,6 +75,7 @@ export default function InteractiveDonutChart({ categories = [], totalExpense = 
                 }}
                 onMouseEnter={() => handleHover(cat)}
                 onMouseLeave={() => handleHover(null)}
+                onClick={() => onSelectCat?.(cat)}
               />
             );
           })}

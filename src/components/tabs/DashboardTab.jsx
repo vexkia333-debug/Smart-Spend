@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
   Coins, Smartphone, Building2, SlidersHorizontal,
-  Eye, EyeOff, ArrowUpRight, ArrowDownLeft
+  Eye, EyeOff, ArrowUpRight, ArrowDownLeft,
+  X, Clock, ChevronRight, Pencil
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
 import DebtLoanTracker from '../debt/DebtLoanTracker.jsx';
 import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
-import { formatVND } from '../../utils/formatters.js';
+import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function DashboardTab({
   timeFilter = 'MONTH',
@@ -45,6 +46,18 @@ export default function DashboardTab({
       return false;
     }
   });
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+
+  const selectedCategory = categoryBreakdown.find((c) => c.id === selectedCategoryId) || null;
+
+  useEffect(() => {
+    if (!selectedCategory) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedCategoryId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedCategory]);
 
   const toggleHideBalance = () => {
     setHideBalance((prev) => {
@@ -290,7 +303,7 @@ export default function DashboardTab({
                 </h3>
               </div>
               <p className="dashboard-card-sub-p">
-                Loại trừ các khoản cho vay & chuyển tiền nội bộ
+                Chạm vào từng danh mục để xem danh sách các khoản chi tương ứng
               </p>
             </div>
             <span className="cat-count-badge">{categoryBreakdown.length} danh mục</span>
@@ -303,6 +316,7 @@ export default function DashboardTab({
             formatVND={formatVND}
             activeCatId={hoveredCatId}
             onHoverCat={setHoveredCatId}
+            onSelectCat={(cat) => setSelectedCategoryId(cat.id)}
           />
 
           {/* Danh sách phân bổ chi tiết với Progress Bars */}
@@ -323,6 +337,15 @@ export default function DashboardTab({
                   <div
                     key={cat.id}
                     className={`cat-breakdown-row ${isHovered ? 'highlighted' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedCategoryId(cat.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedCategoryId(cat.id);
+                      }
+                    }}
                     onMouseEnter={() => setHoveredCatId(cat.id)}
                     onMouseLeave={() => setHoveredCatId(null)}
                   >
@@ -348,6 +371,7 @@ export default function DashboardTab({
                         >
                           {percent}%
                         </span>
+                        <ChevronRight size={15} className="cat-row-chevron" />
                       </div>
                     </div>
                     <div className="progress-track">
@@ -447,6 +471,118 @@ export default function DashboardTab({
         accounts={accounts}
         onEditTransaction={onEditTransaction}
       />
+
+      {/* Popup danh sách các khoản chi theo danh mục */}
+      {selectedCategory && (
+        <div
+          className="modal-overlay category-tx-modal-backdrop"
+          onClick={() => setSelectedCategoryId(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Chi tiết danh mục ${selectedCategory.name}`}
+        >
+          <div className="glass-panel modal-container category-tx-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="category-tx-header">
+              <div className="category-tx-title-group">
+                <span
+                  className="category-tx-color-dot"
+                  style={{
+                    backgroundColor: selectedCategory.color,
+                    boxShadow: `0 0 14px ${selectedCategory.color}88`
+                  }}
+                />
+                <div className="category-tx-title-text">
+                  <h3>{selectedCategory.name}</h3>
+                  <p>
+                    {selectedCategory.tx_count} khoản chi · {timeLabel}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setSelectedCategoryId(null)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="category-tx-summary-bar">
+              <div>
+                <span className="category-tx-summary-label">Tổng chi danh mục</span>
+                <strong className="category-tx-summary-val tabular-nums">
+                  {formatVND(selectedCategory.total_amount)}
+                </strong>
+              </div>
+              <span
+                className="category-tx-summary-pct tabular-nums"
+                style={{
+                  backgroundColor: `${selectedCategory.color}22`,
+                  color: selectedCategory.color
+                }}
+              >
+                {displayedExpense > 0
+                  ? Math.round((selectedCategory.total_amount / displayedExpense) * 100)
+                  : 0}
+                % tổng chi
+              </span>
+            </div>
+
+            <div className="category-tx-list">
+              {(selectedCategory.items || []).length === 0 ? (
+                <p className="category-tx-empty">Chưa có khoản chi nào trong danh mục này.</p>
+              ) : (
+                (selectedCategory.items || []).map((tx) => (
+                  <div key={tx.id} className="category-tx-item">
+                    <div className="category-tx-item-left">
+                      <div className="category-tx-item-desc">
+                        {tx.description || selectedCategory.name}
+                      </div>
+                      <div className="category-tx-item-meta">
+                        <span className="category-tx-item-time">
+                          <Clock size={12} />
+                          <span>{formatTxTime(tx.transaction_time, tx.created_at) || 'Vừa ghi'}</span>
+                        </span>
+                        <span className="category-tx-wallet-pill">
+                          {tx.account_name || tx.bank_name || 'Ví'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="category-tx-item-right">
+                      <span className="category-tx-item-amount tabular-nums">
+                        -{formatVND(tx.amount)}
+                      </span>
+                      {onEditTransaction && (
+                        <button
+                          type="button"
+                          className="category-tx-edit-btn"
+                          onClick={() => onEditTransaction(tx)}
+                          title="Chỉnh sửa giao dịch"
+                          aria-label="Chỉnh sửa giao dịch"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="category-tx-footer">
+              <button
+                type="button"
+                className="btn btn-secondary category-tx-close-footer"
+                onClick={() => setSelectedCategoryId(null)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

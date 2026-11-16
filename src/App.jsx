@@ -939,7 +939,7 @@ export default function App() {
     categories
       .filter((c) => c.id !== 'cat_loan' && c.id !== 'cat_debt_collect' && c.id !== 'cat_debt_repay' && !c.id.startsWith('cat_transfer_'))
       .forEach((c) => {
-        map[c.id] = { ...c, total_amount: 0, tx_count: 0 };
+        map[c.id] = { ...c, total_amount: 0, tx_count: 0, items: [] };
       });
     timeFilteredTransactions.forEach((t) => {
       if (
@@ -956,15 +956,25 @@ export default function App() {
             name: t.category_name || 'Khác',
             color: t.category_color || '#94a3b8',
             total_amount: 0,
-            tx_count: 0
+            tx_count: 0,
+            items: []
           };
         }
         map[t.category_id].total_amount += t.amount || 0;
         map[t.category_id].tx_count += 1;
+        map[t.category_id].items.push(t);
       }
     });
     return Object.values(map)
       .filter((c) => c.total_amount > 0)
+      .map((c) => ({
+        ...c,
+        items: [...c.items].sort(
+          (a, b) =>
+            parseTxDate(b.transaction_time, b.created_at).getTime() -
+            parseTxDate(a.transaction_time, a.created_at).getTime()
+        )
+      }))
       .sort((a, b) => b.total_amount - a.total_amount);
   }, [categories, timeFilteredTransactions]);
 
