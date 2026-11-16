@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
   --bg-main: #0c0b20;
-  --bg-card: rgba(25, 24, 58, 0.82);
+  --bg-card: rgba(18, 17, 46, 0.74);
   --bg-card-hover: rgba(34, 33, 76, 0.94);
   --bg-card-solid: #161534;
   --bg-input: #1e1d46;
@@ -44,7 +44,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --bg-main: #eef3ff;
-  --bg-card: rgba(255, 255, 255, 0.94);
+  --bg-card: rgba(255, 255, 255, 0.84);
   --bg-card-hover: #ffffff;
   --bg-card-solid: #ffffff;
   --bg-input: #f4f7ff;

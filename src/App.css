@@ -6041,7 +6041,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* =========================================================
-   DECORATIVE WAVY VEINED COLORFUL BACKDROP (DARK & LIGHT)
+   WALLPAPER BACKDROP (DARK & LIGHT DESIGN IMAGES)
    ========================================================= */
 .fintech-wave-backdrop {
   position: fixed;
@@ -6051,51 +6051,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
+  background: url('/bg-dark.jpg') center center / cover no-repeat;
+  transition: background-image 0.25s ease;
 }
 
-.wave-svg-top {
-  position: absolute;
-  top: 0;
-  left: -4%;
-  width: 108%;
-  height: clamp(190px, 32vh, 320px);
-  opacity: 0.72;
-}
-
-.wave-svg-bottom {
-  position: absolute;
-  left: -4%;
-  bottom: 0;
-  width: 108%;
-  height: clamp(220px, 38vh, 380px);
-  opacity: 0.88;
-}
-
-:root[data-theme="light"] .wave-svg-top {
-  opacity: 0.58;
-}
-
-:root[data-theme="light"] .wave-svg-bottom {
-  opacity: 0.78;
-}
-
-@media (max-width: 768px) {
-  .wave-svg-top {
-    height: clamp(150px, 24vh, 220px);
-    opacity: 0.65;
-  }
-
-  .wave-svg-bottom {
-    bottom: 32px;
-    left: -10%;
-    width: 120%;
-    height: clamp(200px, 32vh, 280px);
-    opacity: 0.92;
-  }
-
-  :root[data-theme="light"] .wave-svg-bottom {
-    opacity: 0.84;
-  }
+:root[data-theme="light"] .fintech-wave-backdrop {
+  background: url('/bg-light.jpg') center center / cover no-repeat;
 }
 
 /* =========================================================
