@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Bell, Plus, Layers, Target } from 'lucide-react';
+import { Home, Bell, Plus, Layers, Settings } from 'lucide-react';
 
 export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0, onOpenQuickAdd }) {
   const leftTabs = [
@@ -27,9 +27,9 @@ export default function NavTabs({ activeTab, setActiveTab, pendingCount = 0, onO
     },
     {
       id: 'audit',
-      label: 'Mục tiêu & Cài đặt',
-      shortLabel: 'Mục tiêu',
-      icon: Target,
+      label: 'Hệ thống & Cài đặt',
+      shortLabel: 'Cài đặt',
+      icon: Settings,
       matchIds: ['audit', 'rules']
     }
   ];

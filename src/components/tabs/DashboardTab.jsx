@@ -32,7 +32,7 @@ export default function DashboardTab({
   currentMonthSavings = 0,
   currentMonthIncome = 0,
   currentMonthExpense = 0,
-  prevMonthSavings = 0,
+  daysRemaining = 1,
   currentMonthNumber = null,
   onUpdateBudgetGoal,
   onReconcile,
@@ -185,13 +185,13 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* 3. Mục tiêu tiết kiệm tháng (tách biệt tháng trước) */}
+      {/* 3. Kế hoạch giữ mục tiêu tiết kiệm tháng (tách biệt tháng trước) */}
       <MonthlyGoalCard
         monthlyBudgetGoal={monthlyBudgetGoal}
         currentMonthSavings={currentMonthSavings}
         currentMonthIncome={currentMonthIncome}
         currentMonthExpense={currentMonthExpense}
-        prevMonthSavings={prevMonthSavings}
+        daysRemaining={daysRemaining}
         currentMonthNumber={currentMonthNumber}
         formatVND={formatVND}
         onUpdateBudgetGoal={onUpdateBudgetGoal}

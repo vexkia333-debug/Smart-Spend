@@ -6,8 +6,7 @@ import {
   ChevronUp, Edit2, SlidersHorizontal, Bell, Key, RotateCcw, Sun, Moon, ChevronRight
 } from 'lucide-react';
 import RulesTab from './RulesTab.jsx';
-import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
-import { formatVND, formatTxTime } from '../../utils/formatters.js';
+import { formatTxTime } from '../../utils/formatters.js';
 
 export default function SystemAuditTab({
   authFetch,
@@ -30,13 +29,6 @@ export default function SystemAuditTab({
   handleCreateRule,
   onToggleRule,
   onDeleteRule,
-  monthlyBudgetGoal = 500000,
-  currentMonthSavings = 0,
-  currentMonthIncome = 0,
-  currentMonthExpense = 0,
-  prevMonthSavings = 0,
-  currentMonthNumber = null,
-  onUpdateBudgetGoal,
   theme = 'dark',
   toggleTheme,
   onOpenDailyReport,
@@ -148,66 +140,53 @@ export default function SystemAuditTab({
 
   return (
     <div className="system-audit-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Mục tiêu chi tiêu tháng + Cài đặt nhanh */}
-      <div className="dashboard-columns">
-        <MonthlyGoalCard
-          monthlyBudgetGoal={monthlyBudgetGoal}
-          currentMonthSavings={currentMonthSavings}
-          currentMonthIncome={currentMonthIncome}
-          currentMonthExpense={currentMonthExpense}
-          prevMonthSavings={prevMonthSavings}
-          currentMonthNumber={currentMonthNumber}
-          formatVND={formatVND}
-          onUpdateBudgetGoal={onUpdateBudgetGoal}
-        />
-
-        <section className="glass-panel quick-settings-card">
-          <h4 className="quick-settings-title">Cài đặt nhanh</h4>
-          <div className="quick-setting-list">
-            {quickSettingItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="quick-setting-row"
-                  onClick={() => item.onClick?.()}
-                >
-                  <div className="quick-setting-left">
-                    <span className="quick-setting-icon" style={{ background: item.bg, color: item.color }}>
-                      <Icon size={17} />
-                    </span>
-                    <div className="quick-setting-text">
-                      <strong>{item.label}</strong>
-                      <span>{item.desc}</span>
-                    </div>
+      {/* Cài đặt nhanh */}
+      <section className="glass-panel quick-settings-card">
+        <h4 className="quick-settings-title">Cài đặt nhanh</h4>
+        <div className="quick-setting-list">
+          {quickSettingItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="quick-setting-row"
+                onClick={() => item.onClick?.()}
+              >
+                <div className="quick-setting-left">
+                  <span className="quick-setting-icon" style={{ background: item.bg, color: item.color }}>
+                    <Icon size={17} />
+                  </span>
+                  <div className="quick-setting-text">
+                    <strong>{item.label}</strong>
+                    <span>{item.desc}</span>
                   </div>
-                  <ChevronRight size={17} color="var(--text-muted)" />
-                </button>
-              );
-            })}
-
-            <button type="button" className="quick-setting-row" onClick={() => toggleTheme?.()}>
-              <div className="quick-setting-left">
-                <span
-                  className="quick-setting-icon"
-                  style={{ background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24' }}
-                >
-                  {theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
-                </span>
-                <div className="quick-setting-text">
-                  <strong>Giao diện hiển thị</strong>
-                  <span>{theme === 'dark' ? 'Indigo Dark Fintech' : 'Pastel Light Fintech'}</span>
                 </div>
-              </div>
-              <span className="theme-switch-pill">
-                {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
-                <span>{theme === 'dark' ? 'Tối' : 'Sáng'}</span>
+                <ChevronRight size={17} color="var(--text-muted)" />
+              </button>
+            );
+          })}
+
+          <button type="button" className="quick-setting-row" onClick={() => toggleTheme?.()}>
+            <div className="quick-setting-left">
+              <span
+                className="quick-setting-icon"
+                style={{ background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24' }}
+              >
+                {theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
               </span>
-            </button>
-          </div>
-        </section>
-      </div>
+              <div className="quick-setting-text">
+                <strong>Giao diện hiển thị</strong>
+                <span>{theme === 'dark' ? 'Indigo Dark Fintech' : 'Pastel Light Fintech'}</span>
+              </div>
+            </div>
+            <span className="theme-switch-pill">
+              {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
+              <span>{theme === 'dark' ? 'Tối' : 'Sáng'}</span>
+            </span>
+          </button>
+        </div>
+      </section>
 
       {/* Thanh chuyển chế độ: Nhật ký xử lý hệ thống vs Danh mục & Quy tắc */}
       <div

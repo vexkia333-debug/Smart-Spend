@@ -1012,41 +1012,38 @@ export default function App() {
     return days;
   }, [transactions]);
 
-  // Tính thu nhập, chi tiêu và tiết kiệm thuần RIÊNG BIỆT cho tháng hiện tại (tách khỏi số dư/giao dịch tháng trước)
+  // Tính thu nhập, chi tiêu và thặng dư thuần RIÊNG BIỆT cho tháng hiện tại (tách khỏi số dư/giao dịch tháng trước)
   const currentMonthStats = useMemo(() => {
     const now = new Date();
     const curMonth = now.getMonth();
     const curYear = now.getFullYear();
-    const prevMonth = curMonth === 0 ? 11 : curMonth - 1;
-    const prevYear = curMonth === 0 ? curYear - 1 : curYear;
 
-    const sumMonthFlows = (targetMonth, targetYear) => {
-      let income = 0;
-      let expense = 0;
-      for (const t of transactions) {
-        if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
-        const txDate = parseTxDate(t.transaction_time, t.created_at);
-        if (!txDate || isNaN(txDate.getTime())) continue;
-        if (txDate.getMonth() !== targetMonth || txDate.getFullYear() !== targetYear) continue;
+    let income = 0;
+    let expense = 0;
+    for (const t of transactions) {
+      if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
+      const txDate = parseTxDate(t.transaction_time, t.created_at);
+      if (!txDate || isNaN(txDate.getTime())) continue;
+      if (txDate.getMonth() !== curMonth || txDate.getFullYear() !== curYear) continue;
 
-        if (t.type === 'INCOME' && t.category_id !== 'cat_debt_collect') {
-          income += Number(t.amount || 0);
-        } else if (
-          t.type === 'EXPENSE' &&
-          t.category_id !== 'cat_loan' &&
-          t.category_id !== 'cat_debt_repay'
-        ) {
-          expense += Number(t.amount || 0);
-        }
+      if (t.type === 'INCOME' && t.category_id !== 'cat_debt_collect') {
+        income += Number(t.amount || 0);
+      } else if (
+        t.type === 'EXPENSE' &&
+        t.category_id !== 'cat_loan' &&
+        t.category_id !== 'cat_debt_repay'
+      ) {
+        expense += Number(t.amount || 0);
       }
-      return { income, expense, savings: income - expense };
-    };
+    }
 
-    const current = sumMonthFlows(curMonth, curYear);
-    const previous = sumMonthFlows(prevMonth, prevYear);
+    const totalDays = new Date(curYear, curMonth + 1, 0).getDate();
+    const daysRemaining = Math.max(1, totalDays - now.getDate() + 1);
     return {
-      ...current,
-      prevSavings: previous.savings,
+      income,
+      expense,
+      savings: income - expense,
+      daysRemaining,
       monthNumber: curMonth + 1
     };
   }, [transactions]);
@@ -1212,7 +1209,7 @@ export default function App() {
           currentMonthSavings={currentMonthStats.savings}
           currentMonthIncome={currentMonthStats.income}
           currentMonthExpense={currentMonthStats.expense}
-          prevMonthSavings={currentMonthStats.prevSavings}
+          daysRemaining={currentMonthStats.daysRemaining}
           currentMonthNumber={currentMonthStats.monthNumber}
           onUpdateBudgetGoal={handleUpdateBudgetGoal}
           accounts={accounts}
@@ -1286,13 +1283,6 @@ export default function App() {
           handleCreateRule={handleCreateRule}
           onToggleRule={handleToggleRule}
           onDeleteRule={handleDeleteRule}
-          monthlyBudgetGoal={monthlyBudgetGoal}
-          currentMonthSavings={currentMonthStats.savings}
-          currentMonthIncome={currentMonthStats.income}
-          currentMonthExpense={currentMonthStats.expense}
-          prevMonthSavings={currentMonthStats.prevSavings}
-          currentMonthNumber={currentMonthStats.monthNumber}
-          onUpdateBudgetGoal={handleUpdateBudgetGoal}
           theme={theme}
           toggleTheme={toggleTheme}
           onOpenDailyReport={() => setShowDailyReportModal(true)}

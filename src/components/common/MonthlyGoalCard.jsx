@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Trophy, Pencil, Check, X, ThumbsUp, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Trophy, Pencil, Check, X, ThumbsUp, AlertTriangle } from 'lucide-react';
 
 const GOAL_PRESETS = [
   { label: '300k', value: 300000 },
@@ -14,7 +14,7 @@ export default function MonthlyGoalCard({
   currentMonthSavings = 0,
   currentMonthIncome = 0,
   currentMonthExpense = 0,
-  prevMonthSavings = 0,
+  daysRemaining = 1,
   currentMonthNumber = null,
   formatVND,
   onUpdateBudgetGoal
@@ -25,29 +25,35 @@ export default function MonthlyGoalCard({
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
-  const rawPercent = Math.max(0, Math.round((currentMonthSavings / safeGoal) * 100));
-  const ringPercent = Math.min(100, Math.max(0, rawPercent));
-  const isGoalReached = currentMonthSavings >= safeGoal;
-  const isPositiveSavings = currentMonthSavings > 0;
-  const remainingToSave = Math.max(0, safeGoal - Math.max(0, currentMonthSavings));
-  const surplusSaved = Math.max(0, currentMonthSavings - safeGoal);
-  const deltaVsPrevMonth = currentMonthSavings - prevMonthSavings;
+  const hasActivity = currentMonthIncome > 0 || currentMonthExpense > 0;
+  const lockedSavings = hasActivity ? Math.max(0, Math.min(currentMonthSavings, safeGoal)) : 0;
+  const ringPercent = Math.min(100, Math.max(0, Math.round((lockedSavings / safeGoal) * 100)));
+  const safeToSpend = currentMonthSavings - safeGoal;
+  const isProtected = hasActivity && safeToSpend >= 0;
+  const isDipping = hasActivity && safeToSpend < 0 && lockedSavings > 0;
+  const shortfall = Math.max(0, -safeToSpend);
+  const safeDays = Math.max(1, Number(daysRemaining) || 1);
+  const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / safeDays) : 0;
 
   const radius = 44;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - ringPercent / 100);
 
-  let ringColor = '#38bdf8';
-  let statusText = `Đã tích lũy được ${rawPercent}% mục tiêu tháng này (còn thiếu ${formatVND(remainingToSave)}).`;
-  let statusTone = 'good';
-  if (isGoalReached) {
+  let ringColor = '#fb7185';
+  let ringSubLabel = 'Chưa đạt';
+  let statusTone = 'over';
+  let statusText = `Tháng này chưa tạo được thặng dư cho quỹ ${formatVND(safeGoal)} (cần thêm ${formatVND(shortfall)}).`;
+
+  if (isProtected) {
     ringColor = '#10b981';
-    statusText = 'Xuất sắc! Bạn đã hoàn thành mục tiêu tiết kiệm tháng này (tính độc lập với tháng trước).';
+    ringSubLabel = 'An toàn';
     statusTone = 'good';
-  } else if (!isPositiveSavings) {
+    statusText = `Quỹ ${formatVND(safeGoal)} đang nguyên vẹn 100%! Trong ${safeDays} ngày cuối tháng, bạn chỉ cần tiêu trung bình không quá ${formatVND(dailyAllowance)}/ngày là cầm chắc ${formatVND(safeGoal)} để dành.`;
+  } else if (isDipping) {
     ringColor = '#f59e0b';
-    statusText = `Tháng này chi đang vượt thu ${formatVND(Math.abs(currentMonthSavings))} — cần tăng thu hoặc giảm chi để đạt mốc ${formatVND(safeGoal)}.`;
+    ringSubLabel = 'Còn giữ';
     statusTone = 'warn';
+    statusText = `Chú ý: Chi tiêu đã lẹm mất ${formatVND(shortfall)} của mục tiêu ${formatVND(safeGoal)} (hiện chỉ còn giữ được ${formatVND(lockedSavings)}). Hãy hạn chế chi thêm!`;
   }
 
   const openEditor = () => {
@@ -60,7 +66,7 @@ export default function MonthlyGoalCard({
     e.preventDefault();
     const numeric = Number(String(draftGoal).replace(/[^\d]/g, ''));
     if (!Number.isFinite(numeric) || numeric <= 0) {
-      setFeedback('Vui lòng nhập số tiền mục tiêu tiết kiệm hợp lệ.');
+      setFeedback('Vui lòng nhập mức để dành hợp lệ.');
       return;
     }
     setIsSaving(true);
@@ -82,18 +88,18 @@ export default function MonthlyGoalCard({
       <div className="budget-goal-top">
         <div className="budget-goal-heading">
           <span className="budget-goal-icon">
-            <Target size={18} />
+            <ShieldCheck size={18} />
           </span>
           <div>
-            <h4>Mục tiêu tiết kiệm tháng {currentMonthNumber || ''}</h4>
-            <p>Tính riêng (Thu − Chi) trong tháng này, tách biệt tháng trước</p>
+            <h4>Kế hoạch để dành tháng {currentMonthNumber || ''}</h4>
+            <p>Cất riêng {formatVND(safeGoal)} đầu tiên — chỉ tiêu trong phần dư còn lại</p>
           </div>
         </div>
 
         {!isEditing && (
           <button type="button" className="budget-goal-edit-btn" onClick={openEditor}>
             <Pencil size={14} />
-            <span>Đặt mục tiêu</span>
+            <span>Đặt mức</span>
           </button>
         )}
       </div>
@@ -103,8 +109,8 @@ export default function MonthlyGoalCard({
           <svg viewBox="0 0 112 112" className="budget-ring-svg">
             <defs>
               <linearGradient id="budgetRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={isGoalReached ? '#34d399' : !isPositiveSavings ? '#fbbf24' : '#38bdf8'} />
-                <stop offset="100%" stopColor={isGoalReached ? '#10b981' : !isPositiveSavings ? '#f59e0b' : '#818cf8'} />
+                <stop offset="0%" stopColor={isProtected ? '#34d399' : isDipping ? '#fbbf24' : '#fb7185'} />
+                <stop offset="100%" stopColor={isProtected ? '#10b981' : isDipping ? '#f59e0b' : '#e11d48'} />
               </linearGradient>
             </defs>
             <circle cx="56" cy="56" r={radius} className="budget-ring-track" />
@@ -120,45 +126,43 @@ export default function MonthlyGoalCard({
           </svg>
           <div className="budget-ring-center">
             <Trophy size={16} color={ringColor} />
-            <strong className="tabular-nums">{rawPercent}%</strong>
-            <span>Đạt được</span>
+            <strong className="tabular-nums">{ringPercent}%</strong>
+            <span>{ringSubLabel}</span>
           </div>
         </div>
 
         <div className="budget-goal-metrics">
           <div className="budget-metric-row">
-            <span className="budget-metric-label">Mục tiêu tiết kiệm</span>
-            <strong className="budget-metric-value tabular-nums">{formatVND(safeGoal)}</strong>
-          </div>
-          <div className="budget-metric-row">
-            <span className="budget-metric-label">Tiết kiệm tháng này</span>
-            <strong className={`budget-metric-value tabular-nums ${currentMonthSavings >= 0 ? 'remain' : 'over'}`}>
-              {currentMonthSavings < 0 ? '-' : '+'}{formatVND(Math.abs(currentMonthSavings))}
+            <span className="budget-metric-label">Quỹ để dành hiện giữ được</span>
+            <strong
+              className={`budget-metric-value tabular-nums ${
+                isProtected ? 'remain' : isDipping ? 'spent' : 'over'
+              }`}
+            >
+              {formatVND(lockedSavings)} / {formatVND(safeGoal)}
             </strong>
           </div>
+
           <div className="budget-metric-row">
-            <span className="budget-metric-label">Thu / Chi tháng này</span>
-            <strong className="budget-metric-value spent tabular-nums">
-              +{formatVND(currentMonthIncome)} / -{formatVND(currentMonthExpense)}
+            <span className="budget-metric-label">
+              {safeToSpend >= 0 ? 'Còn được phép tiêu tháng này' : 'Đã lẹm vào quỹ tiết kiệm'}
+            </span>
+            <strong className={`budget-metric-value tabular-nums ${safeToSpend >= 0 ? 'spent' : 'over'}`}>
+              {formatVND(safeToSpend >= 0 ? safeToSpend : shortfall)}
             </strong>
           </div>
+
           <div className="budget-metric-row">
-            <span className="budget-metric-label">{isGoalReached ? 'Vượt mục tiêu' : 'Cần tích lũy thêm'}</span>
-            <strong className={`budget-metric-value tabular-nums ${isGoalReached ? 'remain' : ''}`}>
-              {formatVND(isGoalReached ? surplusSaved : remainingToSave)}
-            </strong>
-          </div>
-          <div className="budget-metric-row">
-            <span className="budget-metric-label">So với tháng trước</span>
-            <strong className={`budget-metric-value tabular-nums ${deltaVsPrevMonth >= 0 ? 'remain' : 'over'}`}>
-              {deltaVsPrevMonth >= 0 ? '+' : '-'}{formatVND(Math.abs(deltaVsPrevMonth))}
+            <span className="budget-metric-label">Định mức tiêu tối đa ({safeDays} ngày còn lại)</span>
+            <strong className={`budget-metric-value tabular-nums ${safeToSpend > 0 ? 'remain' : 'over'}`}>
+              {safeToSpend > 0 ? `${formatVND(dailyAllowance)} / ngày` : '0 ₫ / ngày (Cần ngưng chi)'}
             </strong>
           </div>
         </div>
       </div>
 
       <div className={`budget-goal-status-banner ${statusTone}`}>
-        {!isPositiveSavings ? <AlertTriangle size={16} /> : <ThumbsUp size={16} />}
+        {isProtected ? <ThumbsUp size={16} /> : <AlertTriangle size={16} />}
         <span>{statusText}</span>
       </div>
 
@@ -185,7 +189,7 @@ export default function MonthlyGoalCard({
               className="budget-edit-input tabular-nums"
               value={draftGoal}
               onChange={(e) => setDraftGoal(e.target.value)}
-              placeholder="Nhập mục tiêu tiết kiệm tháng (VNĐ)"
+              placeholder="Nhập mức để dành tháng (VNĐ)"
               disabled={isSaving}
             />
             <button type="submit" className="budget-save-btn" disabled={isSaving}>
@@ -197,7 +201,7 @@ export default function MonthlyGoalCard({
               className="budget-cancel-btn"
               onClick={() => setIsEditing(false)}
               disabled={isSaving}
-              aria-label="Hủy chỉnh sửa mục tiêu"
+              aria-label="Hủy chỉnh sửa mức để dành"
             >
               <X size={15} />
             </button>
