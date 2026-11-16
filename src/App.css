@@ -1,4 +1,6 @@
 .app-container {
+  position: relative;
+  z-index: 1;
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px 20px 80px 20px;
@@ -6023,6 +6025,65 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     flex: 1 1 100%;
   }
 }
+
+/* =========================================================
+   DECORATIVE WAVY VEINED COLORFUL BACKDROP (DARK & LIGHT)
+   ========================================================= */
+.fintech-wave-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.wave-svg-top {
+  position: absolute;
+  top: 0;
+  left: -4%;
+  width: 108%;
+  height: clamp(190px, 32vh, 320px);
+  opacity: 0.72;
+}
+
+.wave-svg-bottom {
+  position: absolute;
+  left: -4%;
+  bottom: 0;
+  width: 108%;
+  height: clamp(220px, 38vh, 380px);
+  opacity: 0.88;
+}
+
+:root[data-theme="light"] .wave-svg-top {
+  opacity: 0.58;
+}
+
+:root[data-theme="light"] .wave-svg-bottom {
+  opacity: 0.78;
+}
+
+@media (max-width: 768px) {
+  .wave-svg-top {
+    height: clamp(150px, 24vh, 220px);
+    opacity: 0.65;
+  }
+
+  .wave-svg-bottom {
+    bottom: 32px;
+    left: -10%;
+    width: 120%;
+    height: clamp(200px, 32vh, 280px);
+    opacity: 0.92;
+  }
+
+  :root[data-theme="light"] .wave-svg-bottom {
+    opacity: 0.84;
+  }
+}
+
 
 
 

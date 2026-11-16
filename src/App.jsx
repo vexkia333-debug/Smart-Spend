@@ -75,9 +75,9 @@ export default function App() {
   const [rules, setRules] = useState([]);
   const [livePrompt, setLivePrompt] = useState(null);
 
-  // Theme & Time Filter States
+  // Theme & Time Filter States (Mặc định mở app ở bộ lọc Theo tháng)
   const [theme, setTheme] = useState(() => localStorage.getItem('smartspend_theme') || 'dark');
-  const [timeFilter, setTimeFilter] = useState('ALL'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY' | 'CUSTOM'
+  const [timeFilter, setTimeFilter] = useState('MONTH'); // 'ALL' | 'MONTH' | 'WEEK' | 'DAY' | 'CUSTOM'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showCustomDatePopover, setShowCustomDatePopover] = useState(false);
@@ -99,7 +99,7 @@ export default function App() {
   // Settings & Reconcile Modals
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
-  const [monthlyBudgetGoal, setMonthlyBudgetGoal] = useState(5000000);
+  const [monthlyBudgetGoal, setMonthlyBudgetGoal] = useState(500000);
   const [showReconcileModal, setShowReconcileModal] = useState(false);
   const [reconcileAccount, setReconcileAccount] = useState(null);
   const [reconcileAmount, setReconcileAmount] = useState('');
@@ -1002,26 +1002,43 @@ export default function App() {
     return days;
   }, [transactions]);
 
-  const currentMonthExpense = useMemo(() => {
+  // Tính thu nhập, chi tiêu và tiết kiệm thuần RIÊNG BIỆT cho tháng hiện tại (tách khỏi số dư/giao dịch tháng trước)
+  const currentMonthStats = useMemo(() => {
     const now = new Date();
     const curMonth = now.getMonth();
     const curYear = now.getFullYear();
-    return transactions
-      .filter((t) => {
-        if (
-          t.type !== 'EXPENSE' ||
-          t.status === 'IGNORED' ||
-          t.category_id?.startsWith('cat_transfer_') ||
-          t.category_id === 'cat_loan' ||
-          t.category_id === 'cat_debt_repay'
-        ) {
-          return false;
-        }
+    const prevMonth = curMonth === 0 ? 11 : curMonth - 1;
+    const prevYear = curMonth === 0 ? curYear - 1 : curYear;
+
+    const sumMonthFlows = (targetMonth, targetYear) => {
+      let income = 0;
+      let expense = 0;
+      for (const t of transactions) {
+        if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
         const txDate = parseTxDate(t.transaction_time, t.created_at);
-        if (!txDate || isNaN(txDate.getTime())) return false;
-        return txDate.getMonth() === curMonth && txDate.getFullYear() === curYear;
-      })
-      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        if (!txDate || isNaN(txDate.getTime())) continue;
+        if (txDate.getMonth() !== targetMonth || txDate.getFullYear() !== targetYear) continue;
+
+        if (t.type === 'INCOME' && t.category_id !== 'cat_debt_collect') {
+          income += Number(t.amount || 0);
+        } else if (
+          t.type === 'EXPENSE' &&
+          t.category_id !== 'cat_loan' &&
+          t.category_id !== 'cat_debt_repay'
+        ) {
+          expense += Number(t.amount || 0);
+        }
+      }
+      return { income, expense, savings: income - expense };
+    };
+
+    const current = sumMonthFlows(curMonth, curYear);
+    const previous = sumMonthFlows(prevMonth, prevYear);
+    return {
+      ...current,
+      prevSavings: previous.savings,
+      monthNumber: curMonth + 1
+    };
   }, [transactions]);
 
   const maxDayAmount = Math.max(...last7DaysData.map((d) => d.amount), 1);
@@ -1099,7 +1116,113 @@ export default function App() {
   }
 
   return (
-    <div className="app-container">
+    <>
+      {/* Nền gân uốn lượn sắc màu theo phong cách Fintech */}
+      <div className="fintech-wave-backdrop" aria-hidden="true">
+        <svg className="wave-svg-top" viewBox="0 0 1440 360" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="waveTopGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
+              <stop offset="50%" stopColor="#6366f1" stopOpacity="0.16" />
+              <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="waveTopVein" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+              <stop offset="45%" stopColor="#818cf8" stopOpacity="0.38" />
+              <stop offset="100%" stopColor="#c084fc" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,0 L1440,0 L1440,145 C1180,215 980,70 670,135 C390,195 210,85 0,155 Z"
+            fill="url(#waveTopGrad1)"
+          />
+          <path
+            d="M-60,120 C240,60 440,210 760,125 C1060,45 1230,175 1500,95"
+            fill="none"
+            stroke="url(#waveTopVein)"
+            strokeWidth="1.6"
+          />
+        </svg>
+
+        <svg className="wave-svg-bottom" viewBox="0 0 1440 420" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.24" />
+              <stop offset="45%" stopColor="#3b82f6" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.26" />
+            </linearGradient>
+            <linearGradient id="waveGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.24" />
+              <stop offset="50%" stopColor="#6366f1" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#ec4899" stopOpacity="0.2" />
+            </linearGradient>
+            <linearGradient id="waveGrad3" x1="10%" y1="0%" x2="90%" y2="100%">
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.2" />
+              <stop offset="55%" stopColor="#818cf8" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#a855f7" stopOpacity="0.3" />
+            </linearGradient>
+            <linearGradient id="veinStroke1" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.1" />
+              <stop offset="40%" stopColor="#60a5fa" stopOpacity="0.58" />
+              <stop offset="75%" stopColor="#a78bfa" stopOpacity="0.52" />
+              <stop offset="100%" stopColor="#f472b6" stopOpacity="0.18" />
+            </linearGradient>
+            <linearGradient id="veinStroke2" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.45" />
+              <stop offset="55%" stopColor="#818cf8" stopOpacity="0.48" />
+              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.16" />
+            </linearGradient>
+          </defs>
+
+          <path
+            d="M0,255 C230,175 430,315 720,235 C1010,155 1210,275 1440,185 L1440,420 L0,420 Z"
+            fill="url(#waveGrad1)"
+          />
+          <path
+            d="M0,305 C290,230 510,360 820,270 C1090,190 1280,295 1440,245 L1440,420 L0,420 Z"
+            fill="url(#waveGrad2)"
+          />
+          <path
+            d="M0,350 C250,395 520,285 830,330 C1100,370 1280,295 1440,320 L1440,420 L0,420 Z"
+            fill="url(#waveGrad3)"
+          />
+
+          <path
+            d="M-40,260 C230,175 430,315 720,235 C1010,155 1210,275 1480,180"
+            fill="none"
+            stroke="url(#veinStroke1)"
+            strokeWidth="2"
+          />
+          <path
+            d="M-40,285 C255,205 465,335 760,252 C1045,172 1240,285 1480,210"
+            fill="none"
+            stroke="url(#veinStroke2)"
+            strokeWidth="1.35"
+            opacity="0.82"
+          />
+          <path
+            d="M-40,308 C290,230 510,360 820,270 C1090,190 1280,295 1480,245"
+            fill="none"
+            stroke="url(#veinStroke1)"
+            strokeWidth="1.75"
+          />
+          <path
+            d="M-40,348 C250,395 520,285 830,330 C1100,370 1280,295 1480,320"
+            fill="none"
+            stroke="url(#veinStroke2)"
+            strokeWidth="1.4"
+          />
+          <path
+            d="M-40,378 C310,325 580,410 910,355 C1150,315 1310,375 1480,350"
+            fill="none"
+            stroke="url(#veinStroke1)"
+            strokeWidth="1.1"
+            opacity="0.65"
+          />
+        </svg>
+      </div>
+
+      <div className="app-container">
       {/* Header & Quick AI Input */}
       <Header
         theme={theme}
@@ -1178,7 +1301,11 @@ export default function App() {
           setHoveredCatId={setHoveredCatId}
           last7DaysData={last7DaysData}
           monthlyBudgetGoal={monthlyBudgetGoal}
-          currentMonthExpense={currentMonthExpense}
+          currentMonthSavings={currentMonthStats.savings}
+          currentMonthIncome={currentMonthStats.income}
+          currentMonthExpense={currentMonthStats.expense}
+          prevMonthSavings={currentMonthStats.prevSavings}
+          currentMonthNumber={currentMonthStats.monthNumber}
           onUpdateBudgetGoal={handleUpdateBudgetGoal}
           accounts={accounts}
           totalBalance={stats.totalBalance}
@@ -1252,7 +1379,11 @@ export default function App() {
           onToggleRule={handleToggleRule}
           onDeleteRule={handleDeleteRule}
           monthlyBudgetGoal={monthlyBudgetGoal}
-          currentMonthExpense={currentMonthExpense}
+          currentMonthSavings={currentMonthStats.savings}
+          currentMonthIncome={currentMonthStats.income}
+          currentMonthExpense={currentMonthStats.expense}
+          prevMonthSavings={currentMonthStats.prevSavings}
+          currentMonthNumber={currentMonthStats.monthNumber}
           onUpdateBudgetGoal={handleUpdateBudgetGoal}
           theme={theme}
           toggleTheme={toggleTheme}
@@ -1368,6 +1499,7 @@ export default function App() {
         handleAnalyzeAi={handleAnalyzeAi}
         aiMessage={aiMessage}
       />
-    </div>
+      </div>
+    </>
   );
 }

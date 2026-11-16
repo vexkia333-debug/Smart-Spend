@@ -11,8 +11,8 @@ import MonthlyGoalCard from '../common/MonthlyGoalCard.jsx';
 import { formatVND } from '../../utils/formatters.js';
 
 export default function DashboardTab({
-  timeFilter = 'ALL',
-  timeLabel = 'Toàn bộ thời gian',
+  timeFilter = 'MONTH',
+  timeLabel = 'Tháng này',
   customStartDate = null,
   customEndDate = null,
   spendRatio = 0,
@@ -27,8 +27,12 @@ export default function DashboardTab({
   accounts = [],
   totalBalance = 0,
   last7DaysData = [],
-  monthlyBudgetGoal = 5000000,
+  monthlyBudgetGoal = 500000,
+  currentMonthSavings = 0,
+  currentMonthIncome = 0,
   currentMonthExpense = 0,
+  prevMonthSavings = 0,
+  currentMonthNumber = null,
   onUpdateBudgetGoal,
   onReconcile,
   onOpenDailyReport,
@@ -168,10 +172,14 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* 3. Mục tiêu chi tiêu tháng */}
+      {/* 3. Mục tiêu tiết kiệm tháng (tách biệt tháng trước) */}
       <MonthlyGoalCard
         monthlyBudgetGoal={monthlyBudgetGoal}
+        currentMonthSavings={currentMonthSavings}
+        currentMonthIncome={currentMonthIncome}
         currentMonthExpense={currentMonthExpense}
+        prevMonthSavings={prevMonthSavings}
+        currentMonthNumber={currentMonthNumber}
         formatVND={formatVND}
         onUpdateBudgetGoal={onUpdateBudgetGoal}
       />

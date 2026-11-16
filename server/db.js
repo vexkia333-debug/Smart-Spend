@@ -234,12 +234,13 @@ async function seedInitialData() {
     }
   ]);
 
-  // Đảm bảo có sẵn cài đặt báo cáo 10h mặc định & mục tiêu chi tiêu tháng
+  // Đảm bảo có sẵn cài đặt báo cáo 10h mặc định & mục tiêu tiết kiệm tháng (500k)
   await client.batch([
     { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_time', '22:00')`, args: [] },
     { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('daily_report_enabled', 'true')`, args: [] },
     { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('ntfy_topic', 'smartspend_kienvu')`, args: [] },
-    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('monthly_budget_goal', '5000000')`, args: [] }
+    { sql: `INSERT OR IGNORE INTO settings (key, value) VALUES ('monthly_budget_goal', '500000')`, args: [] },
+    { sql: `UPDATE settings SET value = '500000' WHERE key = 'monthly_budget_goal' AND value = '5000000'`, args: [] }
   ]);
 
   const catCountRow = await db.get('SELECT COUNT(*) as count FROM categories');

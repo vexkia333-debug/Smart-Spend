@@ -30,8 +30,12 @@ export default function SystemAuditTab({
   handleCreateRule,
   onToggleRule,
   onDeleteRule,
-  monthlyBudgetGoal = 5000000,
+  monthlyBudgetGoal = 500000,
+  currentMonthSavings = 0,
+  currentMonthIncome = 0,
   currentMonthExpense = 0,
+  prevMonthSavings = 0,
+  currentMonthNumber = null,
   onUpdateBudgetGoal,
   theme = 'dark',
   toggleTheme,
@@ -148,7 +152,11 @@ export default function SystemAuditTab({
       <div className="dashboard-columns">
         <MonthlyGoalCard
           monthlyBudgetGoal={monthlyBudgetGoal}
+          currentMonthSavings={currentMonthSavings}
+          currentMonthIncome={currentMonthIncome}
           currentMonthExpense={currentMonthExpense}
+          prevMonthSavings={prevMonthSavings}
+          currentMonthNumber={currentMonthNumber}
           formatVND={formatVND}
           onUpdateBudgetGoal={onUpdateBudgetGoal}
         />
