@@ -4,9 +4,9 @@
  */
 
 const GEMINI_MODELS = [
+  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.5-flash'
+  'gemini-3.7-flash'
 ];
 
 export async function parseTransactionWithGemini(userText, categories = [], apiKey, options = {}) {
@@ -41,7 +41,7 @@ Quy tắc:
 2. Nếu có >=2 khoản chi/thu nối bằng "+", ",", "và" hoặc vừa chi cá nhân vừa trả hộ: đặt isSplit=true, amount=tổng, splits=[{amount, categoryId, description, type}].
 3. Nếu thuộc lĩnh vực hoàn toàn mới chưa có trong danh mục: isNewCategory=true, categoryId=null, newCategory={name, icon, color}.
 4. description lịch sự, viết hoa chữ đầu, bỏ số tiền.
-5. Nếu câu thể hiện người khác trả tiền, thanh toán nợ, nhận lại tiền (VD: "Lộc trả nợ", "Đăng chuyển tiền trả", "nhận trả nợ"): bắt buộc type="INCOME" và categoryId="cat_debt_collect". Nếu là cho vay/cho mượn/trả hộ bạn bè: bắt buộc type="EXPENSE" và categoryId="cat_loan".
+5. Nếu câu thể hiện người khác trả tiền, thanh toán nợ, nhận lại tiền (VD: "Lộc trả nợ", "Đăng chuyển tiền trả", "nhận trả nợ"): bắt buộc type="INCOME" và categoryId="cat_debt_collect". Nếu là cho vay/cho mượn/trả hộ bạn bè: bắt buộc type="EXPENSE" và categoryId="cat_loan". Nếu là trả nợ người khác (type="EXPENSE", VD: "Trả nợ Huyền"): bắt buộc categoryId="cat_debt_repay".
 Trả về 1 JSON object:
 {"amount":number,"type":"EXPENSE"|"INCOME","categoryId":string|null,"customDate":"YYYY-MM-DD"|null,"customTime":"HH:mm"|null,"isSplit":boolean,"splits":[{"amount":number,"categoryId":string,"description":string,"type":"EXPENSE"|"INCOME"}]|null,"isNewCategory":boolean,"newCategory":{"name":string,"icon":string,"color":string}|null,"description":string,"wallet":"CASH"|"BANK"|"TRANSFER_TO_CASH"|"INTERNAL_TRANSFER","sourceBank":string|null,"targetBank":string|null,"reasoning":string}`;
 
@@ -164,9 +164,15 @@ function formatParsedResult(data, userText, categories = [], options = {}) {
       parsed.amount = localFallback.amount;
     }
 
-    const isCashExplicit = options.forceCash || 
-      /tiền\s*mặt|tiền\s*túi|trong\s*ví|trả\s*mặt/i.test(userText) || 
-      parsed.wallet === 'CASH';
+    const isCashExchange =
+      categoryId === 'cat_transfer_cash' ||
+      /(?:rút|đổi|chuyển)\s*(?:sang\s*)?tiền\s*mặt|nạp\s*ví\s*tiền\s*mặt/i.test(userText);
+
+    const isCashExplicit = !isCashExchange && (
+      options.forceCash ||
+      /tiền\s*mặt|tiền\s*túi|trong\s*ví|trả\s*mặt/i.test(userText) ||
+      parsed.wallet === 'CASH'
+    );
 
     let type = options.expectedType || (parsed.type === 'INCOME' ? 'INCOME' : 'EXPENSE');
     let categoryId = parsed.categoryId || parsed.category_id || null;
@@ -265,11 +271,15 @@ function parseVietnameseAmount(clauseText) {
   return null;
 }
 
+function matchVnWords(text, pattern) {
+  return new RegExp(`(?<![\\p{L}\\p{M}\\p{N}_])(?:${pattern})(?![\\p{L}\\p{M}\\p{N}_])`, 'iu').test(text);
+}
+
 /**
  * Hàm suy luận danh mục chuẩn xác từ văn bản tiếng Việt + kiểm tra độ tin cậy (confidence)
  */
 function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], rules = []) {
-  const lower = (text || '').toLowerCase();
+  const lower = (text || '').normalize('NFC').toLowerCase();
 
   // 1. Ưu tiên kiểm tra quy tắc tự động (auto_rules) của người dùng trước
   if (Array.isArray(rules) && rules.length > 0) {
@@ -284,7 +294,7 @@ function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], ru
   if (Array.isArray(categories) && categories.length > 0) {
     for (const cat of categories) {
       if (cat.type === type && cat.name && cat.name.length >= 3) {
-        const catLower = cat.name.toLowerCase();
+        const catLower = cat.name.normalize('NFC').toLowerCase();
         if (lower.includes(catLower)) {
           return { categoryId: cat.id, matched: true };
         }
@@ -292,61 +302,65 @@ function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], ru
     }
   }
 
-  // 3. Bộ từ điển ngữ nghĩa Tiếng Việt mở rộng
+  // 3. Bộ từ điển ngữ nghĩa Tiếng Việt mở rộng (so khớp theo ranh giới từ Unicode để tránh bắt nhầm nguyên âm/chữ ghép)
   if (type === 'INCOME') {
-    if (/trả\s*nợ|thu\s*nợ|trả\s*tiền|hoàn\s*tiền|tiền\s*ăn|bạn\s*trả|chuyển\s*trả/i.test(lower)) {
+    if (matchVnWords(lower, 'trả\\s*nợ|thu\\s*nợ|trả\\s*tiền|hoàn\\s*tiền|hoàn\\s*nợ|tiền\\s*ăn|bạn\\s*trả|chuyển\\s*trả')) {
       return { categoryId: 'cat_debt_collect', matched: true };
     }
-    if (/lương|tháng\s*lương|ứng\s*lương/i.test(lower)) {
+    if (matchVnWords(lower, 'lương|tháng\\s*lương|ứng\\s*lương|tạm\\s*ứng\\s*lương')) {
       return { categoryId: 'cat_salary', matched: true };
     }
-    if (/thưởng|freelance|ngoài\s*giờ|làm\s*thêm|hoa\s*hồng|dự\s*án/i.test(lower)) {
+    if (matchVnWords(lower, 'thưởng|freelance|ngoài\\s*giờ|làm\\s*thêm|hoa\\s*hồng|dự\\s*án')) {
       return { categoryId: 'cat_freelance', matched: true };
     }
-    if (/lãi|đầu\s*tư|cổ\s*phiếu|chứng\s*khoán|cổ\s*tức|tiết\s*kiệm/i.test(lower)) {
+    if (matchVnWords(lower, 'lãi|đầu\\s*tư|cổ\\s*phiếu|chứng\\s*khoán|cổ\\s*tức|tiết\\s*kiệm')) {
       return { categoryId: 'cat_investment', matched: true };
     }
     return { categoryId: 'cat_debt_collect', matched: false };
   }
 
-  if (/đền|phạt|bồi\s*thường|mất\s*vé|làm\s*mất|rơi\s*tiền|ủng\s*hộ|từ\s*thiện|mừng\s*cưới|phong\s*bì|đi\s*đám/i.test(lower)) {
-    return { categoryId: 'cat_other_expense', matched: true };
-  }
-  if (/grab|xe\s*ôm|xăng|đổ\s*xăng|taxi|be\b|xanh\s*sm|gửi\s*xe|vé\s*xe|thay\s*nhớt|sửa\s*xe|rửa\s*xe|bơm\s*xe|vá\s*xe|trạm\s*thu\s*phí|vé\s*tàu|vé\s*máy\s*bay|bus|buýt/i.test(lower)) {
-    return { categoryId: 'cat_transport', matched: true };
-  }
-  if (/xà\s*phòng|xà\s*bông|dầu\s*gội|sữa\s*tắm|kem\s*đánh\s*răng|bàn\s*chải|bột\s*giặt|nước\s*giặt|nước\s*rửa|khăn\s*giấy|giấy\s*vệ\s*sinh|mỹ\s*phẩm|son|kem\s*chống\s*nắng|áo|quần|giày|dép|túi\s*xách|mũ|nón|mua\s*sắm|siêu\s*thị|tạp\s*hóa|bách\s*hóa|winmart|circle\s*k|shopee|tiki|lazada|tiktok|tiệm|cắt\s*tóc|gội\s*đầu/i.test(lower)) {
-    return { categoryId: 'cat_shopping', matched: true };
-  }
-  if (/nhậu|uống\s*bia|quán\s*bia/i.test(lower)) {
-    return { categoryId: 'cat_food', matched: true };
-  }
-  if (/cà\s*phê|cafe|coffee|trà\s*sữa|trà\s*đá|trà\s*chanh|trà\s*đào|trà\s*tắc|nước\s*ngọt|nước\s*mía|sinh\s*tố|nước\s*ép|nước\s*suối|nước\s*khoáng|highlands|phúc\s*long|katinat|starbucks|mixue|gong\s*cha|tocotoco|phe\s*la|phê\s*la|aha|cộng\s*cà\s*phê/i.test(lower)) {
-    return { categoryId: 'cat_drink', matched: true };
-  }
-  if (/cơm|bún|phở|ăn|bánh|thịt|cá|trứng|sữa|rau|củ|quả|trái\s*cây|hoa\s*quả|trưa|tối|sáng|mì|miến|cháo|lẩu|nướng|hủ\s*tiếu|xôi|chè|đồ\s*ăn|ăn\s*vặt|ốc|nem|gà\s*rán|pizza|kfc|lotteria|jollibee|đi\s*chợ/i.test(lower)) {
-    return { categoryId: 'cat_food', matched: true };
-  }
-  if (/tiền\s*điện|tiền\s*nước|internet|wifi|rác|hóa\s*đơn|mạng|4g|5g|nạp\s*thẻ|thẻ\s*điện\s*thoại|cước\s*viễn\s*thông|viettel|vinaphone|mobifone/i.test(lower)) {
-    return { categoryId: 'cat_bills', matched: true };
-  }
-  if (/thuốc|tiền\s*thuốc|nhà\s*thuốc|pharmacity|long\s*châu|an\s*khang|bệnh\s*viện|khám|nha\s*khoa|y\s*tế|viện\s*phí|vitamin/i.test(lower)) {
-    return { categoryId: 'cat_health', matched: true };
-  }
-  if (/xem\s*phim|vé\s*phim|cgv|lotte\s*cinema|galaxy|game|nạp\s*game|net|đi\s*net|quán\s*net|du\s*lịch|vé\s*xem|bi-a|bida|billiards|karaoke|bowling|cầu\s*lông|bóng\s*đá|gym|thể\s*thao|netflix|spotify|youtube/i.test(lower)) {
-    return { categoryId: 'cat_entertainment', matched: true };
-  }
-  if (/học|sách|vở|khóa\s*học|học\s*phí|tài\s*liệu|in\s*ấn|photocopy|bút|văn\s*phòng\s*phẩm|thi\s*chứng\s*chỉ/i.test(lower)) {
-    return { categoryId: 'cat_education', matched: true };
-  }
-  if (/tiền\s*trọ|nhà\s*trọ|thuê\s*nhà|tiền\s*nhà|sửa\s*nhà|gia\s*dụng|nội\s*thất|chăn\s*ga/i.test(lower)) {
-    return { categoryId: 'cat_housing', matched: true };
-  }
-  if (/cho\s*vay|cho\s*mượn|trả\s*hộ|ứng\s*trước|mượn\s*tiền/i.test(lower)) {
+  // Đặt nhóm Công nợ & Đổi/Rút tiền mặt lên trước chi tiêu thông thường để không bị bắt nhầm sang đồ ăn/khác
+  if (matchVnWords(lower, 'cho\\s*vay|cho\\s*mượn|trả\\s*hộ|chi\\s*hộ|ứng\\s*trước|mượn\\s*tiền|vay\\s*tiền|cho\\s+[\\p{L}\\s]{1,25}?\\s+(?:vay|mượn)')) {
     return { categoryId: 'cat_loan', matched: true };
   }
-  if (/rút\s*tiền|rút\s*atm|rút\s*mặt/i.test(lower)) {
+  if (matchVnWords(lower, 'trả\\s*nợ|hoàn\\s*nợ|thanh\\s*toán\\s*nợ|trả\\s*tiền\\s*vay|trả\\s*tiền\\s*mượn')) {
+    return { categoryId: 'cat_debt_repay', matched: true };
+  }
+  if (matchVnWords(lower, 'rút\\s*tiền|rút\\s*atm|rút\\s*mặt|rút\\s*ví|đổi\\s*(?:sang\\s*)?tiền\\s*mặt|chuyển\\s*(?:sang\\s*)?tiền\\s*mặt|nạp\\s*ví\\s*tiền\\s*mặt')) {
     return { categoryId: 'cat_transfer_cash', matched: true };
+  }
+  if (matchVnWords(lower, 'đền|phạt|bồi\\s*thường|mất\\s*vé|làm\\s*mất|rơi\\s*tiền|ủng\\s*hộ|từ\\s*thiện|mừng\\s*cưới|phong\\s*bì|đi\\s*đám')) {
+    return { categoryId: 'cat_other_expense', matched: true };
+  }
+  if (matchVnWords(lower, 'grab|xe\\s*ôm|xăng|đổ\\s*xăng|taxi|be|xanh\\s*sm|gửi\\s*xe|vé\\s*xe|thay\\s*nhớt|thay\\s*dầu|sửa\\s*xe|rửa\\s*xe|bơm\\s*xe|vá\\s*xe|trạm\\s*thu\\s*phí|vé\\s*tàu|vé\\s*máy\\s*bay|bus|buýt')) {
+    return { categoryId: 'cat_transport', matched: true };
+  }
+  if (matchVnWords(lower, 'xà\\s*phòng|xà\\s*bông|dầu\\s*gội|sữa\\s*tắm|kem\\s*đánh\\s*răng|bàn\\s*chải|bột\\s*giặt|nước\\s*giặt|nước\\s*rửa|khăn\\s*giấy|giấy\\s*vệ\\s*sinh|mỹ\\s*phẩm|son|kem\\s*chống\\s*nắng|áo|quần|giày|dép|túi\\s*xách|mũ|nón|mua\\s*sắm|siêu\\s*thị|tạp\\s*hóa|bách\\s*hóa|winmart|circle\\s*k|shopee|tiki|lazada|tiktok|tiệm|cắt\\s*tóc|gội\\s*đầu|móc\\s*khóa')) {
+    return { categoryId: 'cat_shopping', matched: true };
+  }
+  if (matchVnWords(lower, 'nhậu|uống\\s*bia|quán\\s*bia')) {
+    return { categoryId: 'cat_food', matched: true };
+  }
+  if (matchVnWords(lower, 'cà\\s*phê|cafe|coffee|cacao|ca\\s*cao|matcha|latte|americano|espresso|cappuccino|capuchino|ô\\s*long|hồng\\s*trà|lục\\s*trà|trà\\s*sữa|trà\\s*đá|trà\\s*chanh|trà\\s*đào|trà\\s*tắc|uống\\s*nước|nước\\s*ngọt|nước\\s*mía|sinh\\s*tố|nước\\s*ép|nước\\s*suối|nước\\s*khoáng|highlands|phúc\\s*long|katinat|starbucks|mixue|gong\\s*cha|tocotoco|phe\\s*la|phê\\s*la|aha|cộng\\s*cà\\s*phê')) {
+    return { categoryId: 'cat_drink', matched: true };
+  }
+  if (matchVnWords(lower, 'cơm|bún|phở|ăn|bánh|thịt|cá|trứng|sữa|rau|củ|quả|trái\\s*cây|hoa\\s*quả|ăn\\s*trưa|ăn\\s*tối|ăn\\s*sáng|bữa\\s*trưa|bữa\\s*tối|bữa\\s*sáng|cơm\\s*trưa|cơm\\s*tối|cơm\\s*sáng|quán\\s*ăn|mì|miến|cháo|lẩu|nướng|hủ\\s*tiếu|xôi|chè|đồ\\s*ăn|ăn\\s*vặt|ốc|nem|gà\\s*rán|pizza|kfc|lotteria|jollibee|đi\\s*chợ')) {
+    return { categoryId: 'cat_food', matched: true };
+  }
+  if (matchVnWords(lower, 'tiền\\s*điện|tiền\\s*nước|internet|wifi|rác|hóa\\s*đơn|mạng|4g|5g|nạp\\s*thẻ|thẻ\\s*điện\\s*thoại|cước\\s*viễn\\s*thông|viettel|vinaphone|mobifone')) {
+    return { categoryId: 'cat_bills', matched: true };
+  }
+  if (matchVnWords(lower, 'thuốc|tiền\\s*thuốc|nhà\\s*thuốc|pharmacity|long\\s*châu|an\\s*khang|bệnh\\s*viện|khám|nha\\s*khoa|y\\s*tế|viện\\s*phí|vitamin')) {
+    return { categoryId: 'cat_health', matched: true };
+  }
+  if (matchVnWords(lower, 'xem\\s*phim|vé\\s*phim|cgv|lotte\\s*cinema|galaxy|game|nạp\\s*game|net|đi\\s*net|quán\\s*net|du\\s*lịch|vé\\s*xem|bi-a|bida|billiards|karaoke|bowling|cầu\\s*lông|bóng\\s*đá|gym|thể\\s*thao|netflix|spotify|youtube')) {
+    return { categoryId: 'cat_entertainment', matched: true };
+  }
+  if (matchVnWords(lower, 'học|sách|vở|khóa\\s*học|học\\s*phí|tài\\s*liệu|in\\s*ấn|photocopy|bút|văn\\s*phòng\\s*phẩm|thi\\s*chứng\\s*chỉ')) {
+    return { categoryId: 'cat_education', matched: true };
+  }
+  if (matchVnWords(lower, 'tiền\\s*trọ|nhà\\s*trọ|thuê\\s*nhà|tiền\\s*nhà|sửa\\s*nhà|gia\\s*dụng|nội\\s*thất|chăn\\s*ga')) {
+    return { categoryId: 'cat_housing', matched: true };
   }
   return { categoryId: 'cat_other_expense', matched: false };
 }
@@ -362,6 +376,7 @@ function cleanDescriptionText(rawText) {
   if (!rawText) return 'Giao dịch';
   let desc = String(rawText)
     .replace(/\(khoản\s*tiền:\s*\d+\s*đ\)/gi, '')
+    .replace(/(?:vào\s*)?(?:ngày\s*)?\d{1,2}(?:\s*[/-]\s*|\s+tháng\s+)\d{1,2}(?:(?:\s*[/-]\s*|\s+năm\s+)\d{2,4})?/gi, '')
     .replace(/(\d+(?:[.,]\d+)?)\s*(?:k|nghìn|ngàn|tr|triệu|củ|lít|đ|vnd|đồng)\b/gi, '')
     .replace(/\b(\d{1,3}(?:[.,]\d{3})+|\d{4,9})\b/g, '')
     .replace(/\b(?:vừa\s*mới|vừa|hôm\s*nay|hôm\s*qua|hôm\s*kia|mới|hết|mất|tiền\s*mặt|bằng\s*tiền\s*mặt|chi\s*hết)\b/gi, '')
@@ -474,8 +489,13 @@ function fallbackLocalParse(userText, categories = [], options = {}) {
     ? splits.map(s => s.description).join(' + ')
     : cleanDescriptionText(cleanForSplit);
 
-  const isCashExplicit = options.forceCash || 
-    /tiền\s*mặt|tiền\s*túi|trong\s*ví|trả\s*mặt/i.test(text);
+  const isCashExchange =
+    categoryId === 'cat_transfer_cash' ||
+    /(?:rút|đổi|chuyển)\s*(?:sang\s*)?tiền\s*mặt|nạp\s*ví\s*tiền\s*mặt/i.test(text);
+  const isCashExplicit = !isCashExchange && (
+    options.forceCash ||
+    /tiền\s*mặt|tiền\s*túi|trong\s*ví|trả\s*mặt/i.test(text)
+  );
 
   // Nhận diện ngày/giờ nếu người dùng có nói trong câu
   let customDate = null;
@@ -491,7 +511,7 @@ function fallbackLocalParse(userText, categories = [], options = {}) {
     d.setDate(d.getDate() - 2);
     customDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   } else {
-    const dateMatch = lower.match(/(?:ngày\s*|hôm\s*)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/i);
+    const dateMatch = lower.match(/(?:ngày\s*|hôm\s*)?(\d{1,2})(?:\s*[/-]\s*|\s+tháng\s+)(\d{1,2})(?:(?:\s*[/-]\s*|\s+năm\s+)(\d{2,4}))?/i);
     if (dateMatch) {
       const d = String(dateMatch[1]).padStart(2, '0');
       const m = String(dateMatch[2]).padStart(2, '0');
@@ -610,6 +630,7 @@ ${txListStr}
 QUY ƯỚC DANH MỤC CỦA HỆ THỐNG SMARTSPEND:
 - Danh mục "Cho vay & Cho mượn" (EXPENSE) dùng cho cả việc cho vay lẫn việc chi tiền trả hộ / ứng trước cho bạn bè. KHÔNG coi đây là xếp nhầm danh mục.
 - Danh mục "Thu hồi nợ / Nhận tiền trả" (INCOME) khi người khác hoàn trả lại tiền nợ hoặc tiền trả hộ.
+- Danh mục "Trả nợ" (EXPENSE) dùng khi bạn trả lại khoản nợ / tiền mượn cho người khác (tách riêng khỏi chi tiêu sinh hoạt). KHÔNG coi đây là xếp nhầm danh mục.
 - Danh mục "Chuyển tiền nội bộ" / "Nhận chuyển nội bộ" / "Rút tiền vào Ví (ATM)" là luân chuyển giữa các ví của chính người dùng.
 ${extraGuidelines}
 ${catGuidelines}
@@ -648,7 +669,7 @@ Trả về DUY NHẤT một JSON hợp lệ:
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -694,7 +715,13 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
   const suggestedEdits = [];
   const highlights = [];
 
-  const expenses = txs.filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'));
+  const expenses = txs.filter(
+    (t) =>
+      t.type === 'EXPENSE' &&
+      !t.category_id?.startsWith('cat_transfer_') &&
+      t.category_id !== 'cat_loan' &&
+      t.category_id !== 'cat_debt_repay'
+  );
   const sortedExpenses = [...expenses].sort((a, b) => b.amount - a.amount);
 
   if (sortedExpenses.length > 0) {

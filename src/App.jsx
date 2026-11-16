@@ -480,7 +480,7 @@ export default function App() {
         livePrompt?.transaction?.amount
       );
       if (success) {
-        setLivePrompt(null);
+        setLivePrompt((prev) => (prev?.transaction?.id === txId ? null : prev));
         setPromptAiText('');
       }
     } finally {
@@ -870,7 +870,8 @@ export default function App() {
             t.type === 'EXPENSE' &&
             t.status !== 'IGNORED' &&
             !t.category_id?.startsWith('cat_transfer_') &&
-            t.category_id !== 'cat_loan'
+            t.category_id !== 'cat_loan' &&
+            t.category_id !== 'cat_debt_repay'
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -911,7 +912,7 @@ export default function App() {
   const categoryBreakdown = useMemo(() => {
     const map = {};
     categories
-      .filter((c) => c.id !== 'cat_loan' && c.id !== 'cat_debt_collect' && !c.id.startsWith('cat_transfer_'))
+      .filter((c) => c.id !== 'cat_loan' && c.id !== 'cat_debt_collect' && c.id !== 'cat_debt_repay' && !c.id.startsWith('cat_transfer_'))
       .forEach((c) => {
         map[c.id] = { ...c, total_amount: 0, tx_count: 0 };
       });
@@ -921,7 +922,8 @@ export default function App() {
         t.status !== 'IGNORED' &&
         t.category_id &&
         !t.category_id?.startsWith('cat_transfer_') &&
-        t.category_id !== 'cat_loan'
+        t.category_id !== 'cat_loan' &&
+        t.category_id !== 'cat_debt_repay'
       ) {
         if (!map[t.category_id]) {
           map[t.category_id] = {
@@ -959,7 +961,8 @@ export default function App() {
             t.type !== 'EXPENSE' ||
             t.status !== 'CONFIRMED' ||
             t.category_id?.startsWith('cat_transfer_') ||
-            t.category_id === 'cat_loan'
+            t.category_id === 'cat_loan' ||
+            t.category_id === 'cat_debt_repay'
           )
             return false;
           const txDate = parseTxDate(t.transaction_time, t.created_at);

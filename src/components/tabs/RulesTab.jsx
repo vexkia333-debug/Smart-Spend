@@ -6,7 +6,7 @@ const CORE_CATEGORY_IDS = new Set([
   'cat_food', 'cat_shopping', 'cat_drink', 'cat_transport', 'cat_bills',
   'cat_entertainment', 'cat_health', 'cat_education', 'cat_housing',
   'cat_other_expense', 'cat_salary', 'cat_freelance', 'cat_investment',
-  'cat_other_income', 'cat_loan', 'cat_debt_collect', 'cat_transfer_cash',
+  'cat_other_income', 'cat_loan', 'cat_debt_collect', 'cat_debt_repay', 'cat_transfer_cash',
   'cat_transfer_internal', 'cat_transfer_in'
 ]);
 

@@ -66,6 +66,11 @@ const SYNONYMS = [
     namePattern: 'thu hồi'
   },
   {
+    keys: ['trả nợ', 'hoàn nợ', 'thanh toán nợ'],
+    preferredId: 'cat_debt_repay',
+    namePattern: 'trả nợ'
+  },
+  {
     keys: ['cho vay', 'cho mượn', 'trả hộ', 'chi hộ', 'ứng trước'],
     preferredId: 'cat_loan',
     namePattern: 'cho vay'

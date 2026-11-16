@@ -75,9 +75,23 @@ router.post([
     const result = await processIncomingWebhook(req.body);
     const format = String(req.query.format || req.body?.format || '').toLowerCase();
     if (format === 'plain' || format === 'macrodroid') {
-      const textResponse = result.launchDecision === 'WAIT_AND_RECHECK' && result.transactionId
-        ? `WAIT:${result.transactionId}`
-        : 'SKIP';
+      let textResponse = 'SKIP';
+      if (result.launchDecision === 'WAIT_AND_RECHECK' && result.transactionId) {
+        textResponse = `WAIT:${result.transactionId}`;
+      } else {
+        // Nếu đang có giao dịch PENDING chưa nhắc trong 3 phút gần nhất, trả về SKIP:tx_... để không ghi đè mất tham chiếu của luồng Delay đang chờ
+        const activePending = await db.prepare(`
+          SELECT id FROM transactions
+          WHERE status = 'PENDING'
+            AND prompted_at IS NULL
+            AND datetime(created_at) >= datetime('now', 'localtime', '-3 minutes')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get();
+        if (activePending?.id) {
+          textResponse = `SKIP:${activePending.id}`;
+        }
+      }
       return res.type('text/plain').send(textResponse);
     }
     res.json(result);
@@ -208,7 +222,10 @@ router.get('/system/audit-logs', async (req, res) => {
             ? `Tự động nhận diện Chuyển tiền nội bộ sang ${nl.account_name || 'tài khoản khác'} (không tính vào chi tiêu)`
             : `Tự động nhận diện Nhận tiền chuyển khoản nội bộ từ tài khoản phụ (không tính vào thu nhập)`;
         }
-      } else if (nl.tx_cat_id === 'cat_debt_collect' || (nl.tx_desc && /trả nợ|tra no|hoàn nợ/i.test(nl.tx_desc))) {
+      } else if (nl.tx_cat_id === 'cat_debt_repay' || (nl.tx_type === 'EXPENSE' && nl.tx_desc && /trả nợ|tra no|hoàn nợ/i.test(nl.tx_desc))) {
+        actionType = 'DEBT_REPAY';
+        if (!actionDetail) actionDetail = 'Tự động ghi nhận Khoản trả nợ và đối soát công nợ';
+      } else if (nl.tx_cat_id === 'cat_debt_collect' || (nl.tx_type === 'INCOME' && nl.tx_desc && /trả nợ|tra no|hoàn nợ/i.test(nl.tx_desc))) {
         actionType = 'DEBT_COLLECT';
         if (!actionDetail) actionDetail = 'Tự động nhận diện Tiền hoàn trả / Thu hồi nợ và đối soát cấn trừ công nợ';
       } else if (nl.tx_cat_id === 'cat_loan' || (nl.tx_desc && /cho vay|cho mượn|vay nợ|trả hộ/i.test(nl.tx_desc))) {
@@ -255,6 +272,9 @@ router.get('/system/audit-logs', async (req, res) => {
       if (tx.tx_cat_id === 'cat_transfer_internal' || tx.tx_cat_id === 'cat_transfer_in') {
         actionType = 'INTERNAL_TRANSFER';
         actionDetail = 'Tự động nhận diện chuyển tiền nội bộ giữa các tài khoản (loại khỏi chi tiêu)';
+      } else if (tx.tx_cat_id === 'cat_debt_repay') {
+        actionType = 'DEBT_REPAY';
+        actionDetail = 'Ghi nhận khoản trả nợ tách khỏi chi tiêu sinh hoạt';
       } else if (tx.tx_cat_id === 'cat_debt_collect') {
         actionType = 'DEBT_COLLECT';
         actionDetail = 'Tự động nhận diện tiền hoàn nợ, đối soát triệt tiêu công nợ';
@@ -295,7 +315,7 @@ router.get('/system/audit-logs', async (req, res) => {
     const stats = {
       total: normalizedLogs.length,
       internalTransfers: normalizedLogs.filter(l => l.action_type === 'INTERNAL_TRANSFER').length,
-      debtLoans: normalizedLogs.filter(l => l.action_type === 'DEBT_COLLECT' || l.action_type === 'LOAN_RECORD').length,
+      debtLoans: normalizedLogs.filter(l => l.action_type === 'DEBT_COLLECT' || l.action_type === 'LOAN_RECORD' || l.action_type === 'DEBT_REPAY').length,
       ignored: normalizedLogs.filter(l => l.action_type === 'IGNORED').length,
       autoClassified: normalizedLogs.filter(l => l.action_type === 'AUTO_CLASSIFIED').length
     };

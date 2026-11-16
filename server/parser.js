@@ -221,14 +221,18 @@ export function extractTransferInfo(content, rawDesc = '') {
   return { senderName, receiverName, remark, isSenderOwner, isReceiverOwner };
 }
 
+const INCOME_CATEGORY_IDS = new Set([
+  'cat_salary', 'cat_freelance', 'cat_investment', 'cat_other_income', 'cat_debt_collect', 'cat_transfer_in'
+]);
+
 /**
  * Gợi ý danh mục dựa trên từ khóa trong nội dung
  */
-export function matchSuggestedCategory(description, rules = []) {
+export function matchSuggestedCategory(description, rules = [], type = null) {
   const descUpper = (description || '').toUpperCase();
 
   // Bồi thường / phạt / đền mất vé xe -> Chi tiêu khác (KHÔNG PHẢI di chuyển xăng xe)
-  if (/ĐỀN|PHẠT|BỒI THƯỜNG|MẤT VÉ|LÀM MẤT|ĐỀN BÙ|DEN MAT VE/i.test(descUpper)) {
+  if ((!type || type === 'EXPENSE') && /ĐỀN|PHẠT|BỒI THƯỜNG|MẤT VÉ|LÀM MẤT|ĐỀN BÙ|DEN MAT VE/i.test(descUpper)) {
     return {
       categoryId: 'cat_other_expense',
       isAutoApply: true,
@@ -236,8 +240,8 @@ export function matchSuggestedCategory(description, rules = []) {
     };
   }
 
-  // Nhận diện tự động các mẫu câu về trả nợ / trả tiền ăn / hoàn tiền
-  if (/TRA TIEN|TRA NO|TRA HO|TIEN AN|TIEN COM|TRA LAI|REIMBURSE|HOAN TIEN|THAO TRA|CHUYEN TIEN QR|\bTRA\b/i.test(descUpper)) {
+  // Nhận diện tự động các mẫu câu rõ ràng về trả nợ / thu hồi nợ / hoàn tiền (chỉ áp dụng cho tiền vào)
+  if ((!type || type === 'INCOME') && /\b(?:TRA NO|THU NO|HOAN NO|HOAN TIEN|REIMBURSE|TRA TIEN AN|TRA TIEN COM|THAO TRA)\b/i.test(descUpper)) {
     return {
       categoryId: 'cat_debt_collect',
       isAutoApply: true,
@@ -246,6 +250,11 @@ export function matchSuggestedCategory(description, rules = []) {
   }
 
   for (const rule of rules) {
+    if (!rule.keyword) continue;
+    if (type) {
+      const ruleType = rule.category_type || (INCOME_CATEGORY_IDS.has(rule.category_id) ? 'INCOME' : 'EXPENSE');
+      if (ruleType !== type) continue;
+    }
     if (descUpper.includes(rule.keyword.toUpperCase())) {
       return {
         categoryId: rule.category_id,

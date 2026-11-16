@@ -5,6 +5,38 @@ import { generatePeriodicAiReport, generateFallbackPeriodicReport } from '../gem
 import { dispatchDailyReportNotification } from '../notifications.js';
 import { broadcastEvent } from './sse.js';
 
+const inFlightReportKeys = new Set();
+let isCronRunning = false;
+
+function computeReportMetrics(txs = []) {
+  const totalIncome = txs
+    .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_debt_collect')
+    .reduce((s, t) => s + (t.amount || 0), 0);
+  const totalExpense = txs
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay')
+    .reduce((s, t) => s + (t.amount || 0), 0);
+  const netFlow = totalIncome - totalExpense;
+
+  const catMap = {};
+  txs
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay')
+    .forEach((t) => {
+      const cName = t.category_name || 'Khác';
+      catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);
+    });
+
+  const accMap = {};
+  txs.forEach((t) => {
+    const aName = t.account_name || 'Tài khoản khác';
+    if (!accMap[aName]) accMap[aName] = { in: 0, out: 0, count: 0 };
+    accMap[aName].count += 1;
+    if (t.type === 'INCOME') accMap[aName].in += t.amount || 0;
+    else accMap[aName].out += t.amount || 0;
+  });
+
+  return { totalIncome, totalExpense, netFlow, catMap, accMap };
+}
+
 /**
  * Core Pipeline: Tạo và lưu trữ báo cáo tài chính định kỳ (Ngày / Tuần / Tháng), đồng thời gửi thông báo tới điện thoại
  */
@@ -53,218 +85,191 @@ export async function generateAndSavePeriodicReport({
     cacheKey = targetDate;
   }
 
-  // 2. Kiểm tra cache trong DB nếu không ép buộc (force)
-  if (!force) {
-    const cached = await db.prepare('SELECT * FROM daily_reports WHERE report_date = ?').get(cacheKey);
-    if (cached) {
-      const allTxs = await db.prepare(`
-        SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-        FROM transactions t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.status != 'IGNORED'
-        ORDER BY t.created_at ASC
-      `).all();
-
-      const matchedTxs = allTxs.filter((t) => {
-        const iso = parseTxDateToISO(t);
-        return iso >= startDate && iso <= endDate;
-      });
-
-      const cachedAi = cached.raw_ai_json ? JSON.parse(cached.raw_ai_json) : {
-        rating: cached.rating_badge || 'Cân đối 👍',
-        overview: cached.overview || '',
-        highlights: [],
-        anomalies: cached.anomalies_json ? JSON.parse(cached.anomalies_json) : [],
-        advice: cached.advice_tomorrow || ''
-      };
-
-      return {
-        success: true,
-        period,
-        date: targetDate,
-        startDate,
-        endDate,
-        dateRange: dateLabel,
-        dateLabel,
-        totalIncome: Number(cached.total_income) || 0,
-        totalExpense: Number(cached.total_expense) || 0,
-        netFlow: Number(cached.net_flow) || 0,
-        txCount: Number(cached.tx_count) || 0,
-        categoryBreakdown: cached.category_breakdown ? JSON.parse(cached.category_breakdown) : {},
-        accountBreakdown: cached.account_breakdown ? JSON.parse(cached.account_breakdown) : {},
-        transactions: matchedTxs,
-        aiEvaluation: cachedAi,
-        aiAnalysis: cachedAi,
-        fromCache: true
-      };
-    }
-  }
-
-  // 3. Lấy toàn bộ giao dịch trong phạm vi [startDate, endDate]
-  const allTxs = await db.prepare(`
-    SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    LEFT JOIN accounts a ON t.account_id = a.id
-    WHERE t.status != 'IGNORED'
-    ORDER BY t.created_at ASC
-  `).all();
-
-  const txs = allTxs.filter((t) => {
-    const iso = parseTxDateToISO(t);
-    return iso >= startDate && iso <= endDate;
-  });
-
-  const totalIncome = txs
-    .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_'))
-    .reduce((s, t) => s + (t.amount || 0), 0);
-  const totalExpense = txs
-    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
-    .reduce((s, t) => s + (t.amount || 0), 0);
-  const netFlow = totalIncome - totalExpense;
-
-  const catMap = {};
-  txs
-    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_'))
-    .forEach((t) => {
-      const cName = t.category_name || 'Khác';
-      catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);
-    });
-
-  const accMap = {};
-  txs.forEach((t) => {
-    const aName = t.account_name || 'Tài khoản khác';
-    if (!accMap[aName]) accMap[aName] = { in: 0, out: 0, count: 0 };
-    accMap[aName].count += 1;
-    if (t.type === 'INCOME') accMap[aName].in += t.amount || 0;
-    else accMap[aName].out += t.amount || 0;
-  });
-
-  const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
-  const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
-
-  const allCategories = await db.prepare('SELECT id, name, type FROM categories').all();
-
-  let aiEvaluation = null;
-  if (apiKey && txs.length > 0) {
-    aiEvaluation = await generatePeriodicAiReport({
-      period,
-      dateRange: dateLabel,
-      txs,
-      totalIncome,
-      totalExpense,
-      netFlow,
-      catMap,
-      categories: allCategories,
-      apiKey
-    });
-  }
-
-  if (!aiEvaluation) {
-    aiEvaluation = generateFallbackPeriodicReport({
-      period,
-      dateRange: dateLabel,
-      txs,
-      totalIncome,
-      totalExpense,
-      netFlow,
-      catMap
-    });
-  }
-
-  const reportData = {
-    success: true,
-    period,
-    date: targetDate,
-    startDate,
-    endDate,
-    dateRange: dateLabel,
-    dateLabel,
-    totalIncome,
-    totalExpense,
-    netFlow,
-    txCount: txs.length,
-    categoryBreakdown: catMap,
-    accountBreakdown: accMap,
-    transactions: txs,
-    aiEvaluation,
-    aiAnalysis: aiEvaluation,
-    fromCache: false
-  };
-
-  // 4. Lưu vào bảng daily_reports
+  inFlightReportKeys.add(cacheKey);
   try {
-    await db.prepare(`
-      INSERT INTO daily_reports (
-        report_date, total_income, total_expense, net_flow, tx_count,
-        category_breakdown, account_breakdown, rating_badge, overview,
-        anomalies_json, advice_tomorrow, raw_ai_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-      ON CONFLICT(report_date) DO UPDATE SET
-        total_income = excluded.total_income,
-        total_expense = excluded.total_expense,
-        net_flow = excluded.net_flow,
-        tx_count = excluded.tx_count,
-        category_breakdown = excluded.category_breakdown,
-        account_breakdown = excluded.account_breakdown,
-        rating_badge = excluded.rating_badge,
-        overview = excluded.overview,
-        anomalies_json = excluded.anomalies_json,
-        advice_tomorrow = excluded.advice_tomorrow,
-        raw_ai_json = excluded.raw_ai_json,
-        updated_at = datetime('now', 'localtime')
-    `).run(
-      cacheKey,
+    // 2. Lấy toàn bộ giao dịch trong phạm vi [startDate, endDate]
+    const allTxs = await db.prepare(`
+      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.status != 'IGNORED'
+      ORDER BY t.created_at ASC
+    `).all();
+
+    const txs = allTxs.filter((t) => {
+      const iso = parseTxDateToISO(t);
+      return iso >= startDate && iso <= endDate;
+    });
+
+    const { totalIncome, totalExpense, netFlow, catMap, accMap } = computeReportMetrics(txs);
+
+    // 3. Kiểm tra cache trong DB nếu không ép buộc (force) và số liệu vẫn khớp giao dịch thực tế
+    if (!force) {
+      const cached = await db.prepare('SELECT * FROM daily_reports WHERE report_date = ?').get(cacheKey);
+      const isCacheFresh = cached &&
+        Number(cached.total_income) === totalIncome &&
+        Number(cached.total_expense) === totalExpense &&
+        Number(cached.tx_count) === txs.length;
+
+      if (isCacheFresh) {
+        const cachedAi = cached.raw_ai_json ? JSON.parse(cached.raw_ai_json) : {
+          rating: cached.rating_badge || 'Cân đối 👍',
+          overview: cached.overview || '',
+          highlights: [],
+          anomalies: cached.anomalies_json ? JSON.parse(cached.anomalies_json) : [],
+          advice: cached.advice_tomorrow || ''
+        };
+
+        return {
+          success: true,
+          period,
+          date: targetDate,
+          startDate,
+          endDate,
+          dateRange: dateLabel,
+          dateLabel,
+          totalIncome: Number(cached.total_income) || 0,
+          totalExpense: Number(cached.total_expense) || 0,
+          netFlow: Number(cached.net_flow) || 0,
+          txCount: Number(cached.tx_count) || 0,
+          categoryBreakdown: cached.category_breakdown ? JSON.parse(cached.category_breakdown) : {},
+          accountBreakdown: cached.account_breakdown ? JSON.parse(cached.account_breakdown) : {},
+          transactions: txs,
+          aiEvaluation: cachedAi,
+          aiAnalysis: cachedAi,
+          fromCache: true
+        };
+      }
+    }
+
+    const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+    const apiKey = keyRow?.value || process.env.GEMINI_API_KEY;
+
+    const allCategories = await db.prepare('SELECT id, name, type FROM categories').all();
+
+    let aiEvaluation = null;
+    if (apiKey && txs.length > 0) {
+      aiEvaluation = await generatePeriodicAiReport({
+        period,
+        dateRange: dateLabel,
+        txs,
+        totalIncome,
+        totalExpense,
+        netFlow,
+        catMap,
+        categories: allCategories,
+        apiKey
+      });
+    }
+
+    if (!aiEvaluation) {
+      aiEvaluation = generateFallbackPeriodicReport({
+        period,
+        dateRange: dateLabel,
+        txs,
+        totalIncome,
+        totalExpense,
+        netFlow,
+        catMap
+      });
+    }
+
+    const reportData = {
+      success: true,
+      period,
+      date: targetDate,
+      startDate,
+      endDate,
+      dateRange: dateLabel,
+      dateLabel,
       totalIncome,
       totalExpense,
       netFlow,
-      txs.length,
-      JSON.stringify(catMap),
-      JSON.stringify(accMap),
-      aiEvaluation?.rating || 'Cân đối 👍',
-      aiEvaluation?.overview || '',
-      JSON.stringify(aiEvaluation?.anomalies || []),
-      aiEvaluation?.advice || '',
-      JSON.stringify(aiEvaluation)
-    );
-  } catch (dbErr) {
-    console.error('Lỗi lưu report cache:', dbErr.message);
-  }
+      txCount: txs.length,
+      categoryBreakdown: catMap,
+      accountBreakdown: accMap,
+      transactions: txs,
+      aiEvaluation,
+      aiAnalysis: aiEvaluation,
+      fromCache: false
+    };
 
-  // 5. Gửi thông báo tới điện thoại nếu được kích hoạt
-  let dispatchResult = null;
-  if (triggerSource.startsWith('CRON') || triggerSource === 'TEST_PUSH' || triggerSource === 'NOTIFICATION_REQUEST') {
+    // 4. Lưu vào bảng daily_reports (bảo toàn sent_notification hiện có nếu chỉ làm mới số liệu)
     try {
-      const settingRows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE '%report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'").all();
-      const settingsMap = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
-
-      dispatchResult = await dispatchDailyReportNotification(reportData, settingsMap);
-
-      await db.prepare('UPDATE daily_reports SET sent_notification = 1 WHERE report_date = ?').run(cacheKey);
-
       await db.prepare(`
-        INSERT INTO notification_logs (id, title, body, actions_payload, status)
-        VALUES (?, ?, ?, ?, 'SENT')
+        INSERT INTO daily_reports (
+          report_date, total_income, total_expense, net_flow, tx_count,
+          category_breakdown, account_breakdown, rating_badge, overview,
+          anomalies_json, advice_tomorrow, raw_ai_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+        ON CONFLICT(report_date) DO UPDATE SET
+          total_income = excluded.total_income,
+          total_expense = excluded.total_expense,
+          net_flow = excluded.net_flow,
+          tx_count = excluded.tx_count,
+          category_breakdown = excluded.category_breakdown,
+          account_breakdown = excluded.account_breakdown,
+          rating_badge = excluded.rating_badge,
+          overview = excluded.overview,
+          anomalies_json = excluded.anomalies_json,
+          advice_tomorrow = excluded.advice_tomorrow,
+          raw_ai_json = excluded.raw_ai_json,
+          updated_at = datetime('now', 'localtime')
       `).run(
-        'log_' + crypto.randomUUID().slice(0, 8),
-        dispatchResult.formatted.title,
-        dispatchResult.formatted.shortText,
-        JSON.stringify({ triggerSource, period, date: targetDate, results: dispatchResult.results })
+        cacheKey,
+        totalIncome,
+        totalExpense,
+        netFlow,
+        txs.length,
+        JSON.stringify(catMap),
+        JSON.stringify(accMap),
+        aiEvaluation?.rating || 'Cân đối 👍',
+        aiEvaluation?.overview || '',
+        JSON.stringify(aiEvaluation?.anomalies || []),
+        aiEvaluation?.advice || '',
+        JSON.stringify(aiEvaluation)
       );
-    } catch (pushErr) {
-      console.error('Lỗi dispatch thông báo điện thoại:', pushErr.message);
+    } catch (dbErr) {
+      console.error('Lỗi lưu report cache:', dbErr.message);
     }
+
+    // 5. Gửi thông báo tới điện thoại nếu được kích hoạt
+    let dispatchResult = null;
+    if (triggerSource.startsWith('CRON') || triggerSource === 'TEST_PUSH' || triggerSource === 'NOTIFICATION_REQUEST') {
+      try {
+        const settingRows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE '%report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'").all();
+        const settingsMap = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
+
+        dispatchResult = await dispatchDailyReportNotification(reportData, settingsMap);
+
+        await db.prepare('UPDATE daily_reports SET sent_notification = 1 WHERE report_date = ?').run(cacheKey);
+
+        await db.prepare(`
+          INSERT INTO notification_logs (id, title, body, actions_payload, status)
+          VALUES (?, ?, ?, ?, 'SENT')
+        `).run(
+          'log_' + crypto.randomUUID().slice(0, 8),
+          dispatchResult.formatted.title,
+          dispatchResult.formatted.shortText,
+          JSON.stringify({ triggerSource, period, date: targetDate, results: dispatchResult.results })
+        );
+      } catch (pushErr) {
+        console.error('Lỗi dispatch thông báo điện thoại:', pushErr.message);
+      }
+    }
+
+    // Phát tín hiệu realtime tới giao diện web
+    broadcastEvent('PERIODIC_REPORT_READY', reportData);
+    broadcastEvent('DAILY_REPORT_READY', reportData);
+
+    return {
+      ...reportData,
+      dispatchResult
+    };
+  } finally {
+    inFlightReportKeys.delete(cacheKey);
   }
-
-  // Phát tín hiệu realtime tới giao diện web
-  broadcastEvent('PERIODIC_REPORT_READY', reportData);
-  broadcastEvent('DAILY_REPORT_READY', reportData);
-
-  return {
-    ...reportData,
-    dispatchResult
-  };
 }
 
 export async function generateAndSaveDailyReport(date, opts = {}) {
@@ -276,6 +281,8 @@ export async function generateAndSaveDailyReport(date, opts = {}) {
  */
 export function startReportCronJob() {
   setInterval(async () => {
+    if (isCronRunning) return;
+    isCronRunning = true;
     try {
       const nowVn = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
       const curHour = String(nowVn.getHours()).padStart(2, '0');
@@ -296,7 +303,7 @@ export function startReportCronJob() {
       // 1. Cron Hàng ngày
       const dailyTargetTime = map.daily_report_time || '22:00';
       const isDailyEnabled = map.daily_report_enabled !== 'false';
-      if (isDailyEnabled && currentTime === dailyTargetTime) {
+      if (isDailyEnabled && currentTime === dailyTargetTime && !inFlightReportKeys.has(todayDate)) {
         const existing = await db.prepare('SELECT sent_notification FROM daily_reports WHERE report_date = ?').get(todayDate);
         if (!existing || Number(existing.sent_notification) !== 1) {
           console.log(`[Auto Cron] 🔔 Đã tới ${currentTime}. Tự động tạo và gửi Báo cáo Cuối ngày (${todayDate})...`);
@@ -309,10 +316,17 @@ export function startReportCronJob() {
       const weeklyTargetTime = map.weekly_report_time || '21:00';
       const isWeeklyEnabled = map.weekly_report_enabled !== 'false';
       if (isWeeklyEnabled && dayOfWeek === weeklyTargetDay && currentTime === weeklyTargetTime) {
-        const checkWeek = await db.prepare("SELECT sent_notification FROM daily_reports WHERE report_date LIKE ?").get(`WEEK_%_${todayDate}`);
-        if (!checkWeek || Number(checkWeek.sent_notification) !== 1) {
-          console.log(`[Auto Cron] 📈 Đã tới ${currentTime} Chủ Nhật. Tự động tạo và gửi Tổng kết Tuần (${todayDate})...`);
-          await generateAndSavePeriodicReport({ period: 'WEEK', date: todayDate, force: true, triggerSource: 'CRON_AUTO_WEEKLY' });
+        const weekDayOffset = (nowVn.getDay() + 6) % 7;
+        const monD = new Date(nowVn);
+        monD.setDate(nowVn.getDate() - weekDayOffset);
+        const startStr = `${monD.getFullYear()}-${String(monD.getMonth() + 1).padStart(2, '0')}-${String(monD.getDate()).padStart(2, '0')}`;
+        const weekKey = `WEEK_${startStr}_${todayDate}`;
+        if (!inFlightReportKeys.has(weekKey)) {
+          const checkWeek = await db.prepare('SELECT sent_notification FROM daily_reports WHERE report_date LIKE ?').get(`WEEK_%_${todayDate}`);
+          if (!checkWeek || Number(checkWeek.sent_notification) !== 1) {
+            console.log(`[Auto Cron] 📈 Đã tới ${currentTime} Chủ Nhật. Tự động tạo và gửi Tổng kết Tuần (${todayDate})...`);
+            await generateAndSavePeriodicReport({ period: 'WEEK', date: todayDate, force: true, triggerSource: 'CRON_AUTO_WEEKLY' });
+          }
         }
       }
 
@@ -321,14 +335,18 @@ export function startReportCronJob() {
       const isMonthlyEnabled = map.monthly_report_enabled !== 'false';
       if (isMonthlyEnabled && isLastDay && currentTime === monthlyTargetTime) {
         const monthKey = `MONTH_${curY}-${curM}`;
-        const checkMonth = await db.prepare("SELECT sent_notification FROM daily_reports WHERE report_date = ?").get(monthKey);
-        if (!checkMonth || Number(checkMonth.sent_notification) !== 1) {
-          console.log(`[Auto Cron] 🏆 Đã tới ${currentTime} ngày cuối tháng. Tự động tạo và gửi Tổng hợp Tháng (${monthKey})...`);
-          await generateAndSavePeriodicReport({ period: 'MONTH', date: todayDate, force: true, triggerSource: 'CRON_AUTO_MONTHLY' });
+        if (!inFlightReportKeys.has(monthKey)) {
+          const checkMonth = await db.prepare('SELECT sent_notification FROM daily_reports WHERE report_date = ?').get(monthKey);
+          if (!checkMonth || Number(checkMonth.sent_notification) !== 1) {
+            console.log(`[Auto Cron] 🏆 Đã tới ${currentTime} ngày cuối tháng. Tự động tạo và gửi Tổng hợp Tháng (${monthKey})...`);
+            await generateAndSavePeriodicReport({ period: 'MONTH', date: todayDate, force: true, triggerSource: 'CRON_AUTO_MONTHLY' });
+          }
         }
       }
     } catch (err) {
       console.error('[Periodic Auto Cron Error]', err.message);
+    } finally {
+      isCronRunning = false;
     }
   }, 30000);
 }

@@ -5,18 +5,32 @@ import { broadcastEvent } from '../services/sse.js';
 
 const router = Router();
 
+async function adjustCashWalletBalance(delta) {
+  if (!delta) return;
+  const cashAcc = await db.prepare("SELECT id FROM accounts WHERE id = 'acc_cash'").get();
+  if (!cashAcc) {
+    await db.prepare(
+      "INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')"
+    ).run();
+  }
+  await db.prepare("UPDATE accounts SET balance = balance + ? WHERE id = 'acc_cash'").run(delta);
+  const updatedCash = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
+  if (updatedCash) broadcastEvent('ACCOUNT_UPDATED', updatedCash);
+}
+
 // 1. Thống kê tổng quan (Stats)
 router.get('/stats', async (req, res) => {
   try {
     const totalBalanceRow = await db.prepare('SELECT SUM(balance) as total FROM accounts').get();
     const pendingCountRow = await db.prepare("SELECT COUNT(*) as count FROM transactions WHERE status = 'PENDING'").get();
 
-    // Chi tiêu sinh hoạt thuần túy (loại trừ chuyển tiền nội bộ & cho vay)
+    // Chi tiêu sinh hoạt thuần túy (loại trừ chuyển tiền nội bộ & cho vay / trả nợ)
     const monthlyExpenseRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE type = 'EXPENSE' AND status != 'IGNORED' 
         AND (category_id != 'cat_transfer_cash' OR category_id IS NULL)
         AND (category_id != 'cat_loan' OR category_id IS NULL)
+        AND (category_id != 'cat_debt_repay' OR category_id IS NULL)
         AND (category_id NOT LIKE 'cat_transfer_%' OR category_id IS NULL)
     `).get();
 
@@ -48,7 +62,7 @@ router.get('/stats', async (req, res) => {
         COUNT(t.id) as tx_count
       FROM categories c
       LEFT JOIN transactions t ON c.id = t.category_id AND t.type = 'EXPENSE' AND t.status = 'CONFIRMED'
-      WHERE c.type = 'EXPENSE' AND c.id != 'cat_loan' AND c.id NOT LIKE 'cat_transfer_%'
+      WHERE c.type = 'EXPENSE' AND c.id != 'cat_loan' AND c.id != 'cat_debt_repay' AND c.id NOT LIKE 'cat_transfer_%'
       GROUP BY c.id
       ORDER BY total_amount DESC
     `).all();
@@ -211,19 +225,15 @@ router.patch('/transactions/:id/categorize', async (req, res) => {
       }
     }
 
-    // Nếu chọn danh mục "Rút tiền vào Ví (ATM)" và trước đó chưa phải
+    // Đồng bộ số dư Ví Tiền Mặt khi chuyển sang hoặc chuyển khỏi "Rút tiền vào Ví (ATM)"
     if (category_id === 'cat_transfer_cash' && existingTx.category_id !== 'cat_transfer_cash') {
-      let cashAcc = await db.prepare("SELECT id FROM accounts WHERE id = 'acc_cash'").get();
-      if (!cashAcc) {
-        await db.prepare("INSERT INTO accounts (id, name, bank_code, account_number, balance, currency, icon, color) VALUES ('acc_cash', 'Ví Tiền Mặt', 'CASH', 'Tiền mặt trong ví', 0, 'VND', 'wallet', '#f59e0b')").run();
-      }
-      await db.prepare("UPDATE accounts SET balance = balance + ? WHERE id = 'acc_cash'").run(existingTx.amount);
-      const updatedCash = await db.prepare("SELECT * FROM accounts WHERE id = 'acc_cash'").get();
-      broadcastEvent('ACCOUNT_UPDATED', updatedCash);
+      await adjustCashWalletBalance(existingTx.amount);
 
       if (!description || !description.trim()) {
         description = 'Rút tiền vào Ví Tiền Mặt';
       }
+    } else if (existingTx.category_id === 'cat_transfer_cash' && category_id !== 'cat_transfer_cash') {
+      await adjustCashWalletBalance(-existingTx.amount);
     }
 
     // Xử lý chuyển tiền nội bộ giữa các tài khoản nếu có partner_account_id
@@ -393,6 +403,22 @@ router.post('/transactions/:id/split', async (req, res) => {
 router.patch('/transactions/:id/ignore', async (req, res) => {
   try {
     const { id } = req.params;
+    const oldTx = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    if (!oldTx) {
+      return res.status(404).json({ error: 'Giao dịch không tồn tại' });
+    }
+
+    if (oldTx.status !== 'IGNORED') {
+      const revertDelta = oldTx.type === 'EXPENSE' ? oldTx.amount : -oldTx.amount;
+      await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(revertDelta, oldTx.account_id);
+      const updatedAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(oldTx.account_id);
+      if (updatedAcc) broadcastEvent('ACCOUNT_UPDATED', updatedAcc);
+
+      if (oldTx.category_id === 'cat_transfer_cash') {
+        await adjustCashWalletBalance(-oldTx.amount);
+      }
+    }
+
     await db.prepare(`
       UPDATE transactions 
       SET status = 'IGNORED', updated_at = datetime('now', 'localtime')
@@ -429,25 +455,38 @@ router.put('/transactions/:id', async (req, res) => {
       newCatId = 'cat_debt_collect';
     }
 
+    const targetAccount = await db.prepare('SELECT name FROM accounts WHERE id = ?').get(newAccountId);
+    const newBankName = targetAccount?.name || oldTx.bank_name;
+    const newStatus = (oldTx.status === 'PENDING' && newCatId) ? 'CONFIRMED' : oldTx.status;
+
     // Hoàn trả số dư cũ cho tài khoản cũ (nếu giao dịch đã xác nhận/ảnh hưởng số dư)
+    let cashDelta = 0;
     if (oldTx.status !== 'IGNORED') {
       if (oldTx.type === 'EXPENSE') {
         await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
       } else {
         await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
       }
+      if (oldTx.category_id === 'cat_transfer_cash') {
+        cashDelta -= oldTx.amount;
+      }
+    }
 
-      // Áp dụng số dư mới cho tài khoản mới
+    // Áp dụng số dư mới cho tài khoản mới (nếu trạng thái mới không bị IGNORED)
+    if (newStatus !== 'IGNORED') {
       if (newType === 'EXPENSE') {
         await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(newAmount, newAccountId);
       } else {
         await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(newAmount, newAccountId);
       }
+      if (newCatId === 'cat_transfer_cash') {
+        cashDelta += newAmount;
+      }
     }
 
-    const targetAccount = await db.prepare('SELECT name FROM accounts WHERE id = ?').get(newAccountId);
-    const newBankName = targetAccount?.name || oldTx.bank_name;
-    const newStatus = (oldTx.status === 'PENDING' && newCatId) ? 'CONFIRMED' : oldTx.status;
+    if (cashDelta !== 0) {
+      await adjustCashWalletBalance(cashDelta);
+    }
 
     await db.prepare(`
       UPDATE transactions
@@ -488,6 +527,9 @@ router.delete('/transactions/:id', async (req, res) => {
         await db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
       } else {
         await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(oldTx.amount, oldTx.account_id);
+      }
+      if (oldTx.category_id === 'cat_transfer_cash') {
+        await adjustCashWalletBalance(-oldTx.amount);
       }
     }
 

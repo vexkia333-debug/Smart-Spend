@@ -215,6 +215,39 @@ async function processIncomingWebhookInternal(body = {}) {
       WHERE id = ?
     `).run(partnerCatId, partnerDesc, partnerTx.id);
 
+    // Đồng bộ trạng thái log thông báo của giao dịch đối ứng sang INTERNAL_TRANSFER thay vì giữ PENDING_CLASSIFY
+    try {
+      const partnerActionDetail = partnerTx.type === 'EXPENSE'
+        ? `Tự động nhận diện: ${partnerDesc} (không tính vào chi tiêu)`
+        : `Tự động nhận diện: ${partnerDesc} (không tính vào thu nhập)`;
+      const existingPartnerLog = await db.prepare(`
+        SELECT id, actions_payload FROM notification_logs
+        WHERE transaction_id = ?
+        ORDER BY created_at DESC LIMIT 1
+      `).get(partnerTx.id);
+      if (existingPartnerLog) {
+        let prevPayload = {};
+        try {
+          if (existingPartnerLog.actions_payload) prevPayload = JSON.parse(existingPartnerLog.actions_payload);
+        } catch {}
+        const updatedPayload = {
+          ...prevPayload,
+          status: 'CONFIRMED',
+          action_type: 'INTERNAL_TRANSFER',
+          action_detail: partnerActionDetail,
+          category_id: partnerCatId,
+          is_internal_transfer: true
+        };
+        await db.prepare(`
+          UPDATE notification_logs
+          SET status = 'INTERACTED', actions_payload = ?
+          WHERE id = ?
+        `).run(JSON.stringify(updatedPayload), existingPartnerLog.id);
+      }
+    } catch (e) {
+      console.warn('Không thể cập nhật log đối ứng nội bộ:', e.message);
+    }
+
     const updatedPartner = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
       FROM transactions t
@@ -264,8 +297,12 @@ async function processIncomingWebhookInternal(body = {}) {
       const rawUpper = (content || '').toUpperCase();
       const combinedUpper = `${descUpper} ${rawUpper}`;
 
-      const rules = await db.prepare('SELECT * FROM auto_rules').all();
-      suggested = matchSuggestedCategory(combinedUpper, rules);
+      const rules = await db.prepare(`
+        SELECT r.*, c.type as category_type
+        FROM auto_rules r
+        LEFT JOIN categories c ON r.category_id = c.id
+      `).all();
+      suggested = matchSuggestedCategory(combinedUpper, rules, parsed.type);
       if (suggested && suggested.isAutoApply) {
         categoryId = suggested.categoryId;
         status = 'CONFIRMED';
@@ -304,15 +341,16 @@ async function processIncomingWebhookInternal(body = {}) {
 
     if (isInternalTransfer) {
       actionType = 'INTERNAL_TRANSFER';
-      actionDetail = parsed.type === 'EXPENSE'
-        ? `Tự động nhận diện Chuyển tiền nội bộ sang ${account?.name || 'tài khoản khác'} (không tính vào chi tiêu)`
-        : `Tự động nhận diện Nhận tiền chuyển khoản nội bộ (không tính vào thu nhập)`;
+      actionDetail = `Tự động nhận diện: ${parsed.description} (không tính vào ${parsed.type === 'EXPENSE' ? 'chi tiêu' : 'thu nhập'})`;
     } else if (categoryId === 'cat_debt_collect') {
       actionType = 'DEBT_COLLECT';
       actionDetail = 'Tự động nhận diện Nhận tiền trả nợ / Thu hồi nợ và đối soát cấn trừ công nợ';
     } else if (categoryId === 'cat_loan') {
       actionType = 'LOAN_RECORD';
       actionDetail = 'Tự động ghi nhận Khoản cho vay / Trả hộ vào Sổ theo dõi công nợ';
+    } else if (categoryId === 'cat_debt_repay') {
+      actionType = 'DEBT_REPAY';
+      actionDetail = 'Tự động ghi nhận Khoản trả nợ và đối soát công nợ';
     } else if (status === 'CONFIRMED' && suggested) {
       actionType = 'RULE_MATCH';
       actionDetail = `Tự động phân loại theo quy tắc từ khóa "${suggested.keyword}"`;
@@ -410,7 +448,7 @@ async function processIncomingWebhookInternal(body = {}) {
  */
 export async function checkPromptAfterDelay({ ref = '', txId = '', minWaitSec = 90, maxWindowMin = 15 } = {}) {
   const rawRef = String(txId || ref || '').trim();
-  const cleaned = rawRef.replace(/^WAIT:/i, '').trim();
+  const cleaned = rawRef.replace(/^(?:WAIT|SKIP|DUP):/i, '').trim();
   const parsedTxId = /^tx_[a-zA-Z0-9-]+$/i.test(cleaned) ? cleaned : null;
 
   const safeMinWaitSec = Math.max(0, Math.min(600, Number.isFinite(Number(minWaitSec)) ? Math.floor(Number(minWaitSec)) : 90));
