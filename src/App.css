@@ -1215,15 +1215,30 @@
 }
 
 /* Two-column layout */
+.system-audit-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .dashboard-columns {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 22px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-columns > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 900px) {
   .dashboard-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -5430,8 +5445,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .budget-goal-metrics {
-  flex: 1;
-  min-width: 190px;
+  flex: 1 1 180px;
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -5441,7 +5457,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .budget-metric-label {
@@ -5600,6 +5618,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 /* Quick Settings Card (Screen 4 in Settings/Goal Tab) */
 .quick-settings-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border-radius: 22px;
   padding: 18px 20px;
   display: flex;
@@ -5618,10 +5640,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .quick-setting-row {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5644,6 +5670,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
   min-width: 0;
 }
 
@@ -5660,12 +5687,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .quick-setting-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
 }
 
 .quick-setting-text strong {
   font-size: 0.88rem;
   color: var(--text-main);
+  word-break: break-word;
 }
 
 .quick-setting-text span {
@@ -5925,8 +5954,38 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .budget-goal-card {
-    padding: 16px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 16px 14px;
     border-radius: 18px;
+  }
+
+  .budget-goal-body {
+    gap: 14px;
+  }
+
+  .budget-ring-wrap {
+    width: 96px;
+    height: 96px;
+  }
+
+  .quick-settings-card {
+    padding: 16px 14px;
+    border-radius: 18px;
+  }
+
+  .quick-setting-row {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .quick-setting-text span {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.32;
   }
 
   .quick-add-sheet-backdrop {
@@ -5943,6 +6002,25 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
   .quick-add-grabber {
     display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .budget-goal-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .budget-ring-wrap {
+    margin: 0 auto;
+  }
+
+  .budget-edit-controls {
+    flex-wrap: wrap;
+  }
+
+  .budget-edit-input {
+    flex: 1 1 100%;
   }
 }
 
