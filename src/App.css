@@ -2479,6 +2479,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     padding: 10px 14px !important;
     border-radius: 12px !important;
     border: 1px solid var(--border-glass) !important;
+    align-items: center !important;
+    text-align: center !important;
   }
 
   :root[data-theme="light"] .health-metric-item:last-child {
@@ -3070,6 +3072,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.health-metric-item:last-child {
+  align-items: center;
+  text-align: center;
 }
 
 .health-metric-label {
@@ -5512,7 +5519,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .budget-goal-metrics {
-  flex: 1 1 180px;
+  flex: 1;
   min-width: 0;
   width: 100%;
   display: flex;
@@ -5573,6 +5580,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   border-radius: 12px;
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.budget-goal-status-banner svg {
+  flex-shrink: 0;
 }
 
 .budget-goal-status-banner.good {
@@ -6093,6 +6104,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .budget-goal-body {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .budget-goal-metrics {
+    flex: 0 0 auto;
   }
 
   .budget-ring-wrap {

@@ -6,7 +6,7 @@ import {
   ChevronUp, Edit2, SlidersHorizontal, Bell, Key, RotateCcw, Sun, Moon, ChevronRight
 } from 'lucide-react';
 import RulesTab from './RulesTab.jsx';
-import { formatTxTime } from '../../utils/formatters.js';
+import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function SystemAuditTab({
   authFetch,

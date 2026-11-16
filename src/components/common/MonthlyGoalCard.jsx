@@ -153,9 +153,9 @@ export default function MonthlyGoalCard({
           </div>
 
           <div className="budget-metric-row">
-            <span className="budget-metric-label">Định mức tiêu tối đa ({safeDays} ngày còn lại)</span>
+            <span className="budget-metric-label">Định mức tiêu ({safeDays} ngày cuối)</span>
             <strong className={`budget-metric-value tabular-nums ${safeToSpend > 0 ? 'remain' : 'over'}`}>
-              {safeToSpend > 0 ? `${formatVND(dailyAllowance)} / ngày` : '0 ₫ / ngày (Cần ngưng chi)'}
+              {safeToSpend > 0 ? `${formatVND(dailyAllowance)}/ngày` : '0 ₫/ngày'}
             </strong>
           </div>
         </div>
