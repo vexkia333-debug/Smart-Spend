@@ -238,10 +238,10 @@ export default function DashboardTab({
 
   const sparkStrokeColor =
     balanceSparkData.deltaAmount < 0
-      ? '#fda4af'
+      ? '#fecdd3'
       : balanceSparkData.deltaAmount > 0
-        ? '#6ee7b7'
-        : '#7dd3fc';
+        ? '#fef08a'
+        : '#ffffff';
 
   const heroDeltaTone =
     balanceSparkData.deltaAmount > 0 ? 'up' : balanceSparkData.deltaAmount < 0 ? 'down' : 'flat';
@@ -479,7 +479,7 @@ export default function DashboardTab({
           <div className="dashboard-card-header">
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <PieChartIcon size={20} color="#06b6d4" style={{ flexShrink: 0 }} />
+                <PieChartIcon size={20} color="#10b981" style={{ flexShrink: 0 }} />
                 <h3 className="dashboard-card-title" style={{ margin: 0 }}>
                   Cơ cấu chi tiêu sinh hoạt ({timeLabel})
                 </h3>

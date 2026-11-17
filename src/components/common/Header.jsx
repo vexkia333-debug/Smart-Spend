@@ -61,7 +61,7 @@ export default function Header({
                 onClick={onOpenDailyReport}
                 title="Báo cáo tài chính & Thông báo ứng dụng (Web Push 22:00)"
               >
-                <Bell size={17} color="#c084fc" />
+                <Bell size={17} color="#34d399" />
               </button>
             )}
 
@@ -72,7 +72,7 @@ export default function Header({
                 onClick={onOpenSettings}
                 title="Cài đặt kết nối Webhook & Hướng dẫn MacroDroid"
               >
-                <Settings size={17} color="#38bdf8" />
+                <Settings size={17} color="#2dd4bf" />
               </button>
             )}
 
@@ -91,7 +91,7 @@ export default function Header({
               onClick={toggleTheme}
               title={`Chuyển sang giao diện ${theme === 'dark' ? 'Sáng' : 'Tối'}`}
             >
-              {theme === 'dark' ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#3b82f6" />}
+              {theme === 'dark' ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#059669" />}
             </button>
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function Header({
       <section className="glass-panel ai-smart-card">
         <div className="ai-header-row">
           <div className="ai-title">
-            <Sparkles size={19} color="#8b5cf6" />
+            <Sparkles size={19} color="#10b981" />
             Nhập dòng tiền thông minh bằng Google Gemini AI
           </div>
 

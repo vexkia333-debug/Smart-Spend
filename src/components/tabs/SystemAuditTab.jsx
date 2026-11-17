@@ -105,8 +105,8 @@ export default function SystemAuditTab({
       label: 'Báo cáo & Nhắc nhở AI',
       desc: 'Lịch gửi tổng hợp chi tiêu hàng ngày qua Ntfy',
       icon: Bell,
-      bg: 'rgba(139, 92, 246, 0.16)',
-      color: '#a78bfa',
+      bg: 'rgba(16, 185, 129, 0.16)',
+      color: '#34d399',
       onClick: onOpenDailyReport
     },
     {
@@ -177,7 +177,7 @@ export default function SystemAuditTab({
               </span>
               <div className="quick-setting-text">
                 <strong>Giao diện hiển thị</strong>
-                <span>{theme === 'dark' ? 'Indigo Dark Fintech' : 'Pastel Light Fintech'}</span>
+                <span>{theme === 'dark' ? 'Emerald Dark Fintech' : 'Mint Light Fintech'}</span>
               </div>
             </div>
             <span className="theme-switch-pill">
@@ -211,9 +211,9 @@ export default function SystemAuditTab({
               gap: '8px',
               padding: '8px 16px',
               borderRadius: '10px',
-              border: subTab === 'audit' ? '1px solid var(--accent-purple)' : '1px solid transparent',
-              background: subTab === 'audit' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-              color: subTab === 'audit' ? 'var(--accent-purple, #c084fc)' : 'var(--text-muted)',
+              border: subTab === 'audit' ? '1px solid var(--accent-emerald)' : '1px solid transparent',
+              background: subTab === 'audit' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+              color: subTab === 'audit' ? 'var(--accent-emerald, #34d399)' : 'var(--text-muted)',
               fontSize: '0.86rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -396,9 +396,9 @@ export default function SystemAuditTab({
                   fontSize: '0.82rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  border: filterType === 'ALL' ? '1px solid var(--accent-purple)' : '1px solid var(--border-subtle)',
-                  background: filterType === 'ALL' ? 'rgba(139, 92, 246, 0.2)' : 'var(--bg-input)',
-                  color: filterType === 'ALL' ? '#c084fc' : 'var(--text-main)',
+                  border: filterType === 'ALL' ? '1px solid var(--accent-emerald)' : '1px solid var(--border-subtle)',
+                  background: filterType === 'ALL' ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)',
+                  color: filterType === 'ALL' ? '#34d399' : 'var(--text-main)',
                   transition: 'all 0.15s'
                 }}
               >

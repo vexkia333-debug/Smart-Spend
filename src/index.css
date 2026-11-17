@@ -1,16 +1,16 @@
 :root {
   color-scheme: dark;
-  --bg-main: #0c0b20;
-  --bg-card: rgba(18, 17, 46, 0.74);
-  --bg-card-hover: rgba(34, 33, 76, 0.94);
-  --bg-card-solid: #161534;
-  --bg-input: #1e1d46;
-  --bg-subtle: rgba(129, 140, 248, 0.07);
-  --border-subtle: rgba(165, 180, 252, 0.11);
-  --border-medium: rgba(165, 180, 252, 0.22);
-  --border-glow: rgba(99, 102, 241, 0.45);
-  --hero-grad: linear-gradient(135deg, #4338ca 0%, #3b82f6 52%, #6366f1 100%);
-  --fab-grad: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --bg-main: #06150d;
+  --bg-card: rgba(9, 28, 18, 0.75);
+  --bg-card-hover: rgba(14, 38, 25, 0.9);
+  --bg-card-solid: #0b2216;
+  --bg-input: #102d1e;
+  --bg-subtle: rgba(16, 185, 129, 0.08);
+  --border-subtle: rgba(110, 231, 183, 0.13);
+  --border-medium: rgba(110, 231, 183, 0.24);
+  --border-glow: rgba(16, 185, 129, 0.45);
+  --hero-grad: linear-gradient(135deg, #065f46 0%, #059669 52%, #10b981 100%);
+  --fab-grad: linear-gradient(135deg, #10b981 0%, #059669 100%);
 
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
@@ -18,9 +18,9 @@
 
   --accent-emerald: #10b981;
   --accent-emerald-glow: rgba(16, 185, 129, 0.25);
-  --accent-cyan: #06b6d4;
-  --accent-blue: #3b82f6;
-  --accent-purple: #8b5cf6;
+  --accent-cyan: #2dd4bf;
+  --accent-blue: #14b8a6;
+  --accent-purple: #10b981;
   --accent-rose: #f43f5e;
   --accent-rose-glow: rgba(244, 63, 94, 0.25);
   --accent-amber: #f59e0b;
@@ -36,24 +36,24 @@
 
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  --shadow-card: 0 12px 32px -10px rgba(4, 3, 18, 0.65), 0 0 1px 1px rgba(165, 180, 252, 0.07);
-  --shadow-modal: 0 28px 64px -12px rgba(4, 3, 18, 0.85), 0 0 1px 1px rgba(165, 180, 252, 0.14);
-  --shadow-glow: 0 0 28px -5px rgba(99, 102, 241, 0.4);
+  --shadow-card: 0 12px 32px -10px rgba(2, 12, 7, 0.7), 0 0 1px 1px rgba(110, 231, 183, 0.08);
+  --shadow-modal: 0 28px 64px -12px rgba(2, 12, 7, 0.88), 0 0 1px 1px rgba(110, 231, 183, 0.15);
+  --shadow-glow: 0 0 28px -5px rgba(16, 185, 129, 0.4);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-main: #eef3ff;
+  --bg-main: #edf7f2;
   --bg-card: rgba(255, 255, 255, 0.84);
   --bg-card-hover: #ffffff;
   --bg-card-solid: #ffffff;
-  --bg-input: #f4f7ff;
-  --bg-subtle: #e8efff;
-  --border-subtle: rgba(99, 102, 241, 0.13);
-  --border-medium: rgba(99, 102, 241, 0.24);
-  --border-glow: rgba(59, 130, 246, 0.35);
-  --hero-grad: linear-gradient(135deg, #2563eb 0%, #3b82f6 52%, #6366f1 100%);
-  --fab-grad: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  --bg-input: #f2fbf6;
+  --bg-subtle: #e3f5ec;
+  --border-subtle: rgba(16, 185, 129, 0.15);
+  --border-medium: rgba(16, 185, 129, 0.28);
+  --border-glow: rgba(5, 150, 105, 0.35);
+  --hero-grad: linear-gradient(135deg, #047857 0%, #059669 52%, #10b981 100%);
+  --fab-grad: linear-gradient(135deg, #10b981 0%, #059669 100%);
 
   --text-main: #0f172a;
   --text-muted: #475569;
@@ -61,17 +61,17 @@
 
   --accent-emerald: #059669;
   --accent-emerald-glow: rgba(5, 150, 105, 0.15);
-  --accent-cyan: #0284c7;
-  --accent-blue: #2563eb;
-  --accent-purple: #7c3aed;
+  --accent-cyan: #0d9488;
+  --accent-blue: #059669;
+  --accent-purple: #047857;
   --accent-rose: #e11d48;
   --accent-rose-glow: rgba(225, 29, 72, 0.15);
   --accent-amber: #d97706;
   --accent-amber-glow: rgba(217, 119, 6, 0.15);
 
-  --shadow-card: 0 10px 28px -8px rgba(30, 58, 138, 0.1), 0 0 0 1px rgba(99, 102, 241, 0.08);
-  --shadow-modal: 0 22px 50px -12px rgba(30, 58, 138, 0.2), 0 0 0 1px rgba(99, 102, 241, 0.12);
-  --shadow-glow: 0 0 26px -5px rgba(59, 130, 246, 0.28);
+  --shadow-card: 0 10px 28px -8px rgba(6, 78, 59, 0.1), 0 0 0 1px rgba(16, 185, 129, 0.1);
+  --shadow-modal: 0 22px 50px -12px rgba(6, 78, 59, 0.2), 0 0 0 1px rgba(16, 185, 129, 0.14);
+  --shadow-glow: 0 0 26px -5px rgba(16, 185, 129, 0.28);
 }
 
 * {
@@ -93,9 +93,9 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   background-image: 
-    radial-gradient(circle at 12% 12%, rgba(99, 102, 241, 0.16) 0%, transparent 42%),
-    radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.12) 0%, transparent 44%),
-    radial-gradient(circle at 50% 88%, rgba(139, 92, 246, 0.14) 0%, transparent 50%);
+    radial-gradient(circle at 12% 12%, rgba(16, 185, 129, 0.16) 0%, transparent 42%),
+    radial-gradient(circle at 88% 18%, rgba(45, 212, 191, 0.12) 0%, transparent 44%),
+    radial-gradient(circle at 50% 88%, rgba(5, 150, 105, 0.14) 0%, transparent 50%);
   background-attachment: fixed;
   overflow-x: hidden;
   transition: background-color 0.25s ease, color 0.25s ease;
@@ -103,9 +103,9 @@ body {
 
 :root[data-theme="light"] body {
   background-image: 
-    radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.09) 0%, transparent 42%),
-    radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.1) 0%, transparent 44%),
-    radial-gradient(circle at 50% 90%, rgba(167, 139, 250, 0.08) 0%, transparent 48%);
+    radial-gradient(circle at 12% 10%, rgba(16, 185, 129, 0.1) 0%, transparent 42%),
+    radial-gradient(circle at 88% 18%, rgba(45, 212, 191, 0.1) 0%, transparent 44%),
+    radial-gradient(circle at 50% 90%, rgba(5, 150, 105, 0.08) 0%, transparent 48%);
 }
 
 /* Glassmorphism Classes */
