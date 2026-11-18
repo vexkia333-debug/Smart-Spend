@@ -564,21 +564,7 @@ export default function InteractiveTrendLineChart({
               )}
             </div>
 
-            {chartMode === 'ACCOUNTS' ? (
-              <>
-                <div className="summary-pill-divider"></div>
-                {displayAccounts.map((acc) => {
-                  const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
-                  const bal = todayPoint?.accBalances[acc.id] || 0;
-                  return (
-                    <div key={acc.id} className="summary-pill-item">
-                      <span className="summary-pill-label" style={{ color, fontWeight: 600 }}>● {acc.name}:</span>
-                      <span className="summary-pill-val">{formatVND(bal)}</span>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
+            {chartMode === 'TOTAL' && (
               <>
                 <div className="summary-pill-divider"></div>
                 <div className="summary-pill-item">
