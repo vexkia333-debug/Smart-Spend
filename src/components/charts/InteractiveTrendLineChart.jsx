@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { LineChart as LineChartIcon, Layers, Wallet, TrendingUp, TrendingDown, Coins, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import React, { useState, useRef, useMemo, useEffect, useCallback, useId } from 'react';
+import { LineChart as LineChartIcon, Layers, Wallet, TrendingUp, TrendingDown, Coins, ArrowUpRight, ArrowDownRight, Minus, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { formatCompactVND, parseTxDate } from '../../utils/formatters.js';
 
 const ACCOUNT_COLORS = {
@@ -45,6 +45,11 @@ export default function InteractiveTrendLineChart({
 
   const [hoverIndex, setHoverIndex] = useState(null);
   const svgRef = useRef(null);
+  const chartWrapperRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const touchStateRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const chartClipId = useId();
 
   // Danh sách các tài khoản với số dư thực tế hiện tại
   const displayAccounts = useMemo(() => {
@@ -221,6 +226,55 @@ export default function InteractiveTrendLineChart({
   }, [transactions, timeFilter, customStartDate, customEndDate, displayAccounts]);
 
   const rangeDays = dailyPoints.length;
+  const maxIndex = Math.max(0, rangeDays - 1);
+  const minSpan = Math.min(2, maxIndex);
+  const [viewRange, setViewRange] = useState({ start: 0, end: maxIndex });
+
+  useEffect(() => {
+    setViewRange({ start: 0, end: maxIndex });
+    setHoverIndex(null);
+  }, [maxIndex, timeFilter, customStartDate, customEndDate]);
+
+  const safeStart = Math.max(0, Math.min(viewRange.start, Math.max(0, maxIndex - minSpan)));
+  const safeEnd = Math.min(maxIndex, Math.max(safeStart + minSpan, viewRange.end));
+  const visibleSpan = Math.max(1, safeEnd - safeStart);
+  const isZoomed = maxIndex > minSpan && (safeStart > 0.05 || safeEnd < maxIndex - 0.05);
+
+  const visStartIdx = Math.max(0, Math.floor(safeStart));
+  const visEndIdx = Math.min(maxIndex, Math.ceil(safeEnd));
+  const visiblePoints = useMemo(
+    () => dailyPoints.slice(visStartIdx, visEndIdx + 1),
+    [dailyPoints, visStartIdx, visEndIdx]
+  );
+
+  const resetZoom = useCallback(() => {
+    setViewRange({ start: 0, end: maxIndex });
+  }, [maxIndex]);
+
+  const zoomByFactor = useCallback(
+    (factor, anchorRatio = 0.5) => {
+      if (maxIndex <= minSpan) return;
+      setViewRange((prev) => {
+        const curStart = Math.max(0, Math.min(prev.start, maxIndex - minSpan));
+        const curEnd = Math.min(maxIndex, Math.max(curStart + minSpan, prev.end));
+        const curSpan = curEnd - curStart;
+        const nextSpan = Math.max(minSpan, Math.min(maxIndex, curSpan * factor));
+        const anchor = curStart + anchorRatio * curSpan;
+        let nextStart = anchor - anchorRatio * nextSpan;
+        let nextEnd = nextStart + nextSpan;
+        if (nextStart < 0) {
+          nextStart = 0;
+          nextEnd = nextSpan;
+        }
+        if (nextEnd > maxIndex) {
+          nextEnd = maxIndex;
+          nextStart = Math.max(0, maxIndex - nextSpan);
+        }
+        return { start: nextStart, end: nextEnd };
+      });
+    },
+    [maxIndex, minSpan]
+  );
 
   // Các mốc so sánh quan trọng: Hôm nay so với Hôm qua
   const todayPoint = dailyPoints[dailyPoints.length - 1];
@@ -230,8 +284,8 @@ export default function InteractiveTrendLineChart({
   const todayDiff = todayPoint?.diffFromPrevDay || 0;
   const todayDiffPct = todayPoint?.pctFromPrevDay || 0;
 
-  const totalMax = Math.max(...dailyPoints.map((p) => p.totalBalance), 100000);
-  const totalMin = Math.min(...dailyPoints.map((p) => p.totalBalance));
+  const totalMax = Math.max(...visiblePoints.map((p) => p.totalBalance), 100000);
+  const totalMin = Math.min(...visiblePoints.map((p) => p.totalBalance));
 
   // SVG Geometry Constants
   const width = 800;
@@ -244,33 +298,36 @@ export default function InteractiveTrendLineChart({
   const chartH = height - padTop - padBottom;
   const bottomY = padTop + chartH;
 
-  // Tính trần giá trị Y
+  // Tính trần giá trị Y tự động theo vùng đang hiển thị (Trading Auto-Scale Y)
   const rawMax = useMemo(() => {
     if (chartMode === 'TOTAL') {
       return totalMax;
     } else if (chartMode === 'ACCOUNTS') {
-      const vals = dailyPoints.flatMap((p) =>
+      const vals = visiblePoints.flatMap((p) =>
         activeAccountIds.map((accId) => p.accBalances[accId] || 0)
       );
       return Math.max(...vals, 100000);
     } else {
-      const vals = dailyPoints.flatMap((p) => [
+      const vals = visiblePoints.flatMap((p) => [
         showIncome ? p.income : 0,
         showExpense ? p.expense : 0,
         showNet ? Math.max(0, p.netFlow) : 0
       ]);
       return Math.max(...vals, 100000);
     }
-  }, [chartMode, totalMax, dailyPoints, activeAccountIds, showIncome, showExpense, showNet]);
+  }, [chartMode, totalMax, visiblePoints, activeAccountIds, showIncome, showExpense, showNet]);
 
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
   const stepVal = magnitude >= 1000000 ? 1000000 : magnitude >= 100000 ? 500000 : 50000;
   const maxVal = Math.ceil(rawMax / stepVal) * stepVal || 100000;
 
-  // Tọa độ các điểm vẽ
+  // Tọa độ các điểm vẽ theo cửa sổ viewRange
   const coords = useMemo(() => {
     return dailyPoints.map((p, i) => {
-      const x = padLeft + (i / Math.max(1, dailyPoints.length - 1)) * chartW;
+      const x =
+        rangeDays <= 1
+          ? padLeft + chartW / 2
+          : padLeft + ((i - safeStart) / visibleSpan) * chartW;
       const yTotal = bottomY - Math.min(chartH, Math.max(0, (p.totalBalance / maxVal) * chartH));
       const yIncome = bottomY - Math.min(chartH, Math.max(0, (p.income / maxVal) * chartH));
       const yExpense = bottomY - Math.min(chartH, Math.max(0, (p.expense / maxVal) * chartH));
@@ -284,7 +341,7 @@ export default function InteractiveTrendLineChart({
 
       return { ...p, x, yTotal, yIncome, yExpense, yNet, accY, index: i };
     });
-  }, [dailyPoints, maxVal, chartW, chartH, bottomY, padLeft, displayAccounts]);
+  }, [dailyPoints, rangeDays, safeStart, visibleSpan, maxVal, chartW, chartH, bottomY, padLeft, displayAccounts]);
 
   // Spline generator
   const getSplinePath = (pts, keyY, isAcc = false, accId = null) => {
@@ -325,24 +382,192 @@ export default function InteractiveTrendLineChart({
   const incomeAreaPath = coords.length > 0 ? `${incomeLinePath} L ${coords[coords.length - 1].x} ${bottomY} L ${coords[0].x} ${bottomY} Z` : '';
   const expenseAreaPath = coords.length > 0 ? `${expenseLinePath} L ${coords[coords.length - 1].x} ${bottomY} L ${coords[0].x} ${bottomY} Z` : '';
 
-  // Mouse hover event
+  // Mouse hover event (snaps to visible range points when not dragging)
   const handleMouseMove = (e) => {
+    if (dragStateRef.current?.isPanning) return;
     if (!svgRef.current || coords.length === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
     const clientX = e.clientX - rect.left;
     const svgX = (clientX / rect.width) * width;
 
-    let closestIdx = 0;
+    let closestIdx = visStartIdx;
     let minDiff = Infinity;
-    coords.forEach((c, idx) => {
+    for (let idx = visStartIdx; idx <= visEndIdx; idx++) {
+      const c = coords[idx];
+      if (!c) continue;
       const diff = Math.abs(c.x - svgX);
       if (diff < minDiff) {
         minDiff = diff;
         closestIdx = idx;
       }
-    });
+    }
     setHoverIndex(closestIdx);
   };
+
+  // Mouse drag pan (Desktop)
+  const handleMouseDown = (e) => {
+    if (!isZoomed || e.button !== 0 || !svgRef.current) return;
+    dragStateRef.current = {
+      startX: e.clientX,
+      startRange: { start: safeStart, end: safeEnd },
+      isPanning: true
+    };
+    setIsDragging(true);
+    setHoverIndex(null);
+  };
+
+  useEffect(() => {
+    const onWinMouseMove = (e) => {
+      const drag = dragStateRef.current;
+      if (!drag?.isPanning || !svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const chartPxW = Math.max(1, (chartW / width) * rect.width);
+      const dx = e.clientX - drag.startX;
+      const span = drag.startRange.end - drag.startRange.start;
+      const deltaIdx = -(dx / chartPxW) * span;
+      let nextStart = drag.startRange.start + deltaIdx;
+      let nextEnd = nextStart + span;
+      if (nextStart < 0) {
+        nextStart = 0;
+        nextEnd = span;
+      }
+      if (nextEnd > maxIndex) {
+        nextEnd = maxIndex;
+        nextStart = Math.max(0, maxIndex - span);
+      }
+      setViewRange({ start: nextStart, end: nextEnd });
+    };
+
+    const onWinMouseUp = () => {
+      if (dragStateRef.current?.isPanning) {
+        dragStateRef.current = null;
+        setIsDragging(false);
+      }
+    };
+
+    window.addEventListener('mousemove', onWinMouseMove);
+    window.addEventListener('mouseup', onWinMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onWinMouseMove);
+      window.removeEventListener('mouseup', onWinMouseUp);
+    };
+  }, [chartW, width, maxIndex]);
+
+  // Native non-passive Wheel Zoom + Touch 1-finger Pan & 2-finger Pinch-to-Zoom
+  useEffect(() => {
+    const wrapper = chartWrapperRef.current;
+    if (!wrapper) return;
+
+    const getAnchorRatio = (clientX) => {
+      const svgEl = svgRef.current;
+      if (!svgEl) return 0.5;
+      const rect = svgEl.getBoundingClientRect();
+      const padLeftPx = (padLeft / width) * rect.width;
+      const chartPxW = Math.max(1, (chartW / width) * rect.width);
+      return Math.max(0, Math.min(1, (clientX - rect.left - padLeftPx) / chartPxW));
+    };
+
+    const handleWheel = (e) => {
+      if (maxIndex <= minSpan) return;
+      e.preventDefault();
+      const anchorRatio = getAnchorRatio(e.clientX);
+      const factor = e.deltaY > 0 ? 1.16 : 0.86;
+      zoomByFactor(factor, anchorRatio);
+    };
+
+    const handleTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const midX = (t0.clientX + t1.clientX) / 2;
+        touchStateRef.current = {
+          mode: 'pinch',
+          startDist: Math.max(10, dist),
+          anchorRatio: getAnchorRatio(midX),
+          startRange: { start: safeStart, end: safeEnd }
+        };
+        setHoverIndex(null);
+      } else if (e.touches.length === 1) {
+        const t0 = e.touches[0];
+        touchStateRef.current = {
+          mode: 'single',
+          startX: t0.clientX,
+          startY: t0.clientY,
+          isPanning: false,
+          startRange: { start: safeStart, end: safeEnd }
+        };
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      const ts = touchStateRef.current;
+      if (!ts) return;
+
+      if (e.touches.length === 2 && ts.mode === 'pinch') {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const scale = ts.startDist / Math.max(10, dist);
+        const baseSpan = ts.startRange.end - ts.startRange.start;
+        const nextSpan = Math.max(minSpan, Math.min(maxIndex, baseSpan * scale));
+        const anchor = ts.startRange.start + ts.anchorRatio * baseSpan;
+        let nextStart = anchor - ts.anchorRatio * nextSpan;
+        let nextEnd = nextStart + nextSpan;
+        if (nextStart < 0) {
+          nextStart = 0;
+          nextEnd = nextSpan;
+        }
+        if (nextEnd > maxIndex) {
+          nextEnd = maxIndex;
+          nextStart = Math.max(0, maxIndex - nextSpan);
+        }
+        setViewRange({ start: nextStart, end: nextEnd });
+      } else if (e.touches.length === 1 && ts.mode === 'single' && isZoomed) {
+        const t0 = e.touches[0];
+        const dx = t0.clientX - ts.startX;
+        const dy = t0.clientY - ts.startY;
+        if (!ts.isPanning && Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) {
+          ts.isPanning = true;
+          setHoverIndex(null);
+        }
+        if (ts.isPanning && svgRef.current) {
+          e.preventDefault();
+          const rect = svgRef.current.getBoundingClientRect();
+          const chartPxW = Math.max(1, (chartW / width) * rect.width);
+          const span = ts.startRange.end - ts.startRange.start;
+          const deltaIdx = -(dx / chartPxW) * span;
+          let nextStart = ts.startRange.start + deltaIdx;
+          let nextEnd = nextStart + span;
+          if (nextStart < 0) {
+            nextStart = 0;
+            nextEnd = span;
+          }
+          if (nextEnd > maxIndex) {
+            nextEnd = maxIndex;
+            nextStart = Math.max(0, maxIndex - span);
+          }
+          setViewRange({ start: nextStart, end: nextEnd });
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStateRef.current = null;
+    };
+
+    wrapper.addEventListener('wheel', handleWheel, { passive: false });
+    wrapper.addEventListener('touchstart', handleTouchStart, { passive: true });
+    wrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
+    wrapper.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      wrapper.removeEventListener('wheel', handleWheel);
+      wrapper.removeEventListener('touchstart', handleTouchStart);
+      wrapper.removeEventListener('touchmove', handleTouchMove);
+      wrapper.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [maxIndex, minSpan, safeStart, safeEnd, isZoomed, padLeft, width, chartW, zoomByFactor]);
 
   const activePoint = hoverIndex !== null ? coords[hoverIndex] : null;
 
@@ -446,50 +671,39 @@ export default function InteractiveTrendLineChart({
         }}
       >
         {chartMode === 'ACCOUNTS' ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Bật/Tắt nguồn tiền:
-            </span>
-            {displayAccounts.map((acc) => {
-              const isActive = activeAccountIds.includes(acc.id);
-              const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
-              const curBal = todayPoint?.accBalances[acc.id] || acc.balance || 0;
-              return (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => toggleAccount(acc.id)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '4px 10px',
-                    borderRadius: '16px',
-                    border: `1px solid ${isActive ? color : 'var(--border-subtle)'}`,
-                    background: isActive ? `${color}20` : 'transparent',
-                    color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <span
+          <div className="trend-accounts-toggle-bar">
+            <span className="trend-accounts-label">Bật/Tắt nguồn tiền:</span>
+            <div className="trend-accounts-grid">
+              {displayAccounts.map((acc) => {
+                const isActive = activeAccountIds.includes(acc.id);
+                const color = ACCOUNT_COLORS[acc.id] || acc.color || '#38bdf8';
+                const curBal = todayPoint?.accBalances[acc.id] || acc.balance || 0;
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => toggleAccount(acc.id)}
+                    className={`trend-acc-chip ${isActive ? 'is-active' : ''}`}
                     style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: color,
-                      opacity: isActive ? 1 : 0.4
+                      '--acc-color': color,
+                      borderColor: isActive ? color : 'var(--border-subtle)',
+                      background: isActive ? `${color}20` : 'transparent',
+                      color: isActive ? 'var(--text-main)' : 'var(--text-muted)'
                     }}
-                  ></span>
-                  <span>{acc.name}</span>
-                  <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: 700 }}>
-                    ({formatCompactVND(curBal)})
-                  </span>
-                </button>
-              );
-            })}
+                  >
+                    <span
+                      className="acc-chip-dot"
+                      style={{
+                        background: color,
+                        opacity: isActive ? 1 : 0.4
+                      }}
+                    />
+                    <span className="acc-chip-name">{acc.name}</span>
+                    <span className="acc-chip-bal">({formatCompactVND(curBal)})</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : chartMode === 'TOTAL' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -605,8 +819,63 @@ export default function InteractiveTrendLineChart({
         )}
       </div>
 
+      {/* Trading-style Zoom & Pan Toolbar */}
+      {rangeDays > 3 && (
+        <div className="trend-zoom-bar">
+          <div className="trend-zoom-info">
+            <span className="trend-zoom-range-badge">
+              {dailyPoints[visStartIdx]?.label} – {dailyPoints[visEndIdx]?.label}
+              <span className="trend-zoom-count">
+                ({visiblePoints.length}/{rangeDays} ngày)
+              </span>
+            </span>
+            <span className="trend-zoom-hint">
+              {isZoomed ? 'Kéo ngang để xem lịch sử · Nhấp đúp để đặt lại' : 'Cuộn hoặc chụm 2 ngón để thu phóng'}
+            </span>
+          </div>
+          <div className="trend-zoom-controls">
+            <button
+              type="button"
+              className="trend-zoom-btn"
+              onClick={() => zoomByFactor(1.3, 0.5)}
+              disabled={!isZoomed}
+              title="Thu nhỏ"
+              aria-label="Thu nhỏ biểu đồ"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button
+              type="button"
+              className="trend-zoom-btn"
+              onClick={() => zoomByFactor(0.72, 0.5)}
+              disabled={visibleSpan <= minSpan + 0.05}
+              title="Phóng to"
+              aria-label="Phóng to biểu đồ"
+            >
+              <ZoomIn size={14} />
+            </button>
+            {isZoomed && (
+              <button
+                type="button"
+                className="trend-zoom-btn is-reset"
+                onClick={resetZoom}
+                title="Đặt lại toàn bộ kỳ"
+              >
+                <RotateCcw size={13} />
+                <span>Đặt lại</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SVG Line Chart Canvas */}
-      <div className="line-chart-svg-wrapper">
+      <div
+        ref={chartWrapperRef}
+        className={`line-chart-svg-wrapper ${isZoomed ? 'is-zoomed' : ''} ${isDragging ? 'is-dragging' : ''}`}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={resetZoom}
+      >
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
@@ -615,6 +884,9 @@ export default function InteractiveTrendLineChart({
           onMouseLeave={() => setHoverIndex(null)}
         >
           <defs>
+            <clipPath id={chartClipId}>
+              <rect x={padLeft} y={padTop - 10} width={chartW} height={chartH + 20} />
+            </clipPath>
             <linearGradient id="totalAreaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
               <stop offset="60%" stopColor="#06b6d4" stopOpacity="0.12" />
@@ -651,19 +923,21 @@ export default function InteractiveTrendLineChart({
             </g>
           ))}
 
-          {/* X-axis date labels */}
+          {/* X-axis date labels (only inside visible window) */}
           {coords.map((c, idx) => {
-            const step = rangeDays <= 7 ? 1 : rangeDays <= 14 ? 2 : 5;
-            const distFromEnd = coords.length - 1 - idx;
+            if (idx < visStartIdx || idx > visEndIdx) return null;
+            const visCount = Math.max(1, visEndIdx - visStartIdx + 1);
+            const step = visCount <= 7 ? 1 : visCount <= 14 ? 2 : 5;
+            const distFromEnd = visEndIdx - idx;
             const shouldShowLabel = distFromEnd % step === 0;
             if (!shouldShowLabel) return null;
 
             return (
               <text
                 key={c.dateKey}
-                x={c.x}
+                x={Math.max(padLeft, Math.min(width - padRight, c.x))}
                 y={bottomY + 22}
-                textAnchor={idx === coords.length - 1 ? 'end' : idx === 0 ? 'start' : 'middle'}
+                textAnchor={idx === visEndIdx ? 'end' : idx === visStartIdx ? 'start' : 'middle'}
                 className={`chart-axis-label x-axis ${c.isToday ? 'is-today' : ''}`}
               >
                 {c.label}
@@ -671,6 +945,7 @@ export default function InteractiveTrendLineChart({
             );
           })}
 
+          <g clipPath={`url(#${chartClipId})`}>
           {/* CHẾ ĐỘ 1: TỔNG SỐ DƯ TÀI SẢN */}
           {chartMode === 'TOTAL' && (
             <>
@@ -803,6 +1078,7 @@ export default function InteractiveTrendLineChart({
               )}
             </g>
           )}
+          </g>
         </svg>
 
         {/* Hover Tooltip Overlay */}

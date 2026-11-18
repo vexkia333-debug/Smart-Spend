@@ -3,7 +3,7 @@ import {
   Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
   Coins, Smartphone, Building2, SlidersHorizontal,
   Eye, EyeOff, ArrowUpRight, ArrowDownLeft,
-  X, Clock, ChevronRight, Pencil
+  X, Clock, ChevronRight, ChevronDown, ChevronUp, Pencil, TrendingUp, TrendingDown
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
@@ -45,6 +45,8 @@ export default function DashboardTab({
       return false;
     }
   });
+  const [isHeroChartExpanded, setIsHeroChartExpanded] = useState(false);
+  const [heroHoverIdx, setHeroHoverIdx] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   const selectedCategory = categoryBreakdown.find((c) => c.id === selectedCategoryId) || null;
@@ -105,15 +107,16 @@ export default function DashboardTab({
       const checkpoints = [0, 6, 10, 14, 18, 24];
 
       points = checkpoints.map((hourMark) => {
-        if (hourMark === 0) return { balance: startOfDayBal };
-        if (hourMark === 24) return { balance: currentTotal };
+        const label = hourMark === 24 ? 'Hiện tại' : `${String(hourMark).padStart(2, '0')}:00`;
+        if (hourMark === 0) return { label, dateKey: todayKey, balance: startOfDayBal };
+        if (hourMark === 24) return { label, dateKey: todayKey, balance: currentTotal };
         let bal = startOfDayBal;
         for (const item of todayTxs) {
           if (item.txDate.getHours() < hourMark) {
             bal = Math.max(0, bal + item.delta);
           }
         }
-        return { balance: bal };
+        return { label, dateKey: todayKey, balance: bal };
       });
     } else {
       let startDate = new Date(today);
@@ -177,13 +180,17 @@ export default function DashboardTab({
       for (let i = 0; i < dayCount; i++) {
         const d = new Date(startDate);
         d.setDate(startDate.getDate() + i);
-        dayList.push({ dateKey: toDateKey(d), balance: 0 });
+        const label = `${d.getDate()}/${d.getMonth() + 1}`;
+        dayList.push({ dateKey: toDateKey(d), label, balance: 0 });
       }
 
       dayList[dayList.length - 1].balance = endBalance;
       for (let i = dayList.length - 1; i >= 1; i--) {
         const dayDelta = flowsByKey[dayList[i].dateKey] || 0;
         dayList[i - 1].balance = Math.max(0, dayList[i].balance - dayDelta);
+      }
+      if (dayList.length > 0) {
+        dayList[dayList.length - 1].label = 'Hôm nay';
       }
 
       points = dayList;
@@ -203,6 +210,20 @@ export default function DashboardTab({
     const maxVal = Math.max(...vals);
     const minVal = Math.min(...vals);
     const span = maxVal - minVal;
+
+    let peakIdx = 0;
+    let troughIdx = 0;
+    vals.forEach((v, idx) => {
+      if (v >= vals[peakIdx]) peakIdx = idx;
+      if (v <= vals[troughIdx]) troughIdx = idx;
+    });
+
+    const peakPoint = points[peakIdx]
+      ? { index: peakIdx, balance: vals[peakIdx], label: points[peakIdx].label }
+      : { index: 0, balance: currentTotal, label: 'Hôm nay' };
+    const troughPoint = points[troughIdx]
+      ? { index: troughIdx, balance: vals[troughIdx], label: points[troughIdx].label }
+      : { index: 0, balance: currentTotal, label: 'Hôm nay' };
 
     const coords = vals.map((val, idx) => {
       const x = vals.length > 1 ? 4 + (idx / (vals.length - 1)) * 126 : 68;
@@ -232,7 +253,12 @@ export default function DashboardTab({
       deltaPct,
       linePath,
       areaPath,
-      lastCoord
+      lastCoord,
+      points,
+      peakPoint,
+      troughPoint,
+      minVal,
+      maxVal
     };
   }, [transactions, totalBalance, timeFilter, customStartDate, customEndDate]);
 
@@ -280,7 +306,16 @@ export default function DashboardTab({
             </div>
           </div>
 
-          <div className="hero-sparkline-wrap" aria-hidden="true">
+          <button
+            type="button"
+            className={`hero-sparkline-wrap ${isHeroChartExpanded ? 'is-expanded' : ''}`}
+            onClick={() => {
+              setIsHeroChartExpanded((prev) => !prev);
+              setHeroHoverIdx(null);
+            }}
+            aria-expanded={isHeroChartExpanded}
+            aria-label={isHeroChartExpanded ? 'Thu gọn biểu đồ biến động số dư' : 'Mở rộng biểu đồ xem đỉnh và đáy số dư'}
+          >
             <div className="hero-sparkline-box">
               <svg viewBox="0 0 136 54" width="100%" height="100%">
                 <defs>
@@ -296,7 +331,7 @@ export default function DashboardTab({
                   <path
                     fill="none"
                     stroke={sparkStrokeColor}
-                    strokeWidth="2.5"
+                    strokeWidth="2.6"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     d={balanceSparkData.linePath}
@@ -319,9 +354,235 @@ export default function DashboardTab({
                 />
               </svg>
             </div>
-            <span className="hero-sparkline-caption">Biến động số dư</span>
-          </div>
+            <span className="hero-sparkline-caption">
+              <span>{isHeroChartExpanded ? 'Thu gọn biểu đồ' : 'Xem đỉnh & đáy'}</span>
+              {isHeroChartExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </span>
+          </button>
         </div>
+
+        {isHeroChartExpanded && (() => {
+          const pts = balanceSparkData.points || [];
+          const svgW = 600;
+          const svgH = 190;
+          const padL = 16;
+          const padR = 16;
+          const padT = 36;
+          const padB = 28;
+          const plotW = svgW - padL - padR;
+          const plotH = svgH - padT - padB;
+          const bottomY = padT + plotH;
+          const span = balanceSparkData.maxVal - balanceSparkData.minVal;
+
+          const expCoords = pts.map((pt, idx) => {
+            const x = pts.length > 1 ? padL + (idx / (pts.length - 1)) * plotW : padL + plotW / 2;
+            const y = span === 0
+              ? padT + plotH / 2
+              : bottomY - ((pt.balance - balanceSparkData.minVal) / span) * plotH;
+            return { ...pt, x, y, idx };
+          });
+
+          let expLine = '';
+          if (expCoords.length > 0) {
+            expLine = `M ${expCoords[0].x.toFixed(1)},${expCoords[0].y.toFixed(1)}`;
+            for (let i = 0; i < expCoords.length - 1; i++) {
+              const p0 = expCoords[i];
+              const p1 = expCoords[i + 1];
+              const midX = (p0.x + p1.x) / 2;
+              expLine += ` C ${midX.toFixed(1)},${p0.y.toFixed(1)} ${midX.toFixed(1)},${p1.y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+            }
+          }
+          const expArea = expCoords.length > 0
+            ? `${expLine} L ${expCoords[expCoords.length - 1].x.toFixed(1)},${bottomY} L ${expCoords[0].x.toFixed(1)},${bottomY} Z`
+            : '';
+
+          const peakIdx = balanceSparkData.peakPoint?.index ?? 0;
+          const troughIdx = balanceSparkData.troughPoint?.index ?? 0;
+          const peakCoord = expCoords[peakIdx] || expCoords[0];
+          const troughCoord = expCoords[troughIdx] || expCoords[0];
+          const activeCoord = heroHoverIdx !== null && expCoords[heroHoverIdx] ? expCoords[heroHoverIdx] : null;
+
+          const clampPillX = (rawX, pillHalfW = 58) => Math.max(pillHalfW + 4, Math.min(svgW - pillHalfW - 4, rawX));
+
+          const handleExpandedPointer = (clientX, rect) => {
+            if (!rect || expCoords.length === 0) return;
+            const relX = ((clientX - rect.left) / rect.width) * svgW;
+            let bestIdx = 0;
+            let bestDiff = Infinity;
+            expCoords.forEach((c, i) => {
+              const d = Math.abs(c.x - relX);
+              if (d < bestDiff) {
+                bestDiff = d;
+                bestIdx = i;
+              }
+            });
+            setHeroHoverIdx(bestIdx);
+          };
+
+          const midIdx = Math.floor((expCoords.length - 1) / 2);
+
+          return (
+            <div className="hero-expanded-chart-drawer">
+              <div className="hero-expanded-stats-row">
+                <div className="hero-extrema-pill is-peak">
+                  <TrendingUp size={14} />
+                  <div className="hero-extrema-text">
+                    <span className="hero-extrema-label">Đỉnh ({balanceSparkData.peakPoint.label})</span>
+                    <strong className="hero-extrema-val tabular-nums">
+                      {hideBalance ? '•••••• ₫' : formatVND(balanceSparkData.peakPoint.balance)}
+                    </strong>
+                  </div>
+                </div>
+                <div className="hero-extrema-pill is-trough">
+                  <TrendingDown size={14} />
+                  <div className="hero-extrema-text">
+                    <span className="hero-extrema-label">Đáy ({balanceSparkData.troughPoint.label})</span>
+                    <strong className="hero-extrema-val tabular-nums">
+                      {hideBalance ? '•••••• ₫' : formatVND(balanceSparkData.troughPoint.balance)}
+                    </strong>
+                  </div>
+                </div>
+                {activeCoord && (
+                  <div className="hero-extrema-pill is-hover">
+                    <div className="hero-extrema-text">
+                      <span className="hero-extrema-label">Mốc {activeCoord.label}</span>
+                      <strong className="hero-extrema-val tabular-nums">
+                        {hideBalance ? '•••••• ₫' : formatVND(activeCoord.balance)}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="hero-expanded-svg-wrap">
+                <svg
+                  viewBox={`0 0 ${svgW} ${svgH}`}
+                  className="hero-expanded-svg"
+                  onMouseMove={(e) => handleExpandedPointer(e.clientX, e.currentTarget.getBoundingClientRect())}
+                  onMouseLeave={() => setHeroHoverIdx(null)}
+                  onTouchStart={(e) => {
+                    if (e.touches[0]) handleExpandedPointer(e.touches[0].clientX, e.currentTarget.getBoundingClientRect());
+                  }}
+                  onTouchMove={(e) => {
+                    if (e.touches[0]) handleExpandedPointer(e.touches[0].clientX, e.currentTarget.getBoundingClientRect());
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="heroExpandedFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={sparkStrokeColor} stopOpacity="0.38" />
+                      <stop offset="100%" stopColor={sparkStrokeColor} stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+
+                  {[0, 0.5, 1].map((ratio) => {
+                    const gy = padT + ratio * plotH;
+                    return (
+                      <line
+                        key={ratio}
+                        x1={padL}
+                        x2={svgW - padR}
+                        y1={gy}
+                        y2={gy}
+                        stroke="rgba(255,255,255,0.16)"
+                        strokeDasharray="4 4"
+                      />
+                    );
+                  })}
+
+                  {expArea && <path fill="url(#heroExpandedFill)" d={expArea} />}
+                  {expLine && (
+                    <path
+                      fill="none"
+                      stroke={sparkStrokeColor}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d={expLine}
+                    />
+                  )}
+
+                  {/* Peak Marker */}
+                  {peakCoord && (
+                    <g>
+                      <line
+                        x1={peakCoord.x}
+                        x2={peakCoord.x}
+                        y1={peakCoord.y}
+                        y2={bottomY}
+                        stroke="rgba(167, 243, 208, 0.5)"
+                        strokeDasharray="3 3"
+                      />
+                      <circle cx={peakCoord.x} cy={peakCoord.y} r="7" fill="rgba(167, 243, 208, 0.3)" />
+                      <circle cx={peakCoord.x} cy={peakCoord.y} r="4" fill="#6ee7b7" stroke="#ffffff" strokeWidth="1.5" />
+                      <g transform={`translate(${clampPillX(peakCoord.x, 64)}, ${Math.max(14, peakCoord.y - 16)})`}>
+                        <rect x="-64" y="-11" width="128" height="20" rx="10" fill="rgba(6, 78, 59, 0.88)" stroke="rgba(110, 231, 183, 0.7)" strokeWidth="1" />
+                        <text x="0" y="3" textAnchor="middle" fill="#ecfdf5" fontSize="10.5" fontWeight="700">
+                          {hideBalance ? 'Đỉnh: •••' : `Đỉnh: ${formatCompactVND(peakCoord.balance)} (${peakCoord.label})`}
+                        </text>
+                      </g>
+                    </g>
+                  )}
+
+                  {/* Trough Marker (only separate pill if different index from peak, or if span > 0) */}
+                  {troughCoord && span > 0 && (
+                    <g>
+                      <line
+                        x1={troughCoord.x}
+                        x2={troughCoord.x}
+                        y1={troughCoord.y}
+                        y2={bottomY}
+                        stroke="rgba(254, 205, 211, 0.5)"
+                        strokeDasharray="3 3"
+                      />
+                      <circle cx={troughCoord.x} cy={troughCoord.y} r="7" fill="rgba(254, 205, 211, 0.28)" />
+                      <circle cx={troughCoord.x} cy={troughCoord.y} r="4" fill="#fda4af" stroke="#ffffff" strokeWidth="1.5" />
+                      <g transform={`translate(${clampPillX(troughCoord.x, 64)}, ${Math.min(bottomY - 12, troughCoord.y + 18)})`}>
+                        <rect x="-64" y="-11" width="128" height="20" rx="10" fill="rgba(136, 19, 55, 0.85)" stroke="rgba(253, 164, 175, 0.7)" strokeWidth="1" />
+                        <text x="0" y="3" textAnchor="middle" fill="#fff1f2" fontSize="10.5" fontWeight="700">
+                          {hideBalance ? 'Đáy: •••' : `Đáy: ${formatCompactVND(troughCoord.balance)} (${troughCoord.label})`}
+                        </text>
+                      </g>
+                    </g>
+                  )}
+
+                  {/* Interactive Hover Crosshair */}
+                  {activeCoord && (
+                    <g>
+                      <line
+                        x1={activeCoord.x}
+                        x2={activeCoord.x}
+                        y1={padT}
+                        y2={bottomY}
+                        stroke="rgba(255,255,255,0.65)"
+                        strokeWidth="1.2"
+                      />
+                      <circle cx={activeCoord.x} cy={activeCoord.y} r="5" fill="#ffffff" stroke="#059669" strokeWidth="2" />
+                    </g>
+                  )}
+
+                  {/* X-axis labels */}
+                  {expCoords.length > 0 && (
+                    <g fill="rgba(255,255,255,0.75)" fontSize="11" fontWeight="600">
+                      <text x={padL} y={svgH - 7} textAnchor="start">
+                        {expCoords[0].label}
+                      </text>
+                      {expCoords.length > 2 && (
+                        <text x={expCoords[midIdx].x} y={svgH - 7} textAnchor="middle">
+                          {expCoords[midIdx].label}
+                        </text>
+                      )}
+                      {expCoords.length > 1 && (
+                        <text x={svgW - padR} y={svgH - 7} textAnchor="end">
+                          {expCoords[expCoords.length - 1].label}
+                        </text>
+                      )}
+                    </g>
+                  )}
+                </svg>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="hero-footer-row">
           <span className="hero-meta-pill">
