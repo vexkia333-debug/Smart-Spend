@@ -547,21 +547,9 @@ export default function DebtLoanTracker({
               return (
                 <div
                   key={t.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.035)',
-                    border: '1px solid var(--border-glass)',
-                    transition: 'all 0.2s',
-                    flexWrap: 'wrap',
-                    gap: '10px'
-                  }}
-                  className="cat-breakdown-row"
+                  className="cat-breakdown-row debt-tx-row"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px', flex: 1 }}>
+                  <div className="debt-tx-main">
                     <div
                       style={{
                         width: '36px',
@@ -610,7 +598,7 @@ export default function DebtLoanTracker({
                   </div>
 
                   {/* Cột số tiền & Action */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className="debt-tx-actions">
                     <div style={{ textAlign: 'right' }}>
                       <div
                         style={{
@@ -673,9 +661,9 @@ export default function DebtLoanTracker({
                             fontWeight: 600,
                             padding: '4px 8px',
                             borderRadius: '8px',
-                            background: 'rgba(56, 189, 248, 0.12)',
-                            color: '#38bdf8',
-                            border: '1px solid rgba(56, 189, 248, 0.25)'
+                            background: 'rgba(20, 184, 166, 0.14)',
+                            color: '#2dd4bf',
+                            border: '1px solid rgba(20, 184, 166, 0.3)'
                           }}
                         >
                           <CheckCircle2 size={13} />
