@@ -15,7 +15,7 @@ export default function StatsSummary({
       <div className="stat-card glass-panel">
         <div className="stat-card-header">
           <span className="stat-label">Tổng số dư khả dụng</span>
-          <div className="stat-icon" style={{ color: '#38bdf8' }}>
+          <div className="stat-icon" style={{ color: '#10b981' }}>
             <Wallet size={20} />
           </div>
         </div>

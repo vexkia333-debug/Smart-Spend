@@ -114,8 +114,8 @@ export default function SystemAuditTab({
       label: 'Webhook MacroDroid & Mã PIN',
       desc: 'Cấu hình đồng bộ ngân hàng & bảo mật thiết bị',
       icon: Smartphone,
-      bg: 'rgba(56, 189, 248, 0.16)',
-      color: '#38bdf8',
+      bg: 'rgba(20, 184, 166, 0.16)',
+      color: '#2dd4bf',
       onClick: onOpenSettings
     },
     {
@@ -307,12 +307,12 @@ export default function SystemAuditTab({
               style={{
                 padding: '16px',
                 borderRadius: '16px',
-                borderLeft: '4px solid #38bdf8'
+                borderLeft: '4px solid #10b981'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>TỔNG SỰ KIỆN XỬ LÝ</span>
-                <History size={16} color="#38bdf8" />
+                <History size={16} color="#10b981" />
               </div>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)' }}>
                 {stats.total} <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-muted)' }}>thông báo/GD</span>
@@ -579,9 +579,9 @@ export default function SystemAuditTab({
                   };
                 } else if (log.action_type === 'AI_BRIEFING') {
                   badgeStyle = {
-                    bg: 'rgba(59, 130, 246, 0.16)',
-                    border: 'rgba(59, 130, 246, 0.4)',
-                    color: '#60a5fa',
+                    bg: 'rgba(20, 184, 166, 0.16)',
+                    border: 'rgba(20, 184, 166, 0.4)',
+                    color: '#2dd4bf',
                     label: 'BÁO CÁO AI GEMINI',
                     icon: Sparkles
                   };

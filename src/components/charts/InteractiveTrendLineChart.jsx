@@ -237,7 +237,7 @@ export default function InteractiveTrendLineChart({
   const width = 800;
   const height = 240;
   const padLeft = 65;
-  const padRight = 30;
+  const padRight = 46;
   const padTop = 30;
   const padBottom = 40;
   const chartW = width - padLeft - padRight;
@@ -359,7 +359,7 @@ export default function InteractiveTrendLineChart({
       <div className="trend-line-header">
         <div className="trend-line-title-group">
           <div className="card-badge-icon line-chart-badge">
-            <LineChartIcon size={20} color="#38bdf8" />
+            <LineChartIcon size={20} color="#10b981" />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -419,9 +419,9 @@ export default function InteractiveTrendLineChart({
               fontWeight: 600,
               padding: '6px 12px',
               borderRadius: '10px',
-              background: 'rgba(56, 189, 248, 0.1)',
-              color: '#38bdf8',
-              border: '1px solid rgba(56, 189, 248, 0.25)',
+              background: 'rgba(16, 185, 129, 0.1)',
+              color: '#34d399',
+              border: '1px solid rgba(16, 185, 129, 0.28)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px'
@@ -677,7 +677,7 @@ export default function InteractiveTrendLineChart({
                 key={c.dateKey}
                 x={c.x}
                 y={bottomY + 22}
-                textAnchor="middle"
+                textAnchor={idx === coords.length - 1 ? 'end' : idx === 0 ? 'start' : 'middle'}
                 className={`chart-axis-label x-axis ${c.isToday ? 'is-today' : ''}`}
               >
                 {c.label}
@@ -832,7 +832,7 @@ export default function InteractiveTrendLineChart({
               <span>{activePoint.fullDate}</span>
               {activePoint.isToday && <span className="today-tag">Hôm nay</span>}
               {activePoint.isYesterday && (
-                <span className="today-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>
+                <span className="today-tag" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}>
                   Hôm qua
                 </span>
               )}

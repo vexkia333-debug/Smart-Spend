@@ -3034,9 +3034,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .health-status-badge.good {
-  background: rgba(56, 189, 248, 0.16);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(45, 212, 191, 0.16);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.35);
 }
 
 .health-status-badge.warning {
@@ -3102,7 +3102,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .health-metric-val.savings-positive {
-  color: #38bdf8;
+  color: #10b981;
 }
 
 .health-metric-val.savings-negative {
@@ -3473,6 +3473,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .cat-name-text {
   color: var(--text-main);
   font-size: 0.88rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cat-tx-pill {
@@ -3481,6 +3485,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 6px;
   border-radius: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 :root[data-theme="light"] .cat-tx-pill {
@@ -3573,9 +3579,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 :root[data-theme="light"] .health-status-badge.good {
-  background: #e0f2fe;
-  color: #0369a1;
-  border-color: #7dd3fc;
+  background: #ccfbf1;
+  color: #0f766e;
+  border-color: #5eead4;
 }
 
 :root[data-theme="light"] .health-status-badge.warning {
@@ -3623,24 +3629,24 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .card-badge-icon.line-chart-badge {
-  background: rgba(56, 189, 248, 0.15);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
 }
 
 .trend-range-indicator {
   font-size: 0.74rem;
   font-weight: 600;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
   border-radius: 9999px;
   padding: 2px 8px;
 }
 
 :root[data-theme="light"] .trend-range-indicator {
-  background: #e0f2fe;
-  color: #0284c7;
-  border-color: #bae6fd;
+  background: #dcfce7;
+  color: #047857;
+  border-color: #86efac;
 }
 
 .trend-line-controls {
@@ -3764,14 +3770,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .range-tab-btn.active {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
   font-weight: 700;
 }
 
 :root[data-theme="light"] .range-tab-btn.active {
   background: #ffffff;
-  color: #0284c7;
+  color: #059669;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -5091,9 +5097,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .btn-reconcile {
-    padding: 3px 6px !important;
-    font-size: 0.7rem !important;
-    gap: 3px !important;
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
+    gap: 5px !important;
   }
 
   .btn-reconcile svg {
@@ -5549,7 +5555,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .budget-metric-value.spent {
-  color: #38bdf8;
+  color: #2dd4bf;
 }
 
 .budget-metric-value.remain {
@@ -5561,7 +5567,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 :root[data-theme="light"] .budget-metric-value.spent {
-  color: #0284c7;
+  color: #0d9488;
 }
 
 :root[data-theme="light"] .budget-metric-value.remain {
@@ -5726,6 +5732,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+
+  .quick-setting-list > .quick-setting-row:last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -6046,6 +6056,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   .dual-stat-card {
     padding: 14px;
     border-radius: 16px;
+    justify-content: space-between;
+  }
+
+  .dual-stat-header {
+    align-items: flex-start;
+  }
+
+  .dual-stat-label {
+    font-size: 0.76rem;
+    line-height: 1.25;
   }
 
   .budget-goal-card {

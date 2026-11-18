@@ -59,7 +59,7 @@ export default function TransactionsTab({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <h3 className="section-title" style={{ margin: 0 }}>
-            <Layers size={22} color="#38bdf8" />
+            <Layers size={22} color="#10b981" />
             Lịch sử giao dịch ({filteredTransactions.length})
           </h3>
           <button
@@ -142,15 +142,15 @@ export default function TransactionsTab({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '5px 12px',
-                background: 'rgba(56, 189, 248, 0.12)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
                 borderRadius: '20px',
                 fontSize: '0.82rem',
                 color: 'var(--text-main)'
               }}
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <Calendar size={14} color="#38bdf8" style={{ flexShrink: 0 }} />
+                <Calendar size={14} color="#34d399" style={{ flexShrink: 0 }} />
                 <span>Thời gian: <strong>{timeLabel}</strong></span>
               </span>
               <button
@@ -291,9 +291,9 @@ export default function TransactionsTab({
                       <span
                         style={{
                           fontSize: '0.72rem',
-                          color: '#38bdf8',
-                          background: 'rgba(56, 189, 248, 0.14)',
-                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: '#34d399',
+                          background: 'rgba(16, 185, 129, 0.14)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
                           padding: '1px 6px',
                           borderRadius: '4px',
                           fontWeight: 600
@@ -370,9 +370,9 @@ export default function TransactionsTab({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
-                            background: 'rgba(56, 189, 248, 0.12)',
-                            border: '1px solid rgba(56, 189, 248, 0.3)',
-                            color: '#38bdf8',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#34d399',
                             borderRadius: '6px',
                             cursor: 'pointer'
                           }}
@@ -464,9 +464,9 @@ export default function TransactionsTab({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
-                        background: 'rgba(56, 189, 248, 0.14)',
-                        border: '1px solid rgba(56, 189, 248, 0.35)',
-                        color: '#38bdf8',
+                        background: 'rgba(16, 185, 129, 0.14)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        color: '#34d399',
                         borderRadius: '8px',
                         cursor: 'pointer'
                       }}
