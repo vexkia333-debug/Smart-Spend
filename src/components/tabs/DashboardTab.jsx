@@ -3,7 +3,7 @@ import {
   Activity, PieChart as PieChartIcon, Wallet, Sparkles, 
   Coins, Smartphone, Building2, SlidersHorizontal,
   Eye, EyeOff, ArrowUpRight, ArrowDownLeft,
-  X, Clock, ChevronRight, ChevronDown, ChevronUp, Pencil, TrendingUp, TrendingDown
+  X, Clock, ChevronRight, ChevronDown, ChevronUp, Pencil
 } from 'lucide-react';
 import InteractiveDonutChart from '../charts/InteractiveDonutChart.jsx';
 import InteractiveTrendLineChart from '../charts/InteractiveTrendLineChart.jsx';
@@ -278,32 +278,60 @@ export default function DashboardTab({
       <section className="fintech-hero-card">
         <div className="hero-top-row">
           <div className="hero-balance-block">
-            <div className="hero-label-row">
-              <span>Tổng số dư khả dụng</span>
-              <button
-                type="button"
-                className="hero-eye-btn"
-                onClick={toggleHideBalance}
-                aria-label={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
-                title={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
-              >
-                {hideBalance ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-            <div className="hero-balance-amount tabular-nums">
-              {hideBalance ? '•••••••• ₫' : formatVND(totalBalance)}
-            </div>
-            <div className="hero-delta-row">
-              <span className={`hero-delta-pill ${heroDeltaTone} tabular-nums`}>
-                {hideBalance
-                  ? `••• · ${balanceSparkData.periodLabel}`
-                  : balanceSparkData.deltaAmount > 0
-                    ? `↑ +${balanceSparkData.deltaPct}% (+${formatCompactVND(balanceSparkData.deltaAmount)}) · ${balanceSparkData.periodLabel}`
-                    : balanceSparkData.deltaAmount < 0
-                      ? `↓ ${balanceSparkData.deltaPct}% (-${formatCompactVND(Math.abs(balanceSparkData.deltaAmount))}) · ${balanceSparkData.periodLabel}`
-                      : `→ 0% (Số dư ổn định) · ${balanceSparkData.periodLabel}`}
-              </span>
-            </div>
+            {(() => {
+              const hoveredHeroPoint =
+                isHeroChartExpanded && heroHoverIdx !== null
+                  ? balanceSparkData.points?.[heroHoverIdx] || null
+                  : null;
+              const displayedHeroBalance = hoveredHeroPoint ? hoveredHeroPoint.balance : totalBalance;
+              const startBal = balanceSparkData.points?.[0]?.balance ?? totalBalance;
+              const activeDelta = hoveredHeroPoint
+                ? hoveredHeroPoint.balance - startBal
+                : balanceSparkData.deltaAmount;
+              const activeDeltaPct =
+                hoveredHeroPoint
+                  ? startBal > 0
+                    ? Number(((activeDelta / startBal) * 100).toFixed(1))
+                    : hoveredHeroPoint.balance > 0 && activeDelta > 0
+                      ? 100
+                      : 0
+                  : balanceSparkData.deltaPct;
+              const activeLabel = hoveredHeroPoint
+                ? `Mốc ${hoveredHeroPoint.label}`
+                : balanceSparkData.periodLabel;
+              const activeTone = activeDelta > 0 ? 'up' : activeDelta < 0 ? 'down' : heroDeltaTone;
+
+              return (
+                <>
+                  <div className="hero-label-row">
+                    <span>Tổng số dư khả dụng</span>
+                    <button
+                      type="button"
+                      className="hero-eye-btn"
+                      onClick={toggleHideBalance}
+                      aria-label={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
+                      title={hideBalance ? 'Hiện số dư' : 'Ẩn số dư'}
+                    >
+                      {hideBalance ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <div className="hero-balance-amount tabular-nums">
+                    {hideBalance ? '•••••••• ₫' : formatVND(displayedHeroBalance)}
+                  </div>
+                  <div className="hero-delta-row">
+                    <span className={`hero-delta-pill ${activeTone} tabular-nums`}>
+                      {hideBalance
+                        ? `••• · ${activeLabel}`
+                        : activeDelta > 0
+                          ? `↑ +${activeDeltaPct}% (+${formatCompactVND(activeDelta)}) · ${activeLabel}`
+                          : activeDelta < 0
+                            ? `↓ ${activeDeltaPct}% (-${formatCompactVND(Math.abs(activeDelta))}) · ${activeLabel}`
+                            : `→ 0% (Số dư ổn định) · ${activeLabel}`}
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           <button
@@ -364,11 +392,11 @@ export default function DashboardTab({
         {isHeroChartExpanded && (() => {
           const pts = balanceSparkData.points || [];
           const svgW = 600;
-          const svgH = 190;
+          const svgH = 174;
           const padL = 16;
           const padR = 16;
-          const padT = 36;
-          const padB = 28;
+          const padT = 24;
+          const padB = 26;
           const plotW = svgW - padL - padR;
           const plotH = svgH - padT - padB;
           const bottomY = padT + plotH;
@@ -402,7 +430,7 @@ export default function DashboardTab({
           const troughCoord = expCoords[troughIdx] || expCoords[0];
           const activeCoord = heroHoverIdx !== null && expCoords[heroHoverIdx] ? expCoords[heroHoverIdx] : null;
 
-          const clampPillX = (rawX, pillHalfW = 58) => Math.max(pillHalfW + 4, Math.min(svgW - pillHalfW - 4, rawX));
+          const clampLabelX = (rawX, halfW = 36) => Math.max(halfW + 4, Math.min(svgW - halfW - 4, rawX));
 
           const handleExpandedPointer = (clientX, rect) => {
             if (!rect || expCoords.length === 0) return;
@@ -423,37 +451,6 @@ export default function DashboardTab({
 
           return (
             <div className="hero-expanded-chart-drawer">
-              <div className="hero-expanded-stats-row">
-                <div className="hero-extrema-pill is-peak">
-                  <TrendingUp size={14} />
-                  <div className="hero-extrema-text">
-                    <span className="hero-extrema-label">Đỉnh ({balanceSparkData.peakPoint.label})</span>
-                    <strong className="hero-extrema-val tabular-nums">
-                      {hideBalance ? '•••••• ₫' : formatVND(balanceSparkData.peakPoint.balance)}
-                    </strong>
-                  </div>
-                </div>
-                <div className="hero-extrema-pill is-trough">
-                  <TrendingDown size={14} />
-                  <div className="hero-extrema-text">
-                    <span className="hero-extrema-label">Đáy ({balanceSparkData.troughPoint.label})</span>
-                    <strong className="hero-extrema-val tabular-nums">
-                      {hideBalance ? '•••••• ₫' : formatVND(balanceSparkData.troughPoint.balance)}
-                    </strong>
-                  </div>
-                </div>
-                {activeCoord && (
-                  <div className="hero-extrema-pill is-hover">
-                    <div className="hero-extrema-text">
-                      <span className="hero-extrema-label">Mốc {activeCoord.label}</span>
-                      <strong className="hero-extrema-val tabular-nums">
-                        {hideBalance ? '•••••• ₫' : formatVND(activeCoord.balance)}
-                      </strong>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="hero-expanded-svg-wrap">
                 <svg
                   viewBox={`0 0 ${svgW} ${svgH}`}
@@ -466,6 +463,7 @@ export default function DashboardTab({
                   onTouchMove={(e) => {
                     if (e.touches[0]) handleExpandedPointer(e.touches[0].clientX, e.currentTarget.getBoundingClientRect());
                   }}
+                  onTouchEnd={() => setHeroHoverIdx(null)}
                 >
                   <defs>
                     <linearGradient id="heroExpandedFill" x1="0" y1="0" x2="0" y2="1">
@@ -483,7 +481,7 @@ export default function DashboardTab({
                         x2={svgW - padR}
                         y1={gy}
                         y2={gy}
-                        stroke="rgba(255,255,255,0.16)"
+                        stroke="rgba(255,255,255,0.14)"
                         strokeDasharray="4 4"
                       />
                     );
@@ -501,47 +499,43 @@ export default function DashboardTab({
                     />
                   )}
 
-                  {/* Peak Marker */}
+                  {/* Compact Peak Label */}
                   {peakCoord && (
                     <g>
-                      <line
-                        x1={peakCoord.x}
-                        x2={peakCoord.x}
-                        y1={peakCoord.y}
-                        y2={bottomY}
-                        stroke="rgba(167, 243, 208, 0.5)"
-                        strokeDasharray="3 3"
-                      />
-                      <circle cx={peakCoord.x} cy={peakCoord.y} r="7" fill="rgba(167, 243, 208, 0.3)" />
-                      <circle cx={peakCoord.x} cy={peakCoord.y} r="4" fill="#6ee7b7" stroke="#ffffff" strokeWidth="1.5" />
-                      <g transform={`translate(${clampPillX(peakCoord.x, 64)}, ${Math.max(14, peakCoord.y - 16)})`}>
-                        <rect x="-64" y="-11" width="128" height="20" rx="10" fill="rgba(6, 78, 59, 0.88)" stroke="rgba(110, 231, 183, 0.7)" strokeWidth="1" />
-                        <text x="0" y="3" textAnchor="middle" fill="#ecfdf5" fontSize="10.5" fontWeight="700">
-                          {hideBalance ? 'Đỉnh: •••' : `Đỉnh: ${formatCompactVND(peakCoord.balance)} (${peakCoord.label})`}
-                        </text>
-                      </g>
+                      <circle cx={peakCoord.x} cy={peakCoord.y} r="3.8" fill="#6ee7b7" stroke="#ffffff" strokeWidth="1.4" />
+                      <text
+                        x={clampLabelX(peakCoord.x, 38)}
+                        y={Math.max(13, peakCoord.y - 10)}
+                        textAnchor="middle"
+                        fill="#d1fae5"
+                        stroke="rgba(4, 47, 34, 0.78)"
+                        strokeWidth="3"
+                        paintOrder="stroke"
+                        fontSize="10.5"
+                        fontWeight="700"
+                      >
+                        {hideBalance ? '•••' : formatVND(peakCoord.balance)}
+                      </text>
                     </g>
                   )}
 
-                  {/* Trough Marker (only separate pill if different index from peak, or if span > 0) */}
+                  {/* Compact Trough Label */}
                   {troughCoord && span > 0 && (
                     <g>
-                      <line
-                        x1={troughCoord.x}
-                        x2={troughCoord.x}
-                        y1={troughCoord.y}
-                        y2={bottomY}
-                        stroke="rgba(254, 205, 211, 0.5)"
-                        strokeDasharray="3 3"
-                      />
-                      <circle cx={troughCoord.x} cy={troughCoord.y} r="7" fill="rgba(254, 205, 211, 0.28)" />
-                      <circle cx={troughCoord.x} cy={troughCoord.y} r="4" fill="#fda4af" stroke="#ffffff" strokeWidth="1.5" />
-                      <g transform={`translate(${clampPillX(troughCoord.x, 64)}, ${Math.min(bottomY - 12, troughCoord.y + 18)})`}>
-                        <rect x="-64" y="-11" width="128" height="20" rx="10" fill="rgba(136, 19, 55, 0.85)" stroke="rgba(253, 164, 175, 0.7)" strokeWidth="1" />
-                        <text x="0" y="3" textAnchor="middle" fill="#fff1f2" fontSize="10.5" fontWeight="700">
-                          {hideBalance ? 'Đáy: •••' : `Đáy: ${formatCompactVND(troughCoord.balance)} (${troughCoord.label})`}
-                        </text>
-                      </g>
+                      <circle cx={troughCoord.x} cy={troughCoord.y} r="3.8" fill="#fda4af" stroke="#ffffff" strokeWidth="1.4" />
+                      <text
+                        x={clampLabelX(troughCoord.x, 38)}
+                        y={Math.min(bottomY + 13, troughCoord.y + 16)}
+                        textAnchor="middle"
+                        fill="#ffe4e6"
+                        stroke="rgba(4, 47, 34, 0.78)"
+                        strokeWidth="3"
+                        paintOrder="stroke"
+                        fontSize="10.5"
+                        fontWeight="700"
+                      >
+                        {hideBalance ? '•••' : formatVND(troughCoord.balance)}
+                      </text>
                     </g>
                   )}
 
@@ -563,16 +557,16 @@ export default function DashboardTab({
                   {/* X-axis labels */}
                   {expCoords.length > 0 && (
                     <g fill="rgba(255,255,255,0.75)" fontSize="11" fontWeight="600">
-                      <text x={padL} y={svgH - 7} textAnchor="start">
+                      <text x={padL} y={svgH - 6} textAnchor="start">
                         {expCoords[0].label}
                       </text>
                       {expCoords.length > 2 && (
-                        <text x={expCoords[midIdx].x} y={svgH - 7} textAnchor="middle">
+                        <text x={expCoords[midIdx].x} y={svgH - 6} textAnchor="middle">
                           {expCoords[midIdx].label}
                         </text>
                       )}
                       {expCoords.length > 1 && (
-                        <text x={svgW - padR} y={svgH - 7} textAnchor="end">
+                        <text x={svgW - padR} y={svgH - 6} textAnchor="end">
                           {expCoords[expCoords.length - 1].label}
                         </text>
                       )}
