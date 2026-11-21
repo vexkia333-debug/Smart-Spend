@@ -47,9 +47,20 @@ export default function DashboardTab({
   });
   const [isHeroChartExpanded, setIsHeroChartExpanded] = useState(false);
   const [heroHoverIdx, setHeroHoverIdx] = useState(null);
+  const [categoryTxSort, setCategoryTxSort] = useState('NEWEST'); // 'NEWEST' | 'AMOUNT_DESC' | 'AMOUNT_ASC'
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   const selectedCategory = categoryBreakdown.find((c) => c.id === selectedCategoryId) || null;
+  const sortedCategoryItems = useMemo(() => {
+    const items = [...(selectedCategory?.items || [])];
+    if (categoryTxSort === 'AMOUNT_DESC') {
+      return items.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+    }
+    if (categoryTxSort === 'AMOUNT_ASC') {
+      return items.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+    }
+    return items;
+  }, [selectedCategory, categoryTxSort]);
 
   useEffect(() => {
     if (!selectedCategory) return undefined;
@@ -966,11 +977,33 @@ export default function DashboardTab({
               </span>
             </div>
 
+            {sortedCategoryItems.length > 1 && (
+              <div className="category-tx-sort-bar" role="group" aria-label="Sắp xếp các khoản chi">
+                <span className="category-tx-sort-label">Sắp xếp:</span>
+                <div className="category-tx-sort-pills">
+                  {[
+                    { key: 'NEWEST', label: 'Mới nhất' },
+                    { key: 'AMOUNT_DESC', label: 'Giá giảm dần ↓' },
+                    { key: 'AMOUNT_ASC', label: 'Giá tăng dần ↑' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      className={`category-tx-sort-pill ${categoryTxSort === opt.key ? 'is-active' : ''}`}
+                      onClick={() => setCategoryTxSort(opt.key)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="category-tx-list">
-              {(selectedCategory.items || []).length === 0 ? (
+              {sortedCategoryItems.length === 0 ? (
                 <p className="category-tx-empty">Chưa có khoản chi nào trong danh mục này.</p>
               ) : (
-                (selectedCategory.items || []).map((tx) => (
+                sortedCategoryItems.map((tx) => (
                   <div key={tx.id} className="category-tx-item">
                     <div className="category-tx-item-left">
                       <div className="category-tx-item-desc">

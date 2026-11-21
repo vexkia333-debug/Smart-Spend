@@ -6638,6 +6638,55 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   flex-shrink: 0;
 }
 
+.category-tx-sort-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.category-tx-sort-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.category-tx-sort-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.category-tx-sort-pill {
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-tx-sort-pill:hover {
+  color: var(--text-main);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.category-tx-sort-pill.is-active {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #34d399;
+}
+
+:root[data-theme="light"] .category-tx-sort-pill.is-active {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+}
+
 .category-tx-list {
   display: flex;
   flex-direction: column;
