@@ -43,21 +43,21 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-main: #edf7f2;
-  --bg-card: rgba(255, 255, 255, 0.84);
-  --bg-card-hover: #ffffff;
-  --bg-card-solid: #ffffff;
-  --bg-input: #f2fbf6;
-  --bg-subtle: #e3f5ec;
-  --border-subtle: rgba(16, 185, 129, 0.15);
-  --border-medium: rgba(16, 185, 129, 0.28);
-  --border-glow: rgba(5, 150, 105, 0.35);
+  --bg-main: #dfeee6;
+  --bg-card: rgba(240, 248, 244, 0.88);
+  --bg-card-hover: #f2f9f5;
+  --bg-card-solid: #ecf5f0;
+  --bg-input: #e4f1ea;
+  --bg-subtle: #d6eae0;
+  --border-subtle: rgba(15, 118, 86, 0.16);
+  --border-medium: rgba(15, 118, 86, 0.28);
+  --border-glow: rgba(5, 150, 105, 0.36);
   --hero-grad: linear-gradient(135deg, #047857 0%, #059669 52%, #10b981 100%);
   --fab-grad: linear-gradient(135deg, #10b981 0%, #059669 100%);
 
-  --text-main: #0f172a;
-  --text-muted: #475569;
-  --text-dim: #64748b;
+  --text-main: #0f241d;
+  --text-muted: #3d584e;
+  --text-dim: #577368;
 
   --accent-emerald: #059669;
   --accent-emerald-glow: rgba(5, 150, 105, 0.15);
@@ -176,16 +176,16 @@ button {
 }
 
 :root[data-theme="light"] .btn-secondary {
-  background: #ffffff;
-  color: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: #e6f2ec;
+  color: #163026;
+  border: 1px solid rgba(15, 118, 86, 0.24);
+  box-shadow: 0 1px 3px rgba(6, 78, 59, 0.06);
 }
 
 :root[data-theme="light"] .btn-secondary:hover {
-  background: #f1f5f9;
-  border-color: rgba(100, 116, 139, 0.5);
-  color: #0f172a;
+  background: #d8eae1;
+  border-color: rgba(15, 118, 86, 0.4);
+  color: #0b1f18;
 }
 
 .btn-danger {

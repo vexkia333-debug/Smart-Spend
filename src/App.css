@@ -6504,7 +6504,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 :root[data-theme="light"] .fintech-wave-backdrop {
-  background: url('/bg-light.jpg') center center / cover no-repeat;
+  background:
+    linear-gradient(180deg, rgba(214, 234, 224, 0.36), rgba(206, 229, 217, 0.44)),
+    url('/bg-light.jpg') center center / cover no-repeat;
 }
 
 @media (min-width: 769px) {
@@ -6513,7 +6515,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   }
 
   :root[data-theme="light"] .fintech-wave-backdrop {
-    background: url('/bg-light-desktop.jpg') center center / cover no-repeat;
+    background:
+      linear-gradient(180deg, rgba(214, 234, 224, 0.36), rgba(206, 229, 217, 0.44)),
+      url('/bg-light-desktop.jpg') center center / cover no-repeat;
   }
 }
 
