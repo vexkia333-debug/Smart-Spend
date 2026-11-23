@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { WifiOff, RefreshCw } from 'lucide-react';
+import { WifiOff, RefreshCw, X, CloudUpload } from 'lucide-react';
 
 // Common Components
 import Header from './components/common/Header.jsx';
@@ -39,6 +39,7 @@ import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
 
 const OFFLINE_CACHE_KEY = 'smartspend_offline_cache_v1';
+const PENDING_SYNC_KEY = 'smartspend_pending_sync_v1';
 
 function readOfflineCache() {
   try {
@@ -54,6 +55,24 @@ function writeOfflineCachePatch(patch) {
     const prev = readOfflineCache() || {};
     const next = { ...prev, ...patch, lastSyncedAt: new Date().toISOString() };
     localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function readPendingSyncQueue() {
+  try {
+    const raw = localStorage.getItem(PENDING_SYNC_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingSyncQueue(list) {
+  try {
+    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(list));
   } catch {
     // Ignore storage quota errors
   }
@@ -83,6 +102,28 @@ export default function App() {
 
   const initialCache = useMemo(() => readOfflineCache(), []);
   const [lastSyncedAt, setLastSyncedAt] = useState(() => initialCache?.lastSyncedAt || null);
+  const [pendingSyncQueue, setPendingSyncQueue] = useState(() => readPendingSyncQueue());
+  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+  const isSyncingRef = useRef(false);
+
+  const enqueueOfflineEntry = useCallback(({ text, forceCash }) => {
+    const item = {
+      id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      text: String(text || '').trim(),
+      forceCash: Boolean(forceCash),
+      clientTime: new Date().toISOString()
+    };
+    const next = [...readPendingSyncQueue(), item];
+    writePendingSyncQueue(next);
+    setPendingSyncQueue(next);
+    return item;
+  }, []);
+
+  const removePendingSyncItem = useCallback((itemId) => {
+    const next = readPendingSyncQueue().filter((item) => item.id !== itemId);
+    writePendingSyncQueue(next);
+    setPendingSyncQueue(next);
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -110,6 +151,7 @@ export default function App() {
       if (res.ok) {
         setIsOffline(false);
         fetchInitialData();
+        syncPendingQueue();
       } else {
         setIsOffline(true);
       }
@@ -281,6 +323,7 @@ export default function App() {
         fetchStats();
         fetchTransactions();
         fetchAccounts();
+        fetchRules();
       } catch (e) {
         console.error('SSE Error:', e);
       }
@@ -514,6 +557,7 @@ export default function App() {
         fetchStats();
         fetchTransactions();
         fetchAccounts();
+        fetchRules();
       }
     } catch (e) {
       console.error(e);
@@ -625,7 +669,7 @@ export default function App() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Lỗi khi cập nhật giao dịch');
-    await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats()]);
+    await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats(), fetchRules()]);
   };
 
   // Xóa giao dịch
@@ -779,7 +823,20 @@ export default function App() {
   // Phân tích chi tiêu bằng Gemini AI
   const handleAnalyzeAi = async (e) => {
     if (e) e.preventDefault();
-    if (!aiInputText.trim()) return;
+    const trimmedInput = aiInputText.trim();
+    if (!trimmedInput) return;
+
+    if (isOffline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      enqueueOfflineEntry({ text: trimmedInput, forceCash: aiIsCash });
+      setAiMessage(
+        `📴 Đang mất mạng — đã lưu tạm "${trimmedInput}" vào hàng đợi. Sẽ tự đồng bộ khi có Internet!`
+      );
+      setAiInputText('');
+      setAiIsCash(true);
+      setShowQuickAddModal(false);
+      setTimeout(() => setAiMessage(null), 8000);
+      return;
+    }
 
     if (!hasGeminiKey) {
       setShowApiKeyModal(true);
@@ -793,7 +850,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: aiInputText,
+          text: trimmedInput,
           autoSave: true,
           forceCash: aiIsCash,
           clientTime: new Date().toISOString()
@@ -848,12 +905,90 @@ export default function App() {
 
       setTimeout(() => setAiMessage(null), 8000);
     } catch (err) {
-      setAiMessage(`⚠️ ${err.message || 'Máy chủ AI đang bận, vui lòng thử lại sau giây lát'}`);
+      const isNetworkErr =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        /failed to fetch|networkerror|load failed/i.test(String(err?.message || ''));
+      if (isNetworkErr) {
+        setIsOffline(true);
+        enqueueOfflineEntry({ text: trimmedInput, forceCash: aiIsCash });
+        setAiMessage(
+          `📴 Đang mất mạng — đã lưu tạm "${trimmedInput}" vào hàng đợi. Sẽ tự đồng bộ khi có Internet!`
+        );
+        setAiInputText('');
+        setAiIsCash(true);
+        setShowQuickAddModal(false);
+      } else {
+        setAiMessage(`⚠️ ${err.message || 'Máy chủ AI đang bận, vui lòng thử lại sau giây lát'}`);
+      }
       setTimeout(() => setAiMessage(null), 8000);
     } finally {
       setIsAnalyzingAi(false);
     }
   };
+
+  // Đồng bộ hàng đợi các khoản chi đã lưu tạm khi mất mạng
+  const syncPendingQueue = async () => {
+    if (isSyncingRef.current || isLocked) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    const queue = readPendingSyncQueue();
+    if (queue.length === 0) return;
+
+    isSyncingRef.current = true;
+    setIsSyncingQueue(true);
+    let syncedCount = 0;
+    const remaining = [];
+
+    try {
+      for (let i = 0; i < queue.length; i++) {
+        const item = queue[i];
+        try {
+          const res = await authFetch('/api/ai/parse-transaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: item.text,
+              autoSave: true,
+              forceCash: item.forceCash,
+              clientTime: item.clientTime
+            })
+          });
+          if (res.ok) {
+            syncedCount += 1;
+          } else {
+            remaining.push(item);
+          }
+        } catch (err) {
+          const isNetErr =
+            (typeof navigator !== 'undefined' && !navigator.onLine) ||
+            /failed to fetch|networkerror|load failed/i.test(String(err?.message || ''));
+          remaining.push(...queue.slice(i));
+          if (isNetErr) {
+            setIsOffline(true);
+          }
+          break;
+        }
+      }
+
+      writePendingSyncQueue(remaining);
+      setPendingSyncQueue(remaining);
+
+      if (syncedCount > 0) {
+        setAiMessage(`✅ Đã tự động đồng bộ ${syncedCount} khoản chi lưu tạm khi mất mạng!`);
+        setTimeout(() => setAiMessage(null), 8000);
+        await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts(), fetchCategories()]);
+      }
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncingQueue(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOffline && !isLocked && readPendingSyncQueue().length > 0) {
+      fetchInitialData();
+      syncPendingQueue();
+    }
+  }, [isOffline, isLocked]);
 
   // Kiểm kê số dư tài khoản
   const handleReconcileSubmit = async (e) => {
@@ -1244,24 +1379,68 @@ export default function App() {
       <div className="fintech-wave-backdrop" aria-hidden="true" />
 
       <div className="app-container">
-      {isOffline && (
-        <div className="offline-banner" role="status" aria-live="polite">
-          <div className="offline-banner-left">
-            <WifiOff size={16} />
-            <span>
-              Đang mất kết nối · Xem dữ liệu lưu tạm
-              {formattedLastSync ? ` (cập nhật lúc ${formattedLastSync})` : ''}
-            </span>
+      {(isOffline || pendingSyncQueue.length > 0) && (
+        <div
+          className={`offline-banner ${!isOffline ? 'is-syncing' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="offline-banner-main">
+            <div className="offline-banner-left">
+              {isOffline ? <WifiOff size={16} /> : <CloudUpload size={16} />}
+              <span>
+                {isOffline ? (
+                  <>
+                    Đang mất kết nối · Xem dữ liệu lưu tạm
+                    {formattedLastSync ? ` (cập nhật lúc ${formattedLastSync})` : ''}
+                  </>
+                ) : (
+                  <>Đang có {pendingSyncQueue.length} khoản lưu tạm chờ đồng bộ lên máy chủ</>
+                )}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="offline-banner-retry"
+              onClick={isOffline ? handleRetryConnection : syncPendingQueue}
+              disabled={isOffline ? isCheckingOnline : isSyncingQueue}
+            >
+              <RefreshCw
+                size={13}
+                className={(isOffline ? isCheckingOnline : isSyncingQueue) ? 'spin' : ''}
+              />
+              <span>
+                {isOffline
+                  ? isCheckingOnline
+                    ? 'Đang thử…'
+                    : 'Thử kết nối lại'
+                  : isSyncingQueue
+                    ? 'Đang đồng bộ…'
+                    : 'Đồng bộ ngay'}
+              </span>
+            </button>
           </div>
-          <button
-            type="button"
-            className="offline-banner-retry"
-            onClick={handleRetryConnection}
-            disabled={isCheckingOnline}
-          >
-            <RefreshCw size={13} className={isCheckingOnline ? 'spin' : ''} />
-            <span>{isCheckingOnline ? 'Đang thử…' : 'Thử kết nối lại'}</span>
-          </button>
+
+          {pendingSyncQueue.length > 0 && (
+            <div className="pending-sync-list">
+              {pendingSyncQueue.map((item) => (
+                <span key={item.id} className="pending-sync-chip">
+                  <span>
+                    {item.text} ({item.forceCash ? 'Tiền mặt' : 'Tự nhận diện'})
+                  </span>
+                  <button
+                    type="button"
+                    className="pending-sync-remove"
+                    onClick={() => removePendingSyncItem(item.id)}
+                    title="Xóa khỏi hàng đợi"
+                    aria-label={`Xóa ${item.text}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {/* Header & Quick AI Input */}

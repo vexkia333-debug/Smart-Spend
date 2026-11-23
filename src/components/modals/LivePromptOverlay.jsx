@@ -10,18 +10,20 @@ export default function LivePromptOverlay({
   handlePromptAiCategorize,
   onClose
 }) {
-  if (!livePrompt || !livePrompt.transaction) return null;
-
-  const tx = livePrompt.transaction;
-  const isIncome = tx.type === 'INCOME';
   const inputRef = useRef(null);
 
   useEffect(() => {
+    if (!livePrompt || !livePrompt.transaction) return;
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 150);
     return () => clearTimeout(timer);
   }, [livePrompt]);
+
+  if (!livePrompt || !livePrompt.transaction) return null;
+
+  const tx = livePrompt.transaction;
+  const isIncome = tx.type === 'INCOME';
 
   return (
     <div className="prompt-modal-backdrop" onClick={onClose}>

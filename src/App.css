@@ -7043,10 +7043,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .offline-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
   padding: 10px 16px;
   margin-bottom: 16px;
   border-radius: 14px;
@@ -7058,10 +7056,65 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   backdrop-filter: blur(10px);
 }
 
+.offline-banner.is-syncing {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #34d399;
+}
+
 :root[data-theme="light"] .offline-banner {
   background: rgba(245, 158, 11, 0.15);
   border-color: rgba(217, 119, 6, 0.35);
   color: #92400e;
+}
+
+:root[data-theme="light"] .offline-banner.is-syncing {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(5, 150, 105, 0.35);
+  color: #047857;
+}
+
+.offline-banner-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pending-sync-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pending-sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid currentColor;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pending-sync-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.pending-sync-remove:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .offline-banner-left {

@@ -18,6 +18,65 @@ async function adjustCashWalletBalance(delta) {
   if (updatedCash) broadcastEvent('ACCOUNT_UPDATED', updatedCash);
 }
 
+const SKIP_AUTO_RULE_CATEGORIES = new Set([
+  'cat_other_expense',
+  'cat_other_income',
+  'cat_loan',
+  'cat_debt_collect',
+  'cat_debt_repay',
+  'cat_transfer_internal',
+  'cat_transfer_in',
+  'cat_transfer_cash'
+]);
+
+const GENERIC_AUTO_RULE_KEYWORDS = new Set([
+  'GIAO DỊCH',
+  'CHUYỂN KHOẢN',
+  'NHẬN TIỀN',
+  'THANH TOÁN',
+  'RÚT TIỀN',
+  'KIỂM KÊ SỐ DƯ',
+  'CHI TIÊU'
+]);
+
+async function autoLearnRuleFromTransaction(description, categoryId) {
+  if (!description || !categoryId || SKIP_AUTO_RULE_CATEGORIES.has(categoryId)) {
+    return null;
+  }
+  const keyword = String(description).trim().replace(/\s+/g, ' ').toUpperCase();
+  if (
+    keyword.length < 2 ||
+    keyword.length > 45 ||
+    /^[\d\s.,+\-/*₫đ]+$/i.test(keyword) ||
+    GENERIC_AUTO_RULE_KEYWORDS.has(keyword)
+  ) {
+    return null;
+  }
+
+  try {
+    const existing = await db
+      .prepare('SELECT id, category_id FROM auto_rules WHERE UPPER(TRIM(keyword)) = ?')
+      .get(keyword);
+    if (existing) {
+      if (existing.category_id !== categoryId) {
+        await db
+          .prepare('UPDATE auto_rules SET category_id = ?, is_auto_apply = 1 WHERE id = ?')
+          .run(categoryId, existing.id);
+      }
+      return existing.id;
+    }
+
+    const ruleId = 'rule_auto_' + Date.now() + '_' + crypto.randomUUID().slice(0, 4);
+    await db
+      .prepare('INSERT INTO auto_rules (id, keyword, category_id, is_auto_apply) VALUES (?, ?, ?, 1)')
+      .run(ruleId, keyword, categoryId);
+    return ruleId;
+  } catch (err) {
+    console.warn('Auto-learn rule error:', err.message);
+    return null;
+  }
+}
+
 // 1. Thống kê tổng quan (Stats)
 router.get('/stats', async (req, res) => {
   try {
@@ -165,7 +224,8 @@ router.post('/debt-loan', async (req, res) => {
 // 2. Danh sách giao dịch (Transactions)
 router.get('/transactions', async (req, res) => {
   try {
-    const { status, type, search } = req.query;
+    const { status, type, search, limit } = req.query;
+    const parsedLimit = Math.min(2000, Math.max(1, parseInt(limit, 10) || 1000));
     let query = `
       SELECT 
         t.*,
@@ -195,7 +255,8 @@ router.get('/transactions', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY t.created_at DESC LIMIT 100';
+    query += ' ORDER BY t.created_at DESC LIMIT ?';
+    params.push(parsedLimit);
 
     const transactions = await db.prepare(query).all(...params);
     res.json(transactions);
@@ -314,6 +375,10 @@ router.patch('/transactions/:id/categorize', async (req, res) => {
         `);
     
     await stmt.run(category_id, ...(description ? [description, id] : [id]));
+
+    if (category_id) {
+      await autoLearnRuleFromTransaction(description || existingTx.description, category_id);
+    }
 
     // Lấy thông tin giao dịch cập nhật
     const updatedTx = await db.prepare(`
@@ -493,6 +558,10 @@ router.put('/transactions/:id', async (req, res) => {
       SET amount = ?, description = ?, category_id = ?, account_id = ?, bank_name = ?, type = ?, status = ?, transaction_time = ?, confirmed_at = COALESCE(confirmed_at, datetime('now', 'localtime')), updated_at = datetime('now', 'localtime')
       WHERE id = ?
     `).run(newAmount, newDesc, newCatId, newAccountId, newBankName, newType, newStatus, newTime, id);
+
+    if (newCatId && (newCatId !== oldTx.category_id || newDesc !== oldTx.description)) {
+      await autoLearnRuleFromTransaction(newDesc, newCatId);
+    }
 
     const updatedTx = await db.prepare(`
       SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name

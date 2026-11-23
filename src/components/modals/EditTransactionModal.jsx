@@ -15,14 +15,12 @@ export default function EditTransactionModal({
   onSave,
   onDelete
 }) {
-  if (!isOpen || !tx) return null;
-
-  const [description, setDescription] = useState(tx.description || '');
-  const [amount, setAmount] = useState(tx.amount || 0);
-  const [type, setType] = useState(tx.type || 'EXPENSE');
-  const [categoryId, setCategoryId] = useState(tx.category_id || '');
-  const [accountId, setAccountId] = useState(tx.account_id || '');
-  const [txTime, setTxTime] = useState(tx.transaction_time || '');
+  const [description, setDescription] = useState(tx?.description || '');
+  const [amount, setAmount] = useState(tx?.amount || 0);
+  const [type, setType] = useState(tx?.type || 'EXPENSE');
+  const [categoryId, setCategoryId] = useState(tx?.category_id || '');
+  const [accountId, setAccountId] = useState(tx?.account_id || '');
+  const [txTime, setTxTime] = useState(tx?.transaction_time || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -34,7 +32,7 @@ export default function EditTransactionModal({
   const [customCatInput, setCustomCatInput] = useState('');
 
   useEffect(() => {
-    if (!tx) return;
+    if (!isOpen || !tx) return;
     setDescription(tx.description || '');
     setAmount(tx.amount || 0);
     const targetType = tx.type || 'EXPENSE';
@@ -61,7 +59,9 @@ export default function EditTransactionModal({
       setCategoryId(tx.category_id || '');
       setSuggestedNewCatName('');
     }
-  }, [tx, categories]);
+  }, [isOpen, tx, categories]);
+
+  if (!isOpen || !tx) return null;
 
   const handleCreateAndSelectCategory = async (catName) => {
     const targetName = (catName || customCatInput || suggestedNewCatName).trim();
