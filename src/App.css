@@ -296,6 +296,21 @@
   display: none;
 }
 
+@media (min-width: 769px) {
+  .nav-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .nav-tab-btn {
+    justify-content: center;
+  }
+
+  .nav-fab-slot {
+    display: none !important;
+  }
+}
+
 .nav-tab-text-full {
   display: inline;
 }
@@ -1819,17 +1834,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .report-period-pill.active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(139, 92, 246, 0.2));
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
-  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.15);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.24), rgba(5, 150, 105, 0.18));
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #34d399;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.16);
 }
 
 :root[data-theme="light"] .report-period-pill.active {
   background: #ffffff;
-  border-color: rgba(2, 132, 199, 0.35);
-  color: #0284c7;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: rgba(5, 150, 105, 0.38);
+  color: #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.14);
 }
 
 /* Daily Report Filter Bar & Quick Actions */
@@ -1882,15 +1897,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .period-quick-btn:hover {
-  border-color: var(--accent-cyan, #38bdf8);
-  color: var(--accent-cyan, #38bdf8);
-  background: rgba(56, 189, 248, 0.08);
+  border-color: #10b981;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .period-quick-btn.active {
-  background: rgba(56, 189, 248, 0.15) !important;
-  border-color: var(--accent-cyan, #38bdf8) !important;
-  color: var(--accent-cyan, #38bdf8) !important;
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(52, 211, 153, 0.55) !important;
+  color: #34d399 !important;
 }
 
 :root[data-theme="light"] .period-quick-btn {
@@ -1900,18 +1915,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 :root[data-theme="light"] .period-quick-btn:hover {
-  border-color: #0284c7;
-  color: #0284c7;
-  background: rgba(2, 132, 199, 0.08);
+  border-color: #059669;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .period-refresh-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  color: var(--accent-purple, #c084fc);
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  color: #34d399;
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 0.78rem;
@@ -1921,13 +1936,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .period-refresh-btn:hover {
-  background: rgba(139, 92, 246, 0.25);
+  background: rgba(16, 185, 129, 0.24);
   transform: translateY(-1px);
 }
 
 :root[data-theme="light"] .period-refresh-btn {
-  background: rgba(139, 92, 246, 0.1);
-  color: #7c3aed;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
 }
 
 /* Daily Report Modal: Web / Desktop layout (4 khối theo chiều ngang) */
@@ -1974,8 +1989,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .stat-card-icon.income { color: #10b981; }
 .stat-card-icon.expense { color: #f43f5e; }
-.stat-card-icon.net { color: var(--accent-cyan, #38bdf8); }
-.stat-card-icon.ai { color: var(--accent-purple, #c084fc); }
+.stat-card-icon.net { color: #34d399; }
+.stat-card-icon.ai { color: #34d399; }
 
 .daily-report-stat-card.stat-income {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-input) 100%);
@@ -1988,13 +2003,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .daily-report-stat-card.stat-net {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, var(--bg-input) 100%);
-  border-color: rgba(56, 189, 248, 0.25);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-input) 100%);
+  border-color: rgba(16, 185, 129, 0.24);
 }
 
 .daily-report-stat-card.ai-rating {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%);
-  border-color: rgba(139, 92, 246, 0.35);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.06) 100%);
+  border-color: rgba(52, 211, 153, 0.36);
 }
 
 .daily-report-stat-label {
@@ -2007,7 +2022,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .daily-report-stat-label.ai {
-  color: var(--accent-purple, #c084fc);
+  color: #34d399;
+}
+
+:root[data-theme="light"] .daily-report-stat-label.ai {
+  color: #059669;
 }
 
 .daily-report-stat-value {
@@ -2042,15 +2061,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .daily-report-ai-card {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--bg-input) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.28);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, var(--bg-input) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.28);
   border-radius: 16px;
   padding: 16px;
 }
 
 .daily-report-highlights-card {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.06) 0%, var(--bg-input) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, var(--bg-input) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.22);
   border-radius: 16px;
   padding: 16px;
 }

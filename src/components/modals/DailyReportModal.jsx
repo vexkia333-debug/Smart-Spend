@@ -13,8 +13,6 @@ export default function DailyReportModal({
   onTransactionsChange,
   onEditTransaction
 }) {
-  if (!isOpen) return null;
-
   const getTodayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -192,6 +190,8 @@ export default function DailyReportModal({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div
       className="modal-overlay prompt-modal-backdrop"
@@ -217,7 +217,7 @@ export default function DailyReportModal({
           position: 'relative',
           maxWidth: '720px',
           width: '100%',
-          maxHeight: '85vh',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -240,14 +240,14 @@ export default function DailyReportModal({
                 width: '36px',
                 height: '36px',
                 borderRadius: '11px',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(56, 189, 248, 0.2))',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.16))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0
               }}
             >
-              <Sparkles size={18} color="var(--accent-purple, #c084fc)" />
+              <Sparkles size={18} color="#34d399" />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="daily-report-title-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -327,11 +327,11 @@ export default function DailyReportModal({
               padding: '7px 8px',
               borderRadius: '9px',
               border: '1px solid',
-              background: activeTab === 'report' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-              borderColor: activeTab === 'report' ? 'var(--accent-purple, #c084fc)' : 'transparent',
+              background: activeTab === 'report' ? 'rgba(16, 185, 129, 0.16)' : 'transparent',
+              borderColor: activeTab === 'report' ? 'rgba(52, 211, 153, 0.5)' : 'transparent',
               fontWeight: 700,
               fontSize: '0.8rem',
-              color: activeTab === 'report' ? 'var(--accent-purple, #a855f7)' : 'var(--text-dim)',
+              color: activeTab === 'report' ? '#34d399' : 'var(--text-dim)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -354,11 +354,11 @@ export default function DailyReportModal({
               padding: '7px 8px',
               borderRadius: '9px',
               border: '1px solid',
-              background: activeTab === 'automation' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-              borderColor: activeTab === 'automation' ? 'var(--accent-cyan, #38bdf8)' : 'transparent',
+              background: activeTab === 'automation' ? 'rgba(16, 185, 129, 0.16)' : 'transparent',
+              borderColor: activeTab === 'automation' ? 'rgba(52, 211, 153, 0.5)' : 'transparent',
               fontWeight: 700,
               fontSize: '0.8rem',
-              color: activeTab === 'automation' ? 'var(--accent-cyan, #0284c7)' : 'var(--text-dim)',
+              color: activeTab === 'automation' ? '#34d399' : 'var(--text-dim)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -380,7 +380,8 @@ export default function DailyReportModal({
             minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
-            paddingRight: '2px'
+            paddingRight: '4px',
+            paddingBottom: '12px'
           }}
         >
           {activeTab === 'report' ? (
