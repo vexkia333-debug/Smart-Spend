@@ -7041,6 +7041,59 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 700;
 }
 
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  font-size: 0.82rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+:root[data-theme="light"] .offline-banner {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(217, 119, 6, 0.35);
+  color: #92400e;
+}
+
+.offline-banner-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.offline-banner-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.16);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.offline-banner-retry:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.26);
+}
+
+.offline-banner-retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 
 
 

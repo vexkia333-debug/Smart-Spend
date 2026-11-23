@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
+import { WifiOff, RefreshCw } from 'lucide-react';
 
 // Common Components
 import Header from './components/common/Header.jsx';
@@ -37,6 +38,27 @@ import {
 import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
 
+const OFFLINE_CACHE_KEY = 'smartspend_offline_cache_v1';
+
+function readOfflineCache() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeOfflineCachePatch(patch) {
+  try {
+    const prev = readOfflineCache() || {};
+    const next = { ...prev, ...patch, lastSyncedAt: new Date().toISOString() };
+    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 export default function App() {
   const getInitialTab = () => {
     try {
@@ -58,6 +80,9 @@ export default function App() {
     typeof navigator !== 'undefined' ? !navigator.onLine : false
   );
   const [isCheckingOnline, setIsCheckingOnline] = useState(false);
+
+  const initialCache = useMemo(() => readOfflineCache(), []);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => initialCache?.lastSyncedAt || null);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -84,7 +109,7 @@ export default function App() {
       const res = await fetch('/api/health', { cache: 'no-store' });
       if (res.ok) {
         setIsOffline(false);
-        window.location.reload();
+        fetchInitialData();
       } else {
         setIsOffline(true);
       }
@@ -103,17 +128,20 @@ export default function App() {
       window.history.replaceState({}, '', url.toString());
     } catch (e) {}
   };
-  const [stats, setStats] = useState({
-    totalBalance: 0,
-    totalExpense: 0,
-    totalIncome: 0,
-    pendingCount: 0,
-    categories: []
-  });
-  const [transactions, setTransactions] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [accounts, setAccounts] = useState([]);
-  const [rules, setRules] = useState([]);
+  const [stats, setStats] = useState(
+    () =>
+      initialCache?.stats || {
+        totalBalance: 0,
+        totalExpense: 0,
+        totalIncome: 0,
+        pendingCount: 0,
+        categories: []
+      }
+  );
+  const [transactions, setTransactions] = useState(() => initialCache?.transactions || []);
+  const [categories, setCategories] = useState(() => initialCache?.categories || []);
+  const [accounts, setAccounts] = useState(() => initialCache?.accounts || []);
+  const [rules, setRules] = useState(() => initialCache?.rules || []);
   const [livePrompt, setLivePrompt] = useState(null);
 
   // Theme & Time Filter States (Mặc định mở app ở bộ lọc Theo tháng)
@@ -140,7 +168,9 @@ export default function App() {
   // Settings & Reconcile Modals
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
-  const [monthlyBudgetGoal, setMonthlyBudgetGoal] = useState(500000);
+  const [monthlyBudgetGoal, setMonthlyBudgetGoal] = useState(
+    () => initialCache?.monthlyBudgetGoal || 500000
+  );
   const [showReconcileModal, setShowReconcileModal] = useState(false);
   const [reconcileAccount, setReconcileAccount] = useState(null);
   const [reconcileAmount, setReconcileAmount] = useState('');
@@ -346,7 +376,9 @@ export default function App() {
         setHasGeminiKey(data.hasGeminiKey);
         setMaskedKey(data.maskedKey || '');
         if (data.monthlyBudgetGoal) {
-          setMonthlyBudgetGoal(Number(data.monthlyBudgetGoal));
+          const goalVal = Number(data.monthlyBudgetGoal);
+          setMonthlyBudgetGoal(goalVal);
+          writeOfflineCachePatch({ monthlyBudgetGoal: goalVal });
         }
       }
     } catch (e) {
@@ -376,7 +408,12 @@ export default function App() {
   const fetchStats = async () => {
     try {
       const res = await authFetch('/api/stats');
-      if (res.ok) setStats(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+        writeOfflineCachePatch({ stats: data });
+        setLastSyncedAt(new Date().toISOString());
+      }
     } catch (e) {
       console.error(e);
     }
@@ -388,6 +425,8 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
+        writeOfflineCachePatch({ transactions: data });
+        setLastSyncedAt(new Date().toISOString());
         const pending = data.find((t) => t.status === 'PENDING');
         if (pending) {
           setLivePrompt((prev) => {
@@ -413,6 +452,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
+        writeOfflineCachePatch({ categories: data });
         if (data.length > 0 && !newRuleCat) setNewRuleCat(data[0].id);
       }
     } catch (e) {
@@ -423,7 +463,11 @@ export default function App() {
   const fetchAccounts = async () => {
     try {
       const res = await authFetch('/api/accounts');
-      if (res.ok) setAccounts(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data);
+        writeOfflineCachePatch({ accounts: data });
+      }
     } catch (e) {
       console.error(e);
     }
@@ -432,7 +476,11 @@ export default function App() {
   const fetchRules = async () => {
     try {
       const res = await authFetch('/api/rules');
-      if (res.ok) setRules(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setRules(data);
+        writeOfflineCachePatch({ rules: data });
+      }
     } catch (e) {
       console.error(e);
     }
@@ -1159,7 +1207,25 @@ export default function App() {
       });
   }, [transactions, timeFilter, customStartDate, customEndDate, filterAccount, filterType, filterCategory, searchQuery, txSortOrder]);
 
-  if (isOffline) {
+  const hasOfflineData =
+    transactions.length > 0 || accounts.length > 0 || Boolean(lastSyncedAt);
+
+  const formattedLastSync = useMemo(() => {
+    if (!lastSyncedAt) return '';
+    try {
+      const d = new Date(lastSyncedAt);
+      if (isNaN(d.getTime())) return '';
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      return `${hh}:${mm} ${dd}/${mo}`;
+    } catch {
+      return '';
+    }
+  }, [lastSyncedAt]);
+
+  if (isOffline && !hasOfflineData) {
     return (
       <>
         <div className="fintech-wave-backdrop" aria-hidden="true" />
@@ -1178,6 +1244,26 @@ export default function App() {
       <div className="fintech-wave-backdrop" aria-hidden="true" />
 
       <div className="app-container">
+      {isOffline && (
+        <div className="offline-banner" role="status" aria-live="polite">
+          <div className="offline-banner-left">
+            <WifiOff size={16} />
+            <span>
+              Đang mất kết nối · Xem dữ liệu lưu tạm
+              {formattedLastSync ? ` (cập nhật lúc ${formattedLastSync})` : ''}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="offline-banner-retry"
+            onClick={handleRetryConnection}
+            disabled={isCheckingOnline}
+          >
+            <RefreshCw size={13} className={isCheckingOnline ? 'spin' : ''} />
+            <span>{isCheckingOnline ? 'Đang thử…' : 'Thử kết nối lại'}</span>
+          </button>
+        </div>
+      )}
       {/* Header & Quick AI Input */}
       <Header
         theme={theme}

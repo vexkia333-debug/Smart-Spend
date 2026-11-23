@@ -1,10 +1,11 @@
-// SmartSpend Service Worker - Hỗ trợ Thông báo đẩy & Màn hình Offline
-const OFFLINE_CACHE = 'smartspend-offline-v1';
+// SmartSpend Service Worker - Hỗ trợ Thông báo đẩy & App Shell Offline
+const OFFLINE_CACHE = 'smartspend-shell-v2';
 const OFFLINE_URL = '/offline.html';
+const PRECACHE_URLS = ['/', OFFLINE_URL, '/manifest.json', '/pwa-192x192.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(OFFLINE_CACHE).then((cache) => cache.add(OFFLINE_URL)).catch(() => {})
+    caches.open(OFFLINE_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -23,14 +24,50 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.mode === 'navigate') {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // Điều hướng trang: ưu tiên mạng, nếu mất mạng trả về shell đã cache (để đọc localStorage), fallback /offline.html
+  if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(async () => {
-        const cached = await caches.match(OFFLINE_URL);
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(OFFLINE_CACHE).then((cache) => cache.put('/', copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(async () => {
+          const cachedShell = (await caches.match('/')) || (await caches.match(req));
+          if (cachedShell) return cachedShell;
+          const offlinePage = await caches.match(OFFLINE_URL);
+          return offlinePage || Response.error();
+        })
+    );
+    return;
+  }
+
+  // Tài nguyên tĩnh (/assets/*, ảnh nền, icon): Network-first + lưu cache cho chế độ offline
+  event.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(OFFLINE_CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(async () => {
+        const cached = await caches.match(req);
         return cached || Response.error();
       })
-    );
-  }
+  );
 });
 
 // Lắng nghe sự kiện thông báo đẩy từ server
