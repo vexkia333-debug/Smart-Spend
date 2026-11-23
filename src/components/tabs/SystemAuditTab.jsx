@@ -6,6 +6,7 @@ import {
   ChevronUp, Edit2, SlidersHorizontal, Bell, Key, RotateCcw, Sun, Moon, ChevronRight
 } from 'lucide-react';
 import RulesTab from './RulesTab.jsx';
+import PaginationBar from '../common/PaginationBar.jsx';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function SystemAuditTab({
@@ -78,6 +79,9 @@ export default function SystemAuditTab({
       return next;
     });
   };
+
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(15);
 
   // Lọc logs theo filterType và searchQuery
   const filteredLogs = logs.filter((log) => {
@@ -524,8 +528,14 @@ export default function SystemAuditTab({
               </p>
             </div>
           ) : (
+            <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {filteredLogs.map((log) => {
+              {filteredLogs
+                .slice(
+                  (Math.max(1, Math.min(logPage, Math.max(1, Math.ceil(filteredLogs.length / logPageSize)))) - 1) * logPageSize,
+                  Math.max(1, Math.min(logPage, Math.max(1, Math.ceil(filteredLogs.length / logPageSize)))) * logPageSize
+                )
+                .map((log) => {
                 const isExpanded = expandedLogIds.has(log.id);
 
                 // Cấu hình nhãn & biểu tượng theo action_type
@@ -755,6 +765,20 @@ export default function SystemAuditTab({
                 );
               })}
             </div>
+
+            <PaginationBar
+              totalItems={filteredLogs.length}
+              currentPage={Math.max(1, Math.min(logPage, Math.max(1, Math.ceil(filteredLogs.length / logPageSize))))}
+              pageSize={logPageSize}
+              onPageChange={setLogPage}
+              onPageSizeChange={(size) => {
+                setLogPageSize(size);
+                setLogPage(1);
+              }}
+              pageSizeOptions={[10, 15, 30]}
+              itemLabel="bản ghi"
+            />
+            </>
           )}
         </div>
       )}

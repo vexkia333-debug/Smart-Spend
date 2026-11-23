@@ -12,6 +12,7 @@ import {
   Check,
   Edit2
 } from 'lucide-react';
+import PaginationBar from '../common/PaginationBar.jsx';
 import { formatVND } from '../../utils/formatters.js';
 
 // Chuẩn hóa tên người (Title Case): "lộc" -> "Lộc", "anh tùng" -> "Anh Tùng"
@@ -127,6 +128,9 @@ export default function DebtLoanTracker({
   }, [peopleSummary]);
 
   // Danh sách giao dịch hiển thị theo bộ lọc và tìm kiếm
+  const [txPage, setTxPage] = useState(1);
+  const [txPageSize, setTxPageSize] = useState(5);
+
   const filteredTxs = useMemo(() => {
     return debtTransactions.filter((t) => {
       if (activeFilter === 'LOAN' && t.category_id !== 'cat_loan') return false;
@@ -538,7 +542,13 @@ export default function DebtLoanTracker({
               Không có giao dịch nào phù hợp với bộ lọc.
             </div>
           ) : (
-            filteredTxs.map((t) => {
+            <>
+            {filteredTxs
+              .slice(
+                (Math.max(1, Math.min(txPage, Math.max(1, Math.ceil(filteredTxs.length / txPageSize)))) - 1) * txPageSize,
+                Math.max(1, Math.min(txPage, Math.max(1, Math.ceil(filteredTxs.length / txPageSize)))) * txPageSize
+              )
+              .map((t) => {
               const isLoan = t.category_id === 'cat_loan';
               const borrowerName = extractBorrowerName(t.description);
               const personInfo = peopleMap[borrowerName];
@@ -698,7 +708,20 @@ export default function DebtLoanTracker({
                   </div>
                 </div>
               );
-            })
+            })}
+            <PaginationBar
+              totalItems={filteredTxs.length}
+              currentPage={Math.max(1, Math.min(txPage, Math.max(1, Math.ceil(filteredTxs.length / txPageSize))))}
+              pageSize={txPageSize}
+              onPageChange={setTxPage}
+              onPageSizeChange={(size) => {
+                setTxPageSize(size);
+                setTxPage(1);
+              }}
+              pageSizeOptions={[5, 10, 20]}
+              itemLabel="khoản"
+            />
+            </>
           )}
         </div>
       )}

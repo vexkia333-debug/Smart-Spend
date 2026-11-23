@@ -6834,6 +6834,120 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   }
 }
 
+/* =========================================================
+   Pagination Bar (Shared across Transactions, Audit, Debt)
+   ========================================================= */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pagination-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pagination-summary strong {
+  color: var(--text-main);
+}
+
+.pagination-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pagination-pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: rgba(16, 185, 129, 0.45);
+  color: var(--text-main);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.pagination-btn.is-active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.22));
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #34d399;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .pagination-btn.is-active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  padding: 0 4px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.pagination-size-select {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.pagination-size-select:hover,
+.pagination-size-select:focus {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+@media (max-width: 768px) {
+  .pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .pagination-controls-group {
+    justify-content: center;
+  }
+}
+
 
 
 

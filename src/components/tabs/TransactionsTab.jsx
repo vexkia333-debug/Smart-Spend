@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Layers, Trash2, Calendar, X, Edit3 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect.jsx';
+import PaginationBar from '../common/PaginationBar.jsx';
 import { formatVND, formatTxTime } from '../../utils/formatters.js';
 
 export default function TransactionsTab({
@@ -46,6 +47,15 @@ export default function TransactionsTab({
 
   const currentAccountObj = accounts.find((a) => a.id === filterAccount);
   const currentCategoryObj = categories.find((c) => c.id === filterCategory);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
+  const safePage = Math.max(1, Math.min(currentPage, totalPages));
+  const paginatedTransactions = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredTransactions.slice(start, start + pageSize);
+  }, [filteredTransactions, safePage, pageSize]);
   return (
     <div className="glass-panel" style={{ padding: '24px' }}>
       <div
@@ -312,7 +322,7 @@ export default function TransactionsTab({
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((tx) => (
+                {paginatedTransactions.map((tx) => (
                   <tr key={tx.id}>
                     <td style={{ color: 'var(--text-dim)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       {formatTxTime(tx.transaction_time, tx.created_at)}
@@ -402,7 +412,7 @@ export default function TransactionsTab({
 
           {/* MOBILE CARDS VIEW (DỮ LIỆU CHUYỂN THÀNH KHỐI TRÊN MOBILE ĐỂ DỄ THEO DÕI) */}
           <div className="mobile-tx-cards">
-            {filteredTransactions.map((tx) => (
+            {paginatedTransactions.map((tx) => (
               <div key={tx.id} className="mobile-tx-card">
                 <div className="mobile-tx-card-header">
                   <div className="mobile-tx-card-meta">
@@ -490,6 +500,19 @@ export default function TransactionsTab({
               </div>
             ))}
           </div>
+
+          <PaginationBar
+            totalItems={filteredTransactions.length}
+            currentPage={safePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[10, 20, 50]}
+            itemLabel="giao dịch"
+          />
         </>
       )}
     </div>
