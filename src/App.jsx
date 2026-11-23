@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import Header from './components/common/Header.jsx';
 import NavTabs from './components/common/NavTabs.jsx';
 import StatsSummary from './components/common/StatsSummary.jsx';
+import OfflineScreen from './components/common/OfflineScreen.jsx';
 
 // Tab Components
 import PendingTab from './components/tabs/PendingTab.jsx';
@@ -53,6 +54,46 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [isOffline, setIsOffline] = useState(
+    typeof navigator !== 'undefined' ? !navigator.onLine : false
+  );
+  const [isCheckingOnline, setIsCheckingOnline] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleRetryConnection = async () => {
+    setIsCheckingOnline(true);
+    try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setIsOffline(true);
+        return;
+      }
+      const res = await fetch('/api/health', { cache: 'no-store' });
+      if (res.ok) {
+        setIsOffline(false);
+        window.location.reload();
+      } else {
+        setIsOffline(true);
+      }
+    } catch {
+      setIsOffline(true);
+    } finally {
+      setIsCheckingOnline(false);
+    }
+  };
 
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
@@ -1117,6 +1158,15 @@ export default function App() {
         return txSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
       });
   }, [transactions, timeFilter, customStartDate, customEndDate, filterAccount, filterType, filterCategory, searchQuery, txSortOrder]);
+
+  if (isOffline) {
+    return (
+      <>
+        <div className="fintech-wave-backdrop" aria-hidden="true" />
+        <OfflineScreen onRetry={handleRetryConnection} isChecking={isCheckingOnline} />
+      </>
+    );
+  }
 
   if (isLocked) {
     return <PinLockScreen onUnlock={handleUnlock} />;
