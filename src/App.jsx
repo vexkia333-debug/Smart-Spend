@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { WifiOff, RefreshCw, X, CloudUpload } from 'lucide-react';
 
@@ -12,7 +12,6 @@ import OfflineScreen from './components/common/OfflineScreen.jsx';
 import PendingTab from './components/tabs/PendingTab.jsx';
 import DashboardTab from './components/tabs/DashboardTab.jsx';
 import TransactionsTab from './components/tabs/TransactionsTab.jsx';
-import RulesTab from './components/tabs/RulesTab.jsx';
 import SystemAuditTab from './components/tabs/SystemAuditTab.jsx';
 
 // Modal Components
@@ -27,56 +26,20 @@ import EditTransactionModal from './components/modals/EditTransactionModal.jsx';
 import DailyReportModal from './components/modals/DailyReportModal.jsx';
 import DebtLoanModal from './components/modals/DebtLoanModal.jsx';
 
-// Utilities & Constants
+// Custom Hooks & Utilities
+import { useOfflineSync } from './hooks/useOfflineSync.js';
+import { useFinanceMetrics } from './hooks/useFinanceMetrics.js';
+import { useRealtimeEvents } from './hooks/useRealtimeEvents.js';
+import {
+  readOfflineCache,
+  writeOfflineCachePatch
+} from './utils/offlineStorage.js';
 import {
   formatVND,
-  formatTxTime,
-  formatNumberWithCommas,
-  parseTxDate,
-  formatDateVN
+  formatNumberWithCommas
 } from './utils/formatters.js';
 import { DEFAULT_QUICK_ACTIONS } from './constants/index.js';
 import './App.css';
-
-const OFFLINE_CACHE_KEY = 'smartspend_offline_cache_v1';
-const PENDING_SYNC_KEY = 'smartspend_pending_sync_v1';
-
-function readOfflineCache() {
-  try {
-    const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeOfflineCachePatch(patch) {
-  try {
-    const prev = readOfflineCache() || {};
-    const next = { ...prev, ...patch, lastSyncedAt: new Date().toISOString() };
-    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(next));
-  } catch {
-    // Ignore storage quota errors
-  }
-}
-
-function readPendingSyncQueue() {
-  try {
-    const raw = localStorage.getItem(PENDING_SYNC_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writePendingSyncQueue(list) {
-  try {
-    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(list));
-  } catch {
-    // Ignore storage quota errors
-  }
-}
 
 export default function App() {
   const getInitialTab = () => {
@@ -90,77 +53,13 @@ export default function App() {
       if (hash && ['pending', 'dashboard', 'transactions', 'audit'].includes(hash)) {
         return hash;
       }
-    } catch (e) {}
+    } catch {}
     return 'dashboard';
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
-  const [isOffline, setIsOffline] = useState(
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  );
-  const [isCheckingOnline, setIsCheckingOnline] = useState(false);
-
   const initialCache = useMemo(() => readOfflineCache(), []);
   const [lastSyncedAt, setLastSyncedAt] = useState(() => initialCache?.lastSyncedAt || null);
-  const [pendingSyncQueue, setPendingSyncQueue] = useState(() => readPendingSyncQueue());
-  const [isSyncingQueue, setIsSyncingQueue] = useState(false);
-  const isSyncingRef = useRef(false);
-
-  const enqueueOfflineEntry = useCallback(({ text, forceCash }) => {
-    const item = {
-      id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      text: String(text || '').trim(),
-      forceCash: Boolean(forceCash),
-      clientTime: new Date().toISOString()
-    };
-    const next = [...readPendingSyncQueue(), item];
-    writePendingSyncQueue(next);
-    setPendingSyncQueue(next);
-    return item;
-  }, []);
-
-  const removePendingSyncItem = useCallback((itemId) => {
-    const next = readPendingSyncQueue().filter((item) => item.id !== itemId);
-    writePendingSyncQueue(next);
-    setPendingSyncQueue(next);
-  }, []);
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOffline(false);
-    };
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const handleRetryConnection = async () => {
-    setIsCheckingOnline(true);
-    try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        setIsOffline(true);
-        return;
-      }
-      const res = await fetch('/api/health', { cache: 'no-store' });
-      if (res.ok) {
-        setIsOffline(false);
-        fetchInitialData();
-        syncPendingQueue();
-      } else {
-        setIsOffline(true);
-      }
-    } catch {
-      setIsOffline(true);
-    } finally {
-      setIsCheckingOnline(false);
-    }
-  };
 
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
@@ -168,7 +67,7 @@ export default function App() {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tabId);
       window.history.replaceState({}, '', url.toString());
-    } catch (e) {}
+    } catch {}
   };
   const [stats, setStats] = useState(
     () =>
@@ -233,11 +132,6 @@ export default function App() {
   // Debt & Loan Ledger Modal States
   const [showDebtLoanModal, setShowDebtLoanModal] = useState(false);
   const [debtLoanInitialData, setDebtLoanInitialData] = useState(null);
-
-  const handleOpenDebtLoanModal = (type = 'LOAN', initial = null) => {
-    setDebtLoanInitialData({ type, ...(initial || {}) });
-    setShowDebtLoanModal(true);
-  };
 
   // Category & Rule Form States
   const [newKeyword, setNewKeyword] = useState('');
@@ -306,95 +200,6 @@ export default function App() {
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
-
-  // 1. Load initial data & SSE setup
-  useEffect(() => {
-    if (isLocked) return;
-
-    fetchInitialData();
-
-    const currentToken = authToken || localStorage.getItem('smartspend_pin_token') || sessionStorage.getItem('smartspend_pin_token') || '';
-    const eventSource = new EventSource(`/api/events?token=${encodeURIComponent(currentToken)}`);
-
-    eventSource.addEventListener('NEW_TRANSACTION_PROMPT', (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        setLivePrompt(payload);
-        fetchStats();
-        fetchTransactions();
-        fetchAccounts();
-        fetchRules();
-      } catch (e) {
-        console.error('SSE Error:', e);
-      }
-    });
-
-    eventSource.addEventListener('TRANSACTION_UPDATED', () => {
-      fetchStats();
-      fetchTransactions();
-      fetchAccounts();
-    });
-
-    eventSource.addEventListener('TRANSACTION_CREATED', () => {
-      fetchStats();
-      fetchTransactions();
-      fetchAccounts();
-    });
-
-    eventSource.addEventListener('ACCOUNT_UPDATED', () => {
-      fetchAccounts();
-      fetchStats();
-    });
-
-    eventSource.addEventListener('TRANSACTION_IGNORED', () => {
-      fetchStats();
-      fetchTransactions();
-      fetchAccounts();
-    });
-
-    eventSource.addEventListener('CATEGORY_CREATED', () => {
-      fetchCategories();
-      fetchStats();
-    });
-
-    eventSource.addEventListener('TRANSACTIONS_CLEARED', () => {
-      fetchInitialData();
-    });
-
-    eventSource.addEventListener('DATA_RESET', () => {
-      fetchInitialData();
-    });
-
-    return () => {
-      eventSource.close();
-    };
-  }, [isLocked, authToken]);
-
-  // Tự động kiểm tra giao dịch mới và số dư khi app được mở lên hoặc chuyển từ nền lên foreground
-  useEffect(() => {
-    if (isLocked) return;
-
-    const handleForeground = () => {
-      if (document.visibilityState === 'visible') {
-        fetchTransactions();
-        fetchStats();
-        fetchAccounts();
-        // Bù đắp race-condition nếu MacroDroid bắn HTTP POST cùng tích tắc mở app
-        setTimeout(() => {
-          fetchTransactions();
-          fetchAccounts();
-          fetchStats();
-        }, 1200);
-      }
-    };
-
-    window.addEventListener('visibilitychange', handleForeground);
-    window.addEventListener('focus', handleForeground);
-    return () => {
-      window.removeEventListener('visibilitychange', handleForeground);
-      window.removeEventListener('focus', handleForeground);
-    };
-  }, [isLocked]);
 
   const fetchInitialData = async () => {
     await Promise.all([
@@ -528,6 +333,63 @@ export default function App() {
       console.error(e);
     }
   };
+
+  const {
+    isOffline,
+    setIsOffline,
+    isCheckingOnline,
+    formattedLastSync,
+    pendingSyncQueue,
+    isSyncingQueue,
+    enqueueOfflineEntry,
+    removePendingSyncItem,
+    syncPendingQueue,
+    handleRetryConnection
+  } = useOfflineSync({
+    isLocked,
+    authFetch,
+    onRefreshAll: fetchInitialData,
+    onRefreshAfterSync: () =>
+      Promise.all([fetchStats(), fetchTransactions(), fetchAccounts(), fetchCategories()]),
+    setAiMessage,
+    lastSyncedAt
+  });
+
+  useRealtimeEvents({
+    isLocked,
+    authToken,
+    onInitialLoad: fetchInitialData,
+    onPromptEvent: (payload) => {
+      setLivePrompt(payload);
+      fetchStats();
+      fetchTransactions();
+      fetchAccounts();
+      fetchRules();
+    },
+    onTxChange: () => {
+      fetchStats();
+      fetchTransactions();
+      fetchAccounts();
+    },
+    onAccountChange: () => {
+      fetchAccounts();
+      fetchStats();
+    },
+    onCategoryChange: () => {
+      fetchCategories();
+      fetchStats();
+    },
+    onForegroundRefresh: () => {
+      fetchTransactions();
+      fetchStats();
+      fetchAccounts();
+      setTimeout(() => {
+        fetchTransactions();
+        fetchAccounts();
+        fetchStats();
+      }, 1200);
+    }
+  });
 
   // Phân loại giao dịch
   const handleCategorize = async (txId, categoryId, customDesc, partnerAccountId) => {
@@ -926,70 +788,6 @@ export default function App() {
     }
   };
 
-  // Đồng bộ hàng đợi các khoản chi đã lưu tạm khi mất mạng
-  const syncPendingQueue = async () => {
-    if (isSyncingRef.current || isLocked) return;
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    const queue = readPendingSyncQueue();
-    if (queue.length === 0) return;
-
-    isSyncingRef.current = true;
-    setIsSyncingQueue(true);
-    let syncedCount = 0;
-    const remaining = [];
-
-    try {
-      for (let i = 0; i < queue.length; i++) {
-        const item = queue[i];
-        try {
-          const res = await authFetch('/api/ai/parse-transaction', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: item.text,
-              autoSave: true,
-              forceCash: item.forceCash,
-              clientTime: item.clientTime
-            })
-          });
-          if (res.ok) {
-            syncedCount += 1;
-          } else {
-            remaining.push(item);
-          }
-        } catch (err) {
-          const isNetErr =
-            (typeof navigator !== 'undefined' && !navigator.onLine) ||
-            /failed to fetch|networkerror|load failed/i.test(String(err?.message || ''));
-          remaining.push(...queue.slice(i));
-          if (isNetErr) {
-            setIsOffline(true);
-          }
-          break;
-        }
-      }
-
-      writePendingSyncQueue(remaining);
-      setPendingSyncQueue(remaining);
-
-      if (syncedCount > 0) {
-        setAiMessage(`✅ Đã tự động đồng bộ ${syncedCount} khoản chi lưu tạm khi mất mạng!`);
-        setTimeout(() => setAiMessage(null), 8000);
-        await Promise.all([fetchStats(), fetchTransactions(), fetchAccounts(), fetchCategories()]);
-      }
-    } finally {
-      isSyncingRef.current = false;
-      setIsSyncingQueue(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isOffline && !isLocked && readPendingSyncQueue().length > 0) {
-      fetchInitialData();
-      syncPendingQueue();
-    }
-  }, [isOffline, isLocked]);
-
   // Kiểm kê số dư tài khoản
   const handleReconcileSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -1062,217 +860,31 @@ export default function App() {
     }
   };
 
-  // Logic kiểm tra giao dịch khớp với bộ lọc thời gian
-  const isMatchingTime = (timeStr, createdAtStr) => {
-    if (timeFilter === 'ALL') return true;
-    const txDate = parseTxDate(timeStr, createdAtStr);
-    if (isNaN(txDate.getTime())) return true;
-    const now = new Date();
-
-    if (timeFilter === 'DAY') {
-      return (
-        txDate.getDate() === now.getDate() &&
-        txDate.getMonth() === now.getMonth() &&
-        txDate.getFullYear() === now.getFullYear()
-      );
-    }
-    if (timeFilter === 'WEEK') {
-      const startOfWeek = new Date(now);
-      const day = startOfWeek.getDay() || 7;
-      startOfWeek.setDate(startOfWeek.getDate() - day + 1);
-      startOfWeek.setHours(0, 0, 0, 0);
-      return txDate >= startOfWeek;
-    }
-    if (timeFilter === 'MONTH') {
-      return (
-        txDate.getMonth() === now.getMonth() &&
-        txDate.getFullYear() === now.getFullYear()
-      );
-    }
-    if (timeFilter === 'CUSTOM') {
-      if (customStartDate) {
-        const start = new Date(customStartDate);
-        start.setHours(0, 0, 0, 0);
-        if (txDate < start) return false;
-      }
-      if (customEndDate) {
-        const end = new Date(customEndDate);
-        end.setHours(23, 59, 59, 999);
-        if (txDate > end) return false;
-      }
-      return true;
-    }
-    return true;
-  };
-
-  // Danh sách giao dịch theo bộ lọc thời gian
-  const timeFilteredTransactions = useMemo(
-    () => transactions.filter((t) => isMatchingTime(t.transaction_time, t.created_at)),
-    [transactions, timeFilter, customStartDate, customEndDate]
-  );
-
-  const displayedExpense = useMemo(
-    () =>
-      timeFilteredTransactions
-        .filter(
-          (t) =>
-            t.type === 'EXPENSE' &&
-            t.status !== 'IGNORED' &&
-            !t.category_id?.startsWith('cat_transfer_') &&
-            t.category_id !== 'cat_loan' &&
-            t.category_id !== 'cat_debt_repay'
-        )
-        .reduce((sum, t) => sum + (t.amount || 0), 0),
-    [timeFilteredTransactions]
-  );
-
-  const displayedIncome = useMemo(
-    () =>
-      timeFilteredTransactions
-        .filter(
-          (t) =>
-            t.type === 'INCOME' &&
-            t.status !== 'IGNORED' &&
-            !t.category_id?.startsWith('cat_transfer_') &&
-            t.category_id !== 'cat_debt_collect'
-        )
-        .reduce((sum, t) => sum + (t.amount || 0), 0),
-    [timeFilteredTransactions]
-  );
-
-  const displayedPendingCount = useMemo(
-    () => timeFilteredTransactions.filter((t) => t.status === 'PENDING').length,
-    [timeFilteredTransactions]
-  );
-
-  const netSavings = displayedIncome - displayedExpense;
-  const spendRatio =
-    displayedIncome > 0
-      ? Math.round((displayedExpense / displayedIncome) * 100)
-      : displayedExpense > 0
-      ? 100
-      : 0;
-  const savingsRate =
-    displayedIncome > 0
-      ? Math.max(0, Math.round(((displayedIncome - displayedExpense) / displayedIncome) * 100))
-      : 0;
-
-  // Cơ cấu danh mục chi tiêu theo bộ lọc thời gian (loại trừ nợ và chuyển khoản nội bộ)
-  const categoryBreakdown = useMemo(() => {
-    const map = {};
-    categories
-      .filter((c) => c.id !== 'cat_loan' && c.id !== 'cat_debt_collect' && c.id !== 'cat_debt_repay' && !c.id.startsWith('cat_transfer_'))
-      .forEach((c) => {
-        map[c.id] = { ...c, total_amount: 0, tx_count: 0, items: [] };
-      });
-    timeFilteredTransactions.forEach((t) => {
-      if (
-        t.type === 'EXPENSE' &&
-        t.status !== 'IGNORED' &&
-        t.category_id &&
-        !t.category_id?.startsWith('cat_transfer_') &&
-        t.category_id !== 'cat_loan' &&
-        t.category_id !== 'cat_debt_repay'
-      ) {
-        if (!map[t.category_id]) {
-          map[t.category_id] = {
-            id: t.category_id,
-            name: t.category_name || 'Khác',
-            color: t.category_color || '#94a3b8',
-            total_amount: 0,
-            tx_count: 0,
-            items: []
-          };
-        }
-        map[t.category_id].total_amount += t.amount || 0;
-        map[t.category_id].tx_count += 1;
-        map[t.category_id].items.push(t);
-      }
-    });
-    return Object.values(map)
-      .filter((c) => c.total_amount > 0)
-      .map((c) => ({
-        ...c,
-        items: [...c.items].sort(
-          (a, b) =>
-            parseTxDate(b.transaction_time, b.created_at).getTime() -
-            parseTxDate(a.transaction_time, a.created_at).getTime()
-        )
-      }))
-      .sort((a, b) => b.total_amount - a.total_amount);
-  }, [categories, timeFilteredTransactions]);
-
-  // Xu hướng chi tiêu 7 ngày qua (loại trừ nợ và chuyển khoản nội bộ)
-  const last7DaysData = useMemo(() => {
-    const days = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      d.setHours(0, 0, 0, 0);
-      const dayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const label =
-        i === 0 ? 'Hôm nay' : i === 1 ? 'Hôm qua' : `${d.getDate()}/${d.getMonth() + 1}`;
-
-      const dayExpense = transactions
-        .filter((t) => {
-          if (
-            t.type !== 'EXPENSE' ||
-            t.status !== 'CONFIRMED' ||
-            t.category_id?.startsWith('cat_transfer_') ||
-            t.category_id === 'cat_loan' ||
-            t.category_id === 'cat_debt_repay'
-          )
-            return false;
-          const txDate = parseTxDate(t.transaction_time, t.created_at);
-          if (!txDate || isNaN(txDate.getTime())) return false;
-          const txDayStr = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}-${String(txDate.getDate()).padStart(2, '0')}`;
-          return txDayStr === dayStr;
-        })
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-      days.push({ label, date: dayStr, amount: dayExpense, isToday: i === 0 });
-    }
-    return days;
-  }, [transactions]);
-
-  // Tính thu nhập, chi tiêu và thặng dư thuần RIÊNG BIỆT cho tháng hiện tại (tách khỏi số dư/giao dịch tháng trước)
-  const currentMonthStats = useMemo(() => {
-    const now = new Date();
-    const curMonth = now.getMonth();
-    const curYear = now.getFullYear();
-
-    let income = 0;
-    let expense = 0;
-    for (const t of transactions) {
-      if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
-      const txDate = parseTxDate(t.transaction_time, t.created_at);
-      if (!txDate || isNaN(txDate.getTime())) continue;
-      if (txDate.getMonth() !== curMonth || txDate.getFullYear() !== curYear) continue;
-
-      if (t.type === 'INCOME' && t.category_id !== 'cat_debt_collect') {
-        income += Number(t.amount || 0);
-      } else if (
-        t.type === 'EXPENSE' &&
-        t.category_id !== 'cat_loan' &&
-        t.category_id !== 'cat_debt_repay'
-      ) {
-        expense += Number(t.amount || 0);
-      }
-    }
-
-    const totalDays = new Date(curYear, curMonth + 1, 0).getDate();
-    const daysRemaining = Math.max(1, totalDays - now.getDate() + 1);
-    return {
-      income,
-      expense,
-      savings: income - expense,
-      daysRemaining,
-      monthNumber: curMonth + 1
-    };
-  }, [transactions]);
-
-  const maxDayAmount = Math.max(...last7DaysData.map((d) => d.amount), 1);
+  const {
+    displayedExpense,
+    displayedIncome,
+    displayedPendingCount,
+    netSavings,
+    spendRatio,
+    savingsRate,
+    categoryBreakdown,
+    last7DaysData,
+    currentMonthStats,
+    timeLabel,
+    pendingList,
+    filteredTransactions
+  } = useFinanceMetrics({
+    transactions,
+    categories,
+    timeFilter,
+    customStartDate,
+    customEndDate,
+    filterAccount,
+    filterType,
+    filterCategory,
+    searchQuery,
+    txSortOrder
+  });
 
   const handleApplyCustomDate = (start, end) => {
     setCustomStartDate(start);
@@ -1286,79 +898,8 @@ export default function App() {
     setTimeFilter('ALL');
   };
 
-  const timeLabel = useMemo(() => {
-    if (timeFilter === 'ALL') return 'Toàn bộ thời gian';
-    if (timeFilter === 'MONTH') return 'Tháng này';
-    if (timeFilter === 'WEEK') return 'Tuần này';
-    if (timeFilter === 'DAY') return 'Hôm nay';
-    if (timeFilter === 'CUSTOM') {
-      if (customStartDate && customEndDate) {
-        return `${formatDateVN(customStartDate)} - ${formatDateVN(customEndDate)}`;
-      }
-      if (customStartDate) {
-        return `Từ ${formatDateVN(customStartDate)}`;
-      }
-      if (customEndDate) {
-        return `Đến ${formatDateVN(customEndDate)}`;
-      }
-      return 'Khoảng thời gian tùy chọn';
-    }
-    return 'Toàn bộ thời gian';
-  }, [timeFilter, customStartDate, customEndDate]);
-
-  const pendingList = useMemo(
-    () => transactions.filter((t) => t.status === 'PENDING'),
-    [transactions]
-  );
-
-  const filteredTransactions = useMemo(() => {
-    return transactions
-      .filter((t) => {
-        if (!isMatchingTime(t.transaction_time, t.created_at)) return false;
-        if (filterAccount !== 'ALL' && t.account_id !== filterAccount) return false;
-        if (filterType !== 'ALL' && t.type !== filterType) return false;
-        if (filterCategory !== 'ALL') {
-          if (filterCategory === 'UNCATEGORIZED') {
-            if (t.category_id) return false;
-          } else if (t.category_id !== filterCategory) {
-            return false;
-          }
-        }
-        if (
-          searchQuery &&
-          !t.description?.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !t.bank_name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !t.account_name?.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !t.category_name?.toLowerCase().includes(searchQuery.toLowerCase())
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        const timeA = parseTxDate(a.transaction_time, a.created_at).getTime();
-        const timeB = parseTxDate(b.transaction_time, b.created_at).getTime();
-        return txSortOrder === 'DESC' ? timeB - timeA : timeA - timeB;
-      });
-  }, [transactions, timeFilter, customStartDate, customEndDate, filterAccount, filterType, filterCategory, searchQuery, txSortOrder]);
-
   const hasOfflineData =
     transactions.length > 0 || accounts.length > 0 || Boolean(lastSyncedAt);
-
-  const formattedLastSync = useMemo(() => {
-    if (!lastSyncedAt) return '';
-    try {
-      const d = new Date(lastSyncedAt);
-      if (isNaN(d.getTime())) return '';
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mo = String(d.getMonth() + 1).padStart(2, '0');
-      return `${hh}:${mm} ${dd}/${mo}`;
-    } catch {
-      return '';
-    }
-  }, [lastSyncedAt]);
 
   if (isOffline && !hasOfflineData) {
     return (
