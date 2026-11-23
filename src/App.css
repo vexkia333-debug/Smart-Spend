@@ -1950,6 +1950,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: var(--bg-card-solid);
   border: 1px solid var(--border-subtle);
   border-radius: 24px;
+  padding: 24px 26px;
   box-shadow: var(--shadow-modal);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);

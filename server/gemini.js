@@ -341,7 +341,7 @@ function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], ru
   if (matchVnWords(lower, 'nhậu|uống\\s*bia|quán\\s*bia')) {
     return { categoryId: 'cat_food', matched: true };
   }
-  if (matchVnWords(lower, 'cà\\s*phê|cafe|coffee|cacao|ca\\s*cao|matcha|latte|americano|espresso|cappuccino|capuchino|ô\\s*long|hồng\\s*trà|lục\\s*trà|trà\\s*sữa|trà\\s*đá|trà\\s*chanh|trà\\s*đào|trà\\s*tắc|uống\\s*nước|nước\\s*ngọt|nước\\s*mía|sinh\\s*tố|nước\\s*ép|nước\\s*suối|nước\\s*khoáng|highlands|phúc\\s*long|katinat|starbucks|mixue|gong\\s*cha|tocotoco|phe\\s*la|phê\\s*la|aha|cộng\\s*cà\\s*phê')) {
+  if (matchVnWords(lower, 'cà\\s*phê|cafe|coffee|cacao|ca\\s*cao|matcha|latte|americano|espresso|cappuccino|capuchino|ô\\s*long|hồng\\s*trà|lục\\s*trà|trà\\s*sữa|trà\\s*đá|trà\\s*chanh|trà\\s*đào|trà\\s*tắc|uống\\s*nước|nước\\s*ngọt|nước\\s*mía|sinh\\s*tố|nước\\s*ép|nước\\s*lọc|nước\\s*suối|nước\\s*khoáng|aquafina|lavie|dasani|highlands|phúc\\s*long|katinat|starbucks|mixue|gong\\s*cha|tocotoco|phe\\s*la|phê\\s*la|aha|cộng\\s*cà\\s*phê')) {
     return { categoryId: 'cat_drink', matched: true };
   }
   if (matchVnWords(lower, 'cơm|bún|phở|ăn|bánh|thịt|cá|trứng|sữa|rau|củ|quả|trái\\s*cây|hoa\\s*quả|ăn\\s*trưa|ăn\\s*tối|ăn\\s*sáng|bữa\\s*trưa|bữa\\s*tối|bữa\\s*sáng|cơm\\s*trưa|cơm\\s*tối|cơm\\s*sáng|quán\\s*ăn|mì|miến|cháo|lẩu|nướng|hủ\\s*tiếu|xôi|chè|đồ\\s*ăn|ăn\\s*vặt|ốc|nem|gà\\s*rán|pizza|kfc|lotteria|jollibee|đi\\s*chợ')) {
@@ -353,7 +353,7 @@ function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], ru
   if (matchVnWords(lower, 'thuốc|tiền\\s*thuốc|nhà\\s*thuốc|pharmacity|long\\s*châu|an\\s*khang|bệnh\\s*viện|khám|nha\\s*khoa|y\\s*tế|viện\\s*phí|vitamin')) {
     return { categoryId: 'cat_health', matched: true };
   }
-  if (matchVnWords(lower, 'xem\\s*phim|vé\\s*phim|cgv|lotte\\s*cinema|galaxy|game|nạp\\s*game|net|đi\\s*net|quán\\s*net|du\\s*lịch|vé\\s*xem|bi-a|bida|billiards|karaoke|bowling|cầu\\s*lông|bóng\\s*đá|gym|thể\\s*thao|netflix|spotify|youtube')) {
+  if (matchVnWords(lower, 'xem\\s*phim|vé\\s*phim|cgv|lotte\\s*cinema|galaxy|game|nạp\\s*game|net|đi\\s*net|quán\\s*net|du\\s*lịch|vé\\s*xem|bi-a|bida|billiards|karaoke|musicbox|music\\s*box|đi\\s*hát|photoboot|photobooth|chụp\\s*ảnh|tô\\s*tượng|board\\s*game|bowling|cầu\\s*lông|bóng\\s*đá|gym|thể\\s*thao|netflix|spotify|youtube')) {
     return { categoryId: 'cat_entertainment', matched: true };
   }
   if (matchVnWords(lower, 'học|sách|vở|khóa\\s*học|học\\s*phí|tài\\s*liệu|in\\s*ấn|photocopy|bút|văn\\s*phòng\\s*phẩm|thi\\s*chứng\\s*chỉ')) {
@@ -588,12 +588,12 @@ QUY TẮC ĐẶC BIỆT CHO "suggestedCategory":
 
   let periodTitle = `BÁO CÁO ĐÁNH GIÁ TÀI CHÍNH CUỐI NGÀY (${dateRange})`;
   let extraGuidelines = `
-YÊU CẦU ĐÁNH GIÁ NGÀY:
+YÊU CẦU ĐÁNH GIÁ NGÀY (Viết tự nhiên, sắc sảo, gần gũi như trợ lý tài chính riêng — tránh câu sáo rỗng chung chung):
 1. "rating": Đánh giá mức độ kỷ luật hôm nay: "Rất tốt 🌟" | "Cân đối 👍" | "Cần chú ý ⚠️" | "Chi vượt định mức 🚨".
-2. "overview": Tóm tắt súc tích 1-2 câu về tình hình thu chi và thói quen tiêu dùng trong ngày.
-3. "highlights": Mảng 1-2 điểm đáng nhớ nhất trong ngày.
-4. "anomalies": Mảng các chuỗi nhận xét phát hiện điểm bất thường (khoản chi lớn, nghi vấn xếp sai danh mục).
-5. "advice": 1-2 câu lời khuyên tài chính ngắn gọn cho ngày mai.`;
+2. "overview": 2 câu súc tích nêu tổng chi/thu, nhịp độ tiêu dùng trong ngày (VD: dồn nhiều vào buổi tối hay rải đều, nhóm chi nào chiếm tỷ trọng chính).
+3. "highlights": Mảng 2-3 gạch đầu dòng cụ thể kèm tỷ lệ % (VD: tỷ trọng thiết yếu vs giải trí/hưởng thụ, nguồn ví chi nhiều nhất, khoản đáng chú ý).
+4. "anomalies": Mảng các nhận xét phát hiện tinh tế: khoản chi đột biến/chiếm tỷ trọng quá cao trong ngày, giao dịch nghi vấn xếp nhầm vào "Chi tiêu khác" (như nước lọc, musicbox, photoboot, ăn uống), hoặc giờ ghi bất thường.
+5. "advice": 1-2 câu lời khuyên thực tế, gắn trực tiếp với con số hôm nay để điều chỉnh cho ngày mai.`;
 
   if (period === 'WEEK') {
     periodTitle = `BÁO CÁO TỔNG KẾT & PHÂN TÍCH TÀI CHÍNH SAU 1 TUẦN (${dateRange})`;
@@ -714,6 +714,7 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
   const anomalies = [];
   const suggestedEdits = [];
   const highlights = [];
+  const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' ₫';
 
   const expenses = txs.filter(
     (t) =>
@@ -724,32 +725,66 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
   );
   const sortedExpenses = [...expenses].sort((a, b) => b.amount - a.amount);
 
-  if (sortedExpenses.length > 0) {
+  // Sắp xếp top danh mục chi nhiều nhất kèm tỷ trọng %
+  const topCategories = Object.entries(catMap)
+    .filter(([, amt]) => amt > 0)
+    .sort(([, a], [, b]) => b - a);
+
+  if (topCategories.length > 0 && totalExpense > 0) {
+    const topStr = topCategories
+      .slice(0, 3)
+      .map(([cat, amt]) => `${cat}: ${fmtVND(amt)} (${Math.round((amt / totalExpense) * 100)}%)`)
+      .join(' · ');
+    highlights.push(`Cơ cấu chi chính: ${topStr}.`);
+  }
+
+  if (expenses.length > 0 && totalExpense > 0) {
+    const avgTx = Math.round(totalExpense / expenses.length);
     const maxTx = sortedExpenses[0];
-    if (maxTx.amount >= 150000) {
-      anomalies.push(`Khoản chi lớn nhất là "${maxTx.description}" (${new Intl.NumberFormat('vi-VN').format(maxTx.amount)} ₫).`);
+    const maxShare = Math.round((maxTx.amount / totalExpense) * 100);
+    highlights.push(
+      `Trung bình ${fmtVND(avgTx)}/khoản; khoản lớn nhất là "${maxTx.description}" (${fmtVND(maxTx.amount)}, chiếm ${maxShare}% tổng chi).`
+    );
+    if (maxTx.amount >= 150000 && maxShare >= 30) {
+      anomalies.push(
+        `Khoản "${maxTx.description}" (${fmtVND(maxTx.amount)}) một mình chiếm ${maxShare}% tổng chi — đây là nguyên nhân chính đẩy tổng chi lên cao.`
+      );
     }
   }
 
-  // Sắp xếp top danh mục chi nhiều nhất
-  const topCategories = Object.entries(catMap)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 3);
-
-  if (topCategories.length > 0) {
-    const topStr = topCategories.map(([cat, amt]) => `${cat} (${new Intl.NumberFormat('vi-VN').format(amt)} ₫)`).join(', ');
-    highlights.push(`Top danh mục chi tiêu lớn nhất: ${topStr}.`);
-  }
-
-  // Quét bất thường về danh mục
+  // Quét bất thường về phân loại danh mục & thời gian giao dịch
+  let otherExpenseTotal = 0;
   txs.forEach((t) => {
     const desc = (t.description || '').toLowerCase();
-    if (t.type === 'EXPENSE' && (desc.includes('đền') || desc.includes('phạt') || desc.includes('mất vé')) && t.category_name?.includes('Di chuyển')) {
-      anomalies.push(`Khoản "${t.description}" (${new Intl.NumberFormat('vi-VN').format(t.amount)} ₫) là đền bù/tiền phạt nhưng đang ở danh mục Di chuyển.`);
+    const catName = t.category_name || '';
+    if (t.type === 'EXPENSE' && catName === 'Chi tiêu khác') {
+      otherExpenseTotal += Number(t.amount || 0);
+      if (/nước\s*(lọc|suối|khoáng|ngọt)|trà\s*(sữa|đá|chanh|đào)|cà\s*phê|cafe/.test(desc)) {
+        anomalies.push(`"${t.description}" (${fmtVND(t.amount)}) đang nằm ở "Chi tiêu khác" — nên chuyển về "Cà phê & Đồ uống" để thống kê chuẩn hơn.`);
+        suggestedEdits.push({
+          txId: t.id,
+          txDescription: t.description,
+          currentCategory: catName,
+          suggestedCategory: 'Cà phê & Đồ uống',
+          reason: 'Đồ uống thuộc danh mục Cà phê & Đồ uống'
+        });
+      } else if (/hát|karaoke|music\s*box|musicbox|photoboot|photobooth|chụp\s*ảnh|xem\s*phim|bida|bi-a|game/.test(desc)) {
+        anomalies.push(`"${t.description}" (${fmtVND(t.amount)}) là hoạt động vui chơi nhưng đang xếp ở "Chi tiêu khác" — nên chuyển sang "Giải trí & Phim ảnh".`);
+        suggestedEdits.push({
+          txId: t.id,
+          txDescription: t.description,
+          currentCategory: catName,
+          suggestedCategory: 'Giải trí & Phim ảnh',
+          reason: 'Hoạt động giải trí / vui chơi thuộc nhóm Giải trí & Phim ảnh'
+        });
+      }
+    }
+    if (t.type === 'EXPENSE' && (desc.includes('đền') || desc.includes('phạt') || desc.includes('mất vé')) && catName.includes('Di chuyển')) {
+      anomalies.push(`Khoản "${t.description}" (${fmtVND(t.amount)}) là đền bù/tiền phạt nhưng đang ở danh mục Di chuyển.`);
       suggestedEdits.push({
         txId: t.id,
         txDescription: t.description,
-        currentCategory: t.category_name,
+        currentCategory: catName,
         suggestedCategory: 'Chi tiêu khác',
         reason: 'Tiền phạt/đền bù thuộc nhóm Chi tiêu khác'
       });
@@ -759,18 +794,20 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
       suggestedEdits.push({
         txId: t.id,
         txDescription: t.description,
-        currentCategory: t.category_name,
+        currentCategory: catName,
         suggestedCategory: 'Thu hồi nợ / Nhận tiền trả',
         reason: 'Khoản tiền nhận về từ người khác trả'
       });
     }
   });
 
+  if (totalExpense > 0 && otherExpenseTotal / totalExpense >= 0.4 && suggestedEdits.length === 0) {
+    anomalies.push(`Nhóm "Chi tiêu khác" đang chiếm ${Math.round((otherExpenseTotal / totalExpense) * 100)}% tổng chi (${fmtVND(otherExpenseTotal)}) — bạn nên gắn nhãn cụ thể hơn để theo dõi cơ cấu chính xác.`);
+  }
+
   let rating = 'Cân đối 👍';
   let overview = '';
   let advice = '';
-
-  const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' ₫';
 
   if (period === 'WEEK') {
     rating = totalExpense > totalIncome && totalIncome > 0
@@ -781,15 +818,15 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
       ? 'Xuất sắc 🌟'
       : 'Cân đối 👍';
 
-    overview = `Tổng kết tuần (${dateRange}): Bạn đã chi tiêu ${fmtVND(totalExpense)} qua ${expenses.length} khoản chi${
+    overview = `Tổng kết tuần (${dateRange}): Bạn đã chi ${fmtVND(totalExpense)} qua ${expenses.length} giao dịch${
       totalIncome > 0 ? ` và thu về ${fmtVND(totalIncome)} (dòng tiền ròng ${netFlow >= 0 ? '+' : ''}${fmtVND(netFlow)})` : ''
     }.`;
 
-    highlights.push(`Trung bình mỗi ngày trong tuần bạn chi khoảng ${fmtVND(Math.round(totalExpense / 7))}.`);
+    highlights.push(`Nhịp chi tiêu bình quân đạt ${fmtVND(Math.round(totalExpense / 7))}/ngày.`);
 
     advice = totalExpense > totalIncome && totalIncome > 0
-      ? 'Tuần này chi tiêu hơi vượt thu. Hãy lập kế hoạch hạn mức cụ thể cho tuần tới để cân bằng lại dòng tiền nhé!'
-      : 'Kỷ luật tài chính trong tuần rất tốt! Tiếp tục phát huy trong tuần tiếp theo nhé.';
+      ? 'Tuần này chi đang vượt thu. Sang tuần mới bạn nên đặt trần cho các khoản giải trí/mua sắm linh tinh để kéo dòng tiền về dương nhé.'
+      : 'Nhịp chi tiêu trong tuần khá ổn định. Hãy giữ thói quen rà soát các khoản nhỏ lẻ vào cuối tuần để tối ưu thêm khoản để dành.';
   } else if (period === 'MONTH') {
     const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
     rating = savingsRate >= 30
@@ -800,30 +837,40 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
       ? 'Báo động thâm hụt 🚨'
       : 'Cần thắt chặt ⚠️';
 
-    overview = `Tổng kết tháng (${dateRange}): Tổng chi tiêu ${fmtVND(totalExpense)}, tổng thu ${fmtVND(totalIncome)}. Tích lũy được ${fmtVND(netFlow)} (tỷ lệ tiết kiệm đạt ${savingsRate}%).`;
+    overview = `Tổng kết tháng (${dateRange}): Tổng chi ${fmtVND(totalExpense)}, tổng thu ${fmtVND(totalIncome)}. Dòng tiền ròng ${netFlow >= 0 ? '+' : ''}${fmtVND(netFlow)} (tỷ lệ tích lũy ${savingsRate}%).`;
 
     highlights.push(`Tỷ lệ tích lũy của tháng đạt ${savingsRate}%.`);
 
     advice = savingsRate >= 20
-      ? 'Sức khỏe tài chính tháng qua rất đáng khen ngợi! Đề xuất trích 50% số tiền tích lũy vào quỹ dự phòng khẩn cấp.'
-      : 'Tháng tới hãy theo dõi sát các khoản ăn uống và mua sắm không thiết yếu để cải thiện tỷ lệ tích lũy nhé.';
+      ? 'Sức khỏe tài chính tháng qua rất tích cực! Bạn có thể trích phần dư này vào mục tiêu tiết kiệm tháng trước khi bước sang chu kỳ mới.'
+      : 'Tháng tới hãy ưu tiên khóa sớm 500.000 ₫ tiết kiệm ngay đầu tháng và kiểm soát nhóm chi không thiết yếu để nâng tỷ lệ tích lũy.';
   } else {
     // DAY
-    rating = totalExpense > totalIncome && totalIncome > 0
+    const entAmt = catMap['Giải trí & Phim ảnh'] || 0;
+    const foodAmt = (catMap['Cơm & Đồ ăn'] || 0) + (catMap['Cà phê & Đồ uống'] || 0);
+    const leadCat = topCategories[0];
+
+    rating = totalExpense > totalIncome && totalIncome > 0 && totalExpense > 600000
       ? 'Cần chú ý ⚠️'
       : totalExpense === 0
       ? 'Xuất sắc 🌟'
+      : totalExpense > 450000
+      ? 'Cần chú ý ⚠️'
       : 'Cân đối 👍';
 
     overview = totalExpense > 0
-      ? `Hôm nay bạn đã chi tiêu ${fmtVND(totalExpense)} qua ${expenses.length} khoản chi${
-          totalIncome > 0 ? ` và thu về ${fmtVND(totalIncome)}` : ''
-        }.`
-      : `Hôm nay bạn chưa phát sinh khoản chi tiêu nào. Dòng tiền được giữ vững trọn vẹn!`;
+      ? `Hôm nay bạn chi tổng cộng ${fmtVND(totalExpense)} cho ${expenses.length} khoản${
+          leadCat ? `, trong đó "${leadCat[0]}" chiếm tỷ trọng cao nhất (${Math.round((leadCat[1] / totalExpense) * 100)}%)` : ''
+        }${totalIncome > 0 ? `; đồng thời thu về ${fmtVND(totalIncome)}` : ''}.`
+      : `Hôm nay bạn chưa phát sinh khoản chi nào — toàn bộ số dư được bảo toàn trọn vẹn.`;
 
-    advice = totalExpense > 250000
-      ? 'Hôm nay tổng chi tương đối đáng kể. Ngày mai hãy ưu tiên các nhu cầu thiết yếu và giữ vững ngân sách nhé!'
-      : 'Bạn đang quản lý chi tiêu trong ngày rất tốt. Hãy tiếp tục duy trì mức chi tiêu hợp lý này!';
+    if (entAmt > 0 && totalExpense > 0 && entAmt / totalExpense >= 0.4) {
+      advice = `Hôm nay chi cho vui chơi/giải trí (${fmtVND(entAmt)}) chiếm tới ${Math.round((entAmt / totalExpense) * 100)}% tổng chi. Ngày mai bạn nên hãm lại nhóm hưởng thụ, giữ mức chi ăn uống gọn trong ngày để bù lại cho quỹ tháng nhé.`;
+    } else if (totalExpense > 300000) {
+      advice = `Tổng chi hôm nay (${fmtVND(totalExpense)}) nhỉnh hơn mức sinh hoạt ngày thường${foodAmt > 0 ? ` (riêng ăn uống ${fmtVND(foodAmt)})` : ''}. Ngày mai hãy ưu tiên các bữa ăn tiết kiệm để giữ vững định mức bình quân còn lại của tháng.`;
+    } else {
+      advice = 'Mức chi trong ngày đang rất gọn gàng và dễ kiểm soát. Duy trì nhịp này đều đặn sẽ giúp bạn đạt dư mục tiêu tiết kiệm cuối tháng.';
+    }
   }
 
   return {
