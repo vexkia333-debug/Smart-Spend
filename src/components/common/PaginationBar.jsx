@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import CustomSelect from './CustomSelect.jsx';
 
 /**
  * Thanh phân trang dùng chung cho các danh sách dài (Giao dịch, Nhật ký hệ thống, Theo dõi vay/nợ).
@@ -7,7 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 export default function PaginationBar({
   totalItems = 0,
   currentPage = 1,
-  pageSize = 20,
+  pageSize = 10,
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [10, 20, 50],
@@ -100,18 +101,15 @@ export default function PaginationBar({
         )}
 
         {onPageSizeChange && pageSizeOptions.length > 0 && (
-          <select
-            className="pagination-size-select"
+          <CustomSelect
+            className="pagination-size-custom"
             value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            aria-label="Số mục mỗi trang"
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size} / trang
-              </option>
-            ))}
-          </select>
+            onChange={(val) => onPageSizeChange(Number(val))}
+            options={pageSizeOptions.map((size) => ({
+              value: size,
+              label: `${size} / trang`
+            }))}
+          />
         )}
       </div>
     </div>

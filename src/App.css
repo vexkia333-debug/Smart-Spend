@@ -6918,8 +6918,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   user-select: none;
 }
 
-.pagination-size-select {
+.pagination-size-custom .custom-select-trigger {
   height: 32px;
+  min-height: 32px;
   padding: 0 10px;
   border-radius: 9px;
   border: 1px solid var(--border-subtle);
@@ -6927,12 +6928,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-main);
   font-size: 0.78rem;
   font-weight: 600;
-  cursor: pointer;
-  outline: none;
+  min-width: 108px;
+  gap: 6px;
 }
 
-.pagination-size-select:hover,
-.pagination-size-select:focus {
+.pagination-size-custom .custom-select-trigger:hover {
   border-color: rgba(16, 185, 129, 0.5);
 }
 

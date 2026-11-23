@@ -81,7 +81,7 @@ export default function SystemAuditTab({
   };
 
   const [logPage, setLogPage] = useState(1);
-  const [logPageSize, setLogPageSize] = useState(15);
+  const [logPageSize, setLogPageSize] = useState(10);
 
   // Lọc logs theo filterType và searchQuery
   const filteredLogs = logs.filter((log) => {
@@ -775,7 +775,7 @@ export default function SystemAuditTab({
                 setLogPageSize(size);
                 setLogPage(1);
               }}
-              pageSizeOptions={[10, 15, 30]}
+              pageSizeOptions={[10, 20, 30]}
               itemLabel="bản ghi"
             />
             </>

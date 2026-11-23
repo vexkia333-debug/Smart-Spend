@@ -49,7 +49,7 @@ export default function TransactionsTab({
   const currentCategoryObj = categories.find((c) => c.id === filterCategory);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
   const safePage = Math.max(1, Math.min(currentPage, totalPages));
   const paginatedTransactions = useMemo(() => {
