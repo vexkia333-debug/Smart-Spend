@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { parseTxDate, formatDateVN } from '../utils/formatters.js';
+import { computeMonthlySavingsSummary } from '../utils/savingsMetrics.js';
 
 /**
  * Tính toán các chỉ số thống kê, bộ lọc thời gian, cơ cấu danh mục và danh sách giao dịch đã lọc.
@@ -192,34 +193,52 @@ export function useFinanceMetrics({
     return days;
   }, [transactions]);
 
-  const currentMonthStats = useMemo(() => {
+  const { currentMonthStats, monthlySavingsHistory } = useMemo(() => {
     const now = new Date();
     const curMonth = now.getMonth();
     const curYear = now.getFullYear();
+    const curKey = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
 
-    let income = 0;
-    let expense = 0;
+    const byMonth = {};
     for (const t of transactions) {
       if (t.status === 'IGNORED' || t.category_id?.startsWith('cat_transfer_')) continue;
       const txDate = parseTxDate(t.transaction_time, t.created_at);
       if (!txDate || isNaN(txDate.getTime())) continue;
-      if (txDate.getMonth() !== curMonth || txDate.getFullYear() !== curYear) continue;
-
-      if (t.type === 'INCOME') {
-        income += Number(t.amount || 0);
-      } else if (t.type === 'EXPENSE') {
-        expense += Number(t.amount || 0);
-      }
+      const m = txDate.getMonth() + 1;
+      const y = txDate.getFullYear();
+      const key = `${y}-${String(m).padStart(2, '0')}`;
+      if (!byMonth[key]) byMonth[key] = { year: y, month: m, txs: [] };
+      byMonth[key].txs.push(t);
     }
 
+    const curSummary = computeMonthlySavingsSummary(byMonth[curKey]?.txs || []);
     const totalDays = new Date(curYear, curMonth + 1, 0).getDate();
     const daysRemaining = Math.max(1, totalDays - now.getDate() + 1);
+
+    const history = Object.entries(byMonth)
+      .filter(([key]) => key < curKey)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, bucket]) => {
+        const summary = computeMonthlySavingsSummary(bucket.txs);
+        return {
+          key,
+          month: bucket.month,
+          year: bucket.year,
+          label: `Tháng ${bucket.month}/${bucket.year}`,
+          ...summary
+        };
+      });
+
     return {
-      income,
-      expense,
-      savings: income - expense,
-      daysRemaining,
-      monthNumber: curMonth + 1
+      currentMonthStats: {
+        income: curSummary.income,
+        expense: curSummary.expense,
+        savings: curSummary.savings,
+        reimbursement: curSummary.reimbursement,
+        daysRemaining,
+        monthNumber: curMonth + 1
+      },
+      monthlySavingsHistory: history
     };
   }, [transactions]);
 
@@ -295,6 +314,7 @@ export function useFinanceMetrics({
     categoryBreakdown,
     last7DaysData,
     currentMonthStats,
+    monthlySavingsHistory,
     timeLabel,
     pendingList,
     filteredTransactions

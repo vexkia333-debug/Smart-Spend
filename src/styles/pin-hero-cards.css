@@ -1031,6 +1031,155 @@
   color: #be123c;
 }
 
+.budget-goal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.budget-goal-edit-btn.is-active {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+}
+
+:root[data-theme="light"] .budget-goal-edit-btn.is-active {
+  color: #047857;
+}
+
+.budget-history-panel {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.budget-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.budget-history-goal-ref {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.budget-history-empty {
+  margin: 4px 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px 0;
+}
+
+.budget-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.budget-history-row {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-history-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.budget-history-month-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--text-main);
+}
+
+.budget-history-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.budget-history-badge.good {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+}
+
+.budget-history-badge.warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+
+.budget-history-badge.over {
+  background: rgba(244, 63, 94, 0.16);
+  color: #fb7185;
+}
+
+:root[data-theme="light"] .budget-history-badge.good { color: #047857; }
+:root[data-theme="light"] .budget-history-badge.warn { color: #b45309; }
+:root[data-theme="light"] .budget-history-badge.over { color: #be123c; }
+
+.budget-history-net {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.budget-history-net.good { color: #10b981; }
+.budget-history-net.warn { color: #fbbf24; }
+.budget-history-net.over { color: #fb7185; }
+
+:root[data-theme="light"] .budget-history-net.good { color: #059669; }
+:root[data-theme="light"] .budget-history-net.warn { color: #d97706; }
+:root[data-theme="light"] .budget-history-net.over { color: #e11d48; }
+
+.budget-history-bar-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.budget-history-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.budget-history-bar-fill.good { background: #10b981; }
+.budget-history-bar-fill.warn { background: #f59e0b; }
+.budget-history-bar-fill.over { background: #f43f5e; }
+
+.budget-history-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 .budget-goal-edit-panel {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);

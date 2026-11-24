@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Trophy, Pencil, Check, X, ThumbsUp, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Trophy, Pencil, Check, X, ThumbsUp, AlertTriangle, History, ChevronDown, ChevronUp } from 'lucide-react';
 
 const MIN_REALISTIC_DAILY = 80000;
 const COMFORTABLE_DAILY = 120000;
@@ -19,11 +19,13 @@ export default function MonthlyGoalCard({
   currentMonthExpense = 0,
   daysRemaining = 1,
   currentMonthNumber = null,
+  monthlySavingsHistory = [],
   formatVND,
   onUpdateBudgetGoal
 }) {
   const safeGoal = monthlyBudgetGoal > 0 ? Number(monthlyBudgetGoal) : 500000;
   const [isEditing, setIsEditing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [draftGoal, setDraftGoal] = useState(String(safeGoal));
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -122,12 +124,24 @@ export default function MonthlyGoalCard({
           </div>
         </div>
 
-        {!isEditing && (
-          <button type="button" className="budget-goal-edit-btn" onClick={openEditor}>
-            <Pencil size={14} />
-            <span>Đặt mức</span>
+        <div className="budget-goal-actions">
+          <button
+            type="button"
+            className={`budget-goal-edit-btn ${showHistory ? 'is-active' : ''}`}
+            onClick={() => setShowHistory((prev) => !prev)}
+          >
+            <History size={14} />
+            <span>Lịch sử{monthlySavingsHistory.length > 0 ? ` (${monthlySavingsHistory.length})` : ''}</span>
+            {showHistory ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
-        )}
+
+          {!isEditing && (
+            <button type="button" className="budget-goal-edit-btn" onClick={openEditor}>
+              <Pencil size={14} />
+              <span>Đặt mức</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="budget-goal-body">
@@ -195,6 +209,60 @@ export default function MonthlyGoalCard({
         {statusTone === 'good' ? <ThumbsUp size={16} /> : <AlertTriangle size={16} />}
         <span>{statusText}</span>
       </div>
+
+      {showHistory && (
+        <div className="budget-history-panel">
+          <div className="budget-history-header">
+            <span>Lịch sử tiết kiệm các tháng trước</span>
+            <span className="budget-history-goal-ref">Mục tiêu tham chiếu: {formatVND(safeGoal)}/tháng</span>
+          </div>
+
+          {monthlySavingsHistory.length === 0 ? (
+            <p className="budget-history-empty">Chưa có dữ liệu giao dịch của các tháng trước.</p>
+          ) : (
+            <div className="budget-history-list">
+              {monthlySavingsHistory.map((item) => {
+                const pct = Math.min(100, Math.max(0, Math.round((item.savings / safeGoal) * 100)));
+                const isAchieved = item.savings >= safeGoal;
+                const isPartial = item.savings > 0 && item.savings < safeGoal;
+                const tone = isAchieved ? 'good' : isPartial ? 'warn' : 'over';
+                const badgeText = isAchieved
+                  ? 'Đạt mục tiêu'
+                  : isPartial
+                    ? `Đạt ${pct}%`
+                    : 'Âm dòng tiền';
+
+                return (
+                  <div key={item.key} className="budget-history-row">
+                    <div className="budget-history-row-top">
+                      <div className="budget-history-month-group">
+                        <strong>{item.label}</strong>
+                        <span className={`budget-history-badge ${tone}`}>{badgeText}</span>
+                      </div>
+                      <strong className={`budget-history-net tabular-nums ${tone}`}>
+                        {item.savings >= 0 ? '+' : ''}
+                        {formatVND(item.savings)}
+                      </strong>
+                    </div>
+
+                    <div className="budget-history-bar-track">
+                      <div
+                        className={`budget-history-bar-fill ${tone}`}
+                        style={{ width: `${Math.max(item.savings > 0 ? 4 : 0, pct)}%` }}
+                      />
+                    </div>
+
+                    <div className="budget-history-sub tabular-nums">
+                      <span>Thu: +{formatVND(item.income)}</span>
+                      <span>Chi: -{formatVND(item.expense)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {isEditing && (
         <form onSubmit={handleSave} className="budget-goal-edit-panel">

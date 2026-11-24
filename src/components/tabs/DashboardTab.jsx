@@ -33,6 +33,7 @@ export default function DashboardTab({
   currentMonthExpense = 0,
   daysRemaining = 1,
   currentMonthNumber = null,
+  monthlySavingsHistory = [],
   onUpdateBudgetGoal,
   onReconcile,
   onOpenDailyReport,
@@ -641,6 +642,7 @@ export default function DashboardTab({
         currentMonthExpense={currentMonthExpense}
         daysRemaining={daysRemaining}
         currentMonthNumber={currentMonthNumber}
+        monthlySavingsHistory={monthlySavingsHistory}
         formatVND={formatVND}
         onUpdateBudgetGoal={onUpdateBudgetGoal}
       />

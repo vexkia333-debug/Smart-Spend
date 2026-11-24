@@ -904,6 +904,7 @@ export default function App() {
     categoryBreakdown,
     last7DaysData,
     currentMonthStats,
+    monthlySavingsHistory,
     timeLabel,
     pendingList,
     filteredTransactions
@@ -1101,6 +1102,7 @@ export default function App() {
           currentMonthExpense={currentMonthStats.expense}
           daysRemaining={currentMonthStats.daysRemaining}
           currentMonthNumber={currentMonthStats.monthNumber}
+          monthlySavingsHistory={monthlySavingsHistory}
           onUpdateBudgetGoal={handleUpdateBudgetGoal}
           accounts={accounts}
           totalBalance={stats.totalBalance}

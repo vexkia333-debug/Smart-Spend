@@ -4,6 +4,7 @@ import { getVietnamTimeParts, parseTxDateToISO } from '../utils/time.js';
 import { generatePeriodicAiReport, generateFallbackPeriodicReport } from '../gemini.js';
 import { dispatchDailyReportNotification } from '../notifications.js';
 import { broadcastEvent } from './sse.js';
+import { computeMonthlySavingsSummary } from '../../src/utils/savingsMetrics.js';
 
 const inFlightReportKeys = new Set();
 let isCronRunning = false;
@@ -76,20 +77,15 @@ async function computeExtendedContext({ period, targetDate, startDate, endDate, 
   const monthTxs = allTxs.filter(
     (t) => !t.category_id?.startsWith('cat_transfer_') && parseTxDateToISO(t).startsWith(monthPrefix)
   );
-  const monthIncome = monthTxs
-    .filter((t) => t.type === 'INCOME')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthExpense = monthTxs
-    .filter((t) => t.type === 'EXPENSE')
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthSavings = monthIncome - monthExpense;
+  const monthSummary = computeMonthlySavingsSummary(monthTxs);
+  const monthSavings = monthSummary.savings;
   const safeToSpend = monthSavings - monthlyGoal;
   const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / daysRemaining) : 0;
 
   const monthlyGoalContext = {
     goal: monthlyGoal,
-    monthIncome,
-    monthExpense,
+    monthIncome: monthSummary.income,
+    monthExpense: monthSummary.expense,
     monthSavings,
     safeToSpend,
     daysRemaining,
