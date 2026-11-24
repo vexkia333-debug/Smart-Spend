@@ -11,7 +11,7 @@ let isCronRunning = false;
 
 function computeReportMetrics(txs = []) {
   const totalIncome = txs
-    .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_debt_collect')
+    .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_debt_collect' && t.category_id !== 'cat_savings_withdraw')
     .reduce((s, t) => s + (t.amount || 0), 0);
   const totalExpense = txs
     .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay' && t.category_id !== 'cat_savings')

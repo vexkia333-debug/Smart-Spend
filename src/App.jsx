@@ -129,9 +129,8 @@ export default function App() {
   const [editingTx, setEditingTx] = useState(null);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
   const [reportModalConfig, setReportModalConfig] = useState({ period: 'DAY', date: null });
-  const [openSavingsQuickAdd, setOpenSavingsQuickAdd] = useState(false);
 
-  // Hỗ trợ deep-link mở thẳng Báo cáo tài chính hoặc Form ghi nhận tiết kiệm khi chạm thông báo điện thoại
+  // Hỗ trợ deep-link mở thẳng Báo cáo tài chính hoặc Tab Tổng quan khi chạm thông báo điện thoại
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -149,7 +148,6 @@ export default function App() {
       }
       if (actionParam === 'save-savings') {
         setActiveTab('dashboard');
-        setOpenSavingsQuickAdd(true);
         params.delete('action');
         shouldCleanUrl = true;
       }
@@ -170,7 +168,6 @@ export default function App() {
         setShowDailyReportModal(true);
       } else if (msg?.type === 'OPEN_SAVINGS_PROMPT') {
         setActiveTab('dashboard');
-        setOpenSavingsQuickAdd(true);
       }
     };
     navigator.serviceWorker.addEventListener('message', handleSwMessage);
@@ -281,28 +278,6 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const handleQuickSaveSavings = async (payload) => {
-    try {
-      const res = await authFetch('/api/savings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) return false;
-      confetti({
-        particleCount: 45,
-        spread: 60,
-        origin: { y: 0.7 },
-        colors: ['#10b981', '#34d399', '#fbbf24']
-      });
-      await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats()]);
-      return true;
-    } catch (e) {
-      console.error('Lỗi ghi nhận tiết kiệm:', e);
-      return false;
     }
   };
 
@@ -1117,9 +1092,6 @@ export default function App() {
           last7DaysData={last7DaysData}
           savingsTransactions={savingsTransactions}
           savingsStats={savingsStats}
-          onQuickSaveSavings={handleQuickSaveSavings}
-          openSavingsQuickAdd={openSavingsQuickAdd}
-          onClearOpenSavingsQuickAdd={() => setOpenSavingsQuickAdd(false)}
           accounts={accounts}
           totalBalance={stats.totalBalance}
           onReconcile={(acc) => {

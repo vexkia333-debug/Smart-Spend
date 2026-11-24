@@ -29,9 +29,6 @@ export default function DashboardTab({
   totalBalance = 0,
   savingsTransactions = [],
   savingsStats = { totalSaved: 0, thisMonthSaved: 0, count: 0 },
-  onQuickSaveSavings,
-  openSavingsQuickAdd = false,
-  onClearOpenSavingsQuickAdd,
   onReconcile,
   onOpenDailyReport,
   onEditTransaction
@@ -637,10 +634,7 @@ export default function DashboardTab({
         savingsStats={savingsStats}
         accounts={accounts}
         formatVND={formatVND}
-        onQuickSaveSavings={onQuickSaveSavings}
         onEditTransaction={onEditTransaction}
-        openSavingsQuickAdd={openSavingsQuickAdd}
-        onClearOpenSavingsQuickAdd={onClearOpenSavingsQuickAdd}
       />
 
       {/* 2. Dòng tiền & Tiết kiệm ({timeLabel}) - Toàn chiều rộng, sang trọng, rõ ràng */}

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { db, seedInitialTransactions } from '../db.js';
 import { broadcastEvent } from '../services/sse.js';
-import { sendSalarySavingsPromptNotification } from '../notifications.js';
+import { sendSalarySavingsPromptNotification, sendSavingsWithdrawNotification } from '../notifications.js';
 
 const router = Router();
 
@@ -95,11 +95,12 @@ router.get('/stats', async (req, res) => {
         AND (category_id NOT LIKE 'cat_transfer_%' OR category_id IS NULL)
     `).get();
 
-    // Thu nhập thực tế (loại trừ thu hồi nợ và chuyển khoản nội bộ)
+    // Thu nhập thực tế (loại trừ thu hồi nợ, rút quỹ tiết kiệm và chuyển khoản nội bộ)
     const monthlyIncomeRow = await db.prepare(`
       SELECT SUM(amount) as total FROM transactions 
       WHERE type = 'INCOME' AND status != 'IGNORED'
         AND (category_id != 'cat_debt_collect' OR category_id IS NULL)
+        AND (category_id != 'cat_savings_withdraw' OR category_id IS NULL)
         AND (category_id NOT LIKE 'cat_transfer_%' OR category_id IS NULL)
     `).get();
 
@@ -137,62 +138,6 @@ router.get('/stats', async (req, res) => {
       totalDebtCollected: totalDebtCollectedRow?.total || 0,
       categories: categoryStats
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 1.05 Ghi nhận nhanh khoản Tiền tiết kiệm (Savings History)
-router.post('/savings', async (req, res) => {
-  try {
-    const { amount = 500000, description, account_id, transaction_time, deductBalance = true } = req.body || {};
-    const numAmount = Math.abs(parseFloat(amount));
-    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
-      return res.status(400).json({ error: 'Số tiền tiết kiệm không hợp lệ' });
-    }
-
-    let targetAccId = account_id;
-    if (!targetAccId) {
-      const primaryAcc = await db.prepare("SELECT id FROM accounts WHERE id = 'acc_primary'").get();
-      if (primaryAcc) {
-        targetAccId = primaryAcc.id;
-      } else {
-        const defaultAcc = await db.prepare('SELECT id FROM accounts ORDER BY balance DESC LIMIT 1').get();
-        targetAccId = defaultAcc?.id || 'acc_cash';
-      }
-    }
-
-    const acc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAccId);
-    if (!acc) {
-      return res.status(404).json({ error: 'Tài khoản không tồn tại' });
-    }
-
-    const txId = 'tx_' + crypto.randomUUID().slice(0, 8);
-    const now = new Date();
-    const defaultTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-    const txTime = transaction_time && String(transaction_time).trim() ? String(transaction_time).trim() : defaultTimeStr;
-    const finalDesc = (description || '').trim() || `Trích tiền tiết kiệm tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
-
-    await db.prepare(`
-      INSERT INTO transactions (id, account_id, category_id, amount, type, description, raw_content, bank_name, status, source, transaction_time, confirmed_at, created_at, updated_at)
-      VALUES (?, ?, 'cat_savings', ?, 'EXPENSE', ?, ?, ?, 'CONFIRMED', 'MANUAL', ?, datetime('now', 'localtime'), datetime('now', 'localtime'), datetime('now', 'localtime'))
-    `).run(txId, targetAccId, numAmount, finalDesc, finalDesc, acc.name, txTime);
-
-    if (deductBalance) {
-      await db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(numAmount, targetAccId);
-    }
-
-    const updatedAcc = await db.prepare('SELECT * FROM accounts WHERE id = ?').get(targetAccId);
-    const createdTx = await db.prepare(`
-      SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon, a.name as account_name
-      FROM transactions t LEFT JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE t.id = ?
-    `).get(txId);
-
-    broadcastEvent('TRANSACTION_CREATED', createdTx);
-    if (updatedAcc) broadcastEvent('ACCOUNT_UPDATED', updatedAcc);
-
-    res.json({ success: true, transaction: createdTx, account: updatedAcc });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -338,7 +283,8 @@ router.patch('/transactions/:id/categorize', async (req, res) => {
     if (existingTx.type === 'INCOME' && category_id) {
       const selectedCat = await db.prepare('SELECT type FROM categories WHERE id = ?').get(category_id);
       if (selectedCat && selectedCat.type === 'EXPENSE') {
-        if (category_id === 'cat_loan') category_id = 'cat_debt_collect';
+        if (category_id === 'cat_savings') category_id = 'cat_savings_withdraw';
+        else if (category_id === 'cat_loan') category_id = 'cat_debt_collect';
         else if (category_id === 'cat_other_expense') category_id = 'cat_debt_collect';
         else category_id = 'cat_debt_collect';
       }
@@ -439,6 +385,13 @@ router.patch('/transactions/:id/categorize', async (req, res) => {
     }
     if (existingTx.type === 'INCOME' && category_id === 'cat_salary' && existingTx.category_id !== 'cat_salary') {
       sendSalarySavingsPromptNotification({
+        amount: existingTx.amount,
+        description: description || existingTx.description,
+        accountName: existingTx.bank_name
+      }).catch(() => {});
+    }
+    if (category_id === 'cat_savings_withdraw' && existingTx.category_id !== 'cat_savings_withdraw') {
+      sendSavingsWithdrawNotification({
         amount: existingTx.amount,
         description: description || existingTx.description,
         accountName: existingTx.bank_name
@@ -581,8 +534,9 @@ router.put('/transactions/:id', async (req, res) => {
     const newTime = transaction_time || oldTx.transaction_time;
 
     // Bảo vệ loại danh mục đúng chuẩn Thu/Chi
-    if (newType === 'INCOME' && (newCatId === 'cat_loan' || newCatId === 'cat_other_expense')) {
-      newCatId = 'cat_debt_collect';
+    if (newType === 'INCOME') {
+      if (newCatId === 'cat_savings') newCatId = 'cat_savings_withdraw';
+      else if (newCatId === 'cat_loan' || newCatId === 'cat_other_expense') newCatId = 'cat_debt_collect';
     }
 
     const targetAccount = await db.prepare('SELECT name FROM accounts WHERE id = ?').get(newAccountId);
@@ -626,6 +580,13 @@ router.put('/transactions/:id', async (req, res) => {
 
     if (newCatId && (newCatId !== oldTx.category_id || newDesc !== oldTx.description)) {
       await autoLearnRuleFromTransaction(newDesc, newCatId);
+    }
+    if (newCatId === 'cat_savings_withdraw' && oldTx.category_id !== 'cat_savings_withdraw') {
+      sendSavingsWithdrawNotification({
+        amount: newAmount,
+        description: newDesc,
+        accountName: newBankName
+      }).catch(() => {});
     }
 
     const updatedTx = await db.prepare(`

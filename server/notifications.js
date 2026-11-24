@@ -485,3 +485,71 @@ export async function sendSalarySavingsPromptNotification({ amount = 0, descript
     console.warn('[Salary Savings Notification Error]:', err.message);
   }
 }
+
+/**
+ * Gửi thông báo xác nhận khi rút tiền từ Quỹ tiết kiệm
+ */
+export async function sendSavingsWithdrawNotification({ amount = 0, description = '', accountName = '' } = {}) {
+  try {
+    const depRow = await db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE category_id = 'cat_savings' AND status != 'IGNORED'").get();
+    const wdrRow = await db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE category_id = 'cat_savings_withdraw' AND status != 'IGNORED'").get();
+    const remaining = Math.max(0, Number(depRow?.total || 0) - Number(wdrRow?.total || 0));
+
+    const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(Math.abs(num || 0)) + ' ₫';
+    const title = `⚠️ Vừa rút ${fmtCompactVND(amount)} từ Quỹ tiết kiệm`;
+    const body = `${description || 'Rút tiền từ quỹ tiết kiệm'}${accountName ? ` (${accountName})` : ''}. Số dư Quỹ tiết kiệm còn lại: ${fmtVND(remaining)}.`;
+    const targetUrl = '/?tab=dashboard';
+
+    const settingRows = await db
+      .prepare("SELECT key, value FROM settings WHERE key LIKE '%report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'")
+      .all();
+    const settings = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
+
+    await sendWebPushNotificationToAll({
+      title,
+      body,
+      url: targetUrl,
+      data: { action: 'savings-withdraw', amount, remaining }
+    });
+
+    const ntfyTopic = settings.ntfy_topic || process.env.NTFY_TOPIC;
+    if (ntfyTopic && ntfyTopic !== 'smartspend_kienvu') {
+      const baseAppUrl = (settings.app_url || 'https://smart-spend-23th.onrender.com').replace(/\/$/, '');
+      await fetch(`https://ntfy.sh/${encodeURIComponent(ntfyTopic)}`, {
+        method: 'POST',
+        headers: {
+          'Title': title,
+          'Priority': 'high',
+          'Tags': 'warning,piggy_bank',
+          'Click': `${baseAppUrl}${targetUrl}`
+        },
+        body
+      }).catch(() => {});
+    }
+
+    const macrodroidUrl = settings.macrodroid_webhook_url || process.env.MACRODROID_WEBHOOK_URL;
+    if (macrodroidUrl) {
+      await fetch(macrodroidUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, action: 'savings-withdraw', amount, remaining, description })
+      }).catch(() => {});
+    }
+
+    const tgToken = settings.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    const tgChatId = settings.telegram_chat_id || process.env.TELEGRAM_CHAT_ID;
+    if (tgToken && tgChatId) {
+      await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: tgChatId,
+          text: `*${title}*\n\n${body}`,
+          parse_mode: 'Markdown'
+        })
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[Savings Withdraw Notification Error]:', err.message);
+  }
+}

@@ -329,6 +329,9 @@ function inferCategoryWithConfidence(text, type = 'EXPENSE', categories = [], ru
   if (matchVnWords(lower, 'rút\\s*tiền|rút\\s*atm|rút\\s*mặt|rút\\s*ví|đổi\\s*(?:sang\\s*)?tiền\\s*mặt|chuyển\\s*(?:sang\\s*)?tiền\\s*mặt|nạp\\s*ví\\s*tiền\\s*mặt')) {
     return { categoryId: 'cat_transfer_cash', matched: true };
   }
+  if (matchVnWords(lower, 'rút\\s*(?:tiền\\s*)?(?:từ\\s*)?(?:quỹ\\s*)?tiết\\s*kiệm|lấy\\s*(?:tiền\\s*)?(?:từ\\s*)?(?:quỹ\\s*)?tiết\\s*kiệm|phá\\s*hũ\\s*tiết\\s*kiệm')) {
+    return { categoryId: 'cat_savings_withdraw', matched: true };
+  }
   if (matchVnWords(lower, 'tiền\\s*tiết\\s*kiệm|gửi\\s*tiết\\s*kiệm|cất\\s*tiết\\s*kiệm|chuyển\\s*tiết\\s*kiệm|quỹ\\s*tiết\\s*kiệm|bỏ\\s*ống|trích\\s*tiết\\s*kiệm|tiết\\s*kiệm')) {
     return { categoryId: 'cat_savings', matched: true };
   }

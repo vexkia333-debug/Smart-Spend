@@ -18,7 +18,7 @@ export default function PendingTab({
   const handleTriggerAi = async (txId, amount) => {
     const text = (aiInputs[txId] || '').trim();
     if (!text) {
-      alert('Vui lòng nhập nội dung dòng tiền để AI phân loại (VD: bún bò 45k, cafe Highland)');
+      alert('Vui lòng nhập nội dung dòng tiền để AI phân loại');
       return;
     }
     if (!hasGeminiKey && onOpenApiKeyModal) {

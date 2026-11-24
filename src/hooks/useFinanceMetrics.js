@@ -88,7 +88,8 @@ export function useFinanceMetrics({
             t.type === 'INCOME' &&
             t.status !== 'IGNORED' &&
             !t.category_id?.startsWith('cat_transfer_') &&
-            t.category_id !== 'cat_debt_collect'
+            t.category_id !== 'cat_debt_collect' &&
+            t.category_id !== 'cat_savings_withdraw'
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -313,7 +314,11 @@ export function useFinanceMetrics({
     const curYear = now.getFullYear();
 
     const list = transactions
-      .filter((t) => t.category_id === 'cat_savings' && t.status !== 'IGNORED')
+      .filter(
+        (t) =>
+          (t.category_id === 'cat_savings' || t.category_id === 'cat_savings_withdraw') &&
+          t.status !== 'IGNORED'
+      )
       .sort(
         (a, b) =>
           parseTxDate(b.transaction_time, b.created_at).getTime() -
@@ -324,10 +329,11 @@ export function useFinanceMetrics({
     let thisMonthSaved = 0;
     for (const t of list) {
       const amt = Number(t.amount || 0);
-      totalSaved += amt;
+      const signedAmt = t.category_id === 'cat_savings_withdraw' ? -amt : amt;
+      totalSaved += signedAmt;
       const d = parseTxDate(t.transaction_time, t.created_at);
       if (d && !isNaN(d.getTime()) && d.getMonth() === curMonth && d.getFullYear() === curYear) {
-        thisMonthSaved += amt;
+        thisMonthSaved += signedAmt;
       }
     }
 

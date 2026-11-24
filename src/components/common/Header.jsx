@@ -189,7 +189,7 @@ export default function Header({
             className="ai-text-input"
             value={aiInputText}
             onChange={(e) => setAiInputText(e.target.value)}
-            placeholder="Nhập 1 hoặc nhiều khoản (VD: đổ xăng 60k + mua xà phòng 20k, bún bò 45k)..."
+            placeholder="Nhập nội dung dòng tiền"
             disabled={isAnalyzingAi}
           />
           <button

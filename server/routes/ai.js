@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { parseTransactionWithGemini } from '../gemini.js';
 import { formatVietnamTxTime } from '../utils/time.js';
 import { broadcastEvent } from '../services/sse.js';
+import { sendSavingsWithdrawNotification } from '../notifications.js';
 
 const router = Router();
 
@@ -329,6 +330,14 @@ router.post('/parse-transaction', async (req, res) => {
 
       broadcastEvent('ACCOUNT_UPDATED', { ...targetAcc, balance: Number(targetAcc.balance || 0) + balanceDelta });
       broadcastEvent('TRANSACTION_CREATED', createdTx);
+
+      if (parsed.categoryId === 'cat_savings_withdraw') {
+        sendSavingsWithdrawNotification({
+          amount: parsed.amount,
+          description: parsed.description,
+          accountName: targetAcc.name
+        }).catch(() => {});
+      }
 
       return res.json({
         success: true,
