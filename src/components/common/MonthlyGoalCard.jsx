@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PiggyBank, Plus, Check, X, Clock, Pencil } from 'lucide-react';
 import { formatTxTime } from '../../utils/formatters.js';
+import CustomSelect from './CustomSelect.jsx';
 
 const SAVINGS_PRESETS = [
   { label: '300k', value: 300000 },
@@ -141,18 +142,18 @@ export default function MonthlyGoalCard({
               placeholder="Số tiền tiết kiệm (VNĐ)"
               disabled={isSaving}
             />
-            <select
-              className="budget-edit-input"
+            <CustomSelect
+              fullWidth
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              onChange={(val) => setAccountId(val)}
               disabled={isSaving}
-            >
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name}
-                </option>
-              ))}
-            </select>
+              options={accounts.map((acc) => ({
+                value: acc.id,
+                label: acc.name,
+                color: acc.color || (acc.id === 'acc_cash' ? '#f59e0b' : '#10b981'),
+                badge: acc.bank_code
+              }))}
+            />
           </div>
 
           <div className="budget-edit-controls">
