@@ -205,13 +205,9 @@ export function useFinanceMetrics({
       if (!txDate || isNaN(txDate.getTime())) continue;
       if (txDate.getMonth() !== curMonth || txDate.getFullYear() !== curYear) continue;
 
-      if (t.type === 'INCOME' && t.category_id !== 'cat_debt_collect') {
+      if (t.type === 'INCOME') {
         income += Number(t.amount || 0);
-      } else if (
-        t.type === 'EXPENSE' &&
-        t.category_id !== 'cat_loan' &&
-        t.category_id !== 'cat_debt_repay'
-      ) {
+      } else if (t.type === 'EXPENSE') {
         expense += Number(t.amount || 0);
       }
     }

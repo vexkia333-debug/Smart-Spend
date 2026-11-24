@@ -73,16 +73,23 @@ async function computeExtendedContext({ period, targetDate, startDate, endDate, 
   const lastDayOfMonth = new Date(ty, tm, 0).getDate();
   const daysRemaining = Math.max(1, lastDayOfMonth - td + 1);
 
-  const monthTxs = allTxs.filter((t) => parseTxDateToISO(t).startsWith(monthPrefix));
-  const monthMetrics = computeReportMetrics(monthTxs);
-  const monthSavings = monthMetrics.totalIncome - monthMetrics.totalExpense;
+  const monthTxs = allTxs.filter(
+    (t) => !t.category_id?.startsWith('cat_transfer_') && parseTxDateToISO(t).startsWith(monthPrefix)
+  );
+  const monthIncome = monthTxs
+    .filter((t) => t.type === 'INCOME')
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthExpense = monthTxs
+    .filter((t) => t.type === 'EXPENSE')
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthSavings = monthIncome - monthExpense;
   const safeToSpend = monthSavings - monthlyGoal;
   const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / daysRemaining) : 0;
 
   const monthlyGoalContext = {
     goal: monthlyGoal,
-    monthIncome: monthMetrics.totalIncome,
-    monthExpense: monthMetrics.totalExpense,
+    monthIncome,
+    monthExpense,
     monthSavings,
     safeToSpend,
     daysRemaining,
