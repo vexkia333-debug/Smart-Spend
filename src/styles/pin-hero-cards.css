@@ -967,6 +967,10 @@
   color: #f43f5e;
 }
 
+.budget-metric-value.warn {
+  color: #fbbf24;
+}
+
 :root[data-theme="light"] .budget-metric-value.spent {
   color: #0d9488;
 }
@@ -977,6 +981,10 @@
 
 :root[data-theme="light"] .budget-metric-value.over {
   color: #e11d48;
+}
+
+:root[data-theme="light"] .budget-metric-value.warn {
+  color: #d97706;
 }
 
 .budget-goal-status-banner {

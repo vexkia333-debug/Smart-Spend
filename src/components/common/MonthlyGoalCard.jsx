@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Trophy, Pencil, Check, X, ThumbsUp, AlertTriangle } from 'lucide-react';
 
+const MIN_REALISTIC_DAILY = 80000;
+const COMFORTABLE_DAILY = 120000;
+
 const GOAL_PRESETS = [
   { label: '300k', value: 300000 },
   { label: '500k', value: 500000 },
@@ -34,6 +37,8 @@ export default function MonthlyGoalCard({
   const shortfall = Math.max(0, -safeToSpend);
   const safeDays = Math.max(1, Number(daysRemaining) || 1);
   const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / safeDays) : 0;
+  const isTight = isProtected && dailyAllowance < MIN_REALISTIC_DAILY;
+  const isZeroLeft = isProtected && safeToSpend === 0;
 
   const radius = 44;
   const circumference = 2 * Math.PI * radius;
@@ -44,11 +49,32 @@ export default function MonthlyGoalCard({
   let statusTone = 'over';
   let statusText = `Tháng này chưa tạo được thặng dư cho quỹ ${formatVND(safeGoal)} (cần thêm ${formatVND(shortfall)}).`;
 
-  if (isProtected) {
+  if (isZeroLeft) {
+    ringColor = '#f59e0b';
+    ringSubLabel = 'Chạm ngưỡng';
+    statusTone = 'warn';
+    statusText = `Số dư tháng đã chạm đúng ngưỡng quỹ ${formatVND(safeGoal)} (không còn phần dư cho ${safeDays} ngày cuối). Mọi khoản chi mới sẽ bắt đầu lẹm vào quỹ để dành!`;
+  } else if (isTight) {
+    ringColor = '#f59e0b';
+    ringSubLabel = 'Eo hẹp';
+    statusTone = 'warn';
+    const minNeeded = safeDays * MIN_REALISTIC_DAILY;
+    const estShortfall = Math.max(0, minNeeded - safeToSpend);
+    const realisticSaved = Math.max(0, Math.floor((safeGoal - estShortfall) / 50000) * 50000);
+    statusText =
+      realisticSaved >= 50000
+        ? `Cảnh báo: Phần dư cho ${safeDays} ngày cuối chỉ còn ${formatVND(safeToSpend)} (~${formatVND(dailyAllowance)}/ngày — thấp hơn mức sinh hoạt tối thiểu ~${formatVND(MIN_REALISTIC_DAILY)}/ngày). Với nhịp chi thực tế, bạn nên cắt toàn bộ khoản không thiết yếu hoặc tạm hạ mục tiêu tháng này xuống khoảng ${formatVND(realisticSaved)}.`
+        : `Cảnh báo: Phần dư cho ${safeDays} ngày cuối chỉ còn ${formatVND(safeToSpend)} (~${formatVND(dailyAllowance)}/ngày — thấp hơn mức sinh hoạt tối thiểu ~${formatVND(MIN_REALISTIC_DAILY)}/ngày). Quỹ ${formatVND(safeGoal)} rất dễ bị lẹm; hãy cắt tối đa chi phí không thiết yếu và ưu tiên sinh hoạt cơ bản rồi bù mục tiêu ở tháng sau.`;
+  } else if (isProtected && dailyAllowance < COMFORTABLE_DAILY) {
+    ringColor = '#10b981';
+    ringSubLabel = 'Khá sát';
+    statusTone = 'good';
+    statusText = `Quỹ ${formatVND(safeGoal)} vẫn nguyên vẹn, nhưng định mức còn lại khoảng ${formatVND(dailyAllowance)}/ngày trong ${safeDays} ngày cuối. Hãy ưu tiên chi tiêu thiết yếu để không bị lẹm quỹ nhé!`;
+  } else if (isProtected) {
     ringColor = '#10b981';
     ringSubLabel = 'An toàn';
     statusTone = 'good';
-    statusText = `Quỹ ${formatVND(safeGoal)} đang nguyên vẹn 100%! Trong ${safeDays} ngày cuối tháng, bạn chỉ cần tiêu trung bình không quá ${formatVND(dailyAllowance)}/ngày là cầm chắc ${formatVND(safeGoal)} để dành.`;
+    statusText = `Quỹ ${formatVND(safeGoal)} đang nguyên vẹn 100%! Trong ${safeDays} ngày cuối tháng, bạn có thể chi thoải mái khoảng ${formatVND(dailyAllowance)}/ngày mà vẫn cầm chắc mục tiêu.`;
   } else if (isDipping) {
     ringColor = '#f59e0b';
     ringSubLabel = 'Còn giữ';
@@ -109,8 +135,8 @@ export default function MonthlyGoalCard({
           <svg viewBox="0 0 112 112" className="budget-ring-svg">
             <defs>
               <linearGradient id="budgetRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={isProtected ? '#34d399' : isDipping ? '#fbbf24' : '#fb7185'} />
-                <stop offset="100%" stopColor={isProtected ? '#10b981' : isDipping ? '#f59e0b' : '#e11d48'} />
+                <stop offset="0%" stopColor={statusTone === 'good' ? '#34d399' : statusTone === 'warn' ? '#fbbf24' : '#fb7185'} />
+                <stop offset="100%" stopColor={statusTone === 'good' ? '#10b981' : statusTone === 'warn' ? '#f59e0b' : '#e11d48'} />
               </linearGradient>
             </defs>
             <circle cx="56" cy="56" r={radius} className="budget-ring-track" />
@@ -154,7 +180,11 @@ export default function MonthlyGoalCard({
 
           <div className="budget-metric-row">
             <span className="budget-metric-label">Định mức tiêu ({safeDays} ngày cuối)</span>
-            <strong className={`budget-metric-value tabular-nums ${safeToSpend > 0 ? 'remain' : 'over'}`}>
+            <strong
+              className={`budget-metric-value tabular-nums ${
+                safeToSpend <= 0 ? 'over' : isTight ? 'warn' : 'remain'
+              }`}
+            >
               {safeToSpend > 0 ? `${formatVND(dailyAllowance)}/ngày` : '0 ₫/ngày'}
             </strong>
           </div>
@@ -162,7 +192,7 @@ export default function MonthlyGoalCard({
       </div>
 
       <div className={`budget-goal-status-banner ${statusTone}`}>
-        {isProtected ? <ThumbsUp size={16} /> : <AlertTriangle size={16} />}
+        {statusTone === 'good' ? <ThumbsUp size={16} /> : <AlertTriangle size={16} />}
         <span>{statusText}</span>
       </div>
 
