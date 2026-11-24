@@ -73,7 +73,8 @@ export function useFinanceMetrics({
             t.status !== 'IGNORED' &&
             !t.category_id?.startsWith('cat_transfer_') &&
             t.category_id !== 'cat_loan' &&
-            t.category_id !== 'cat_debt_repay'
+            t.category_id !== 'cat_debt_repay' &&
+            t.category_id !== 'cat_savings'
         )
         .reduce((sum, t) => sum + (t.amount || 0), 0),
     [timeFilteredTransactions]
@@ -118,6 +119,7 @@ export function useFinanceMetrics({
           c.id !== 'cat_loan' &&
           c.id !== 'cat_debt_collect' &&
           c.id !== 'cat_debt_repay' &&
+          c.id !== 'cat_savings' &&
           !c.id.startsWith('cat_transfer_')
       )
       .forEach((c) => {
@@ -130,7 +132,8 @@ export function useFinanceMetrics({
         t.category_id &&
         !t.category_id?.startsWith('cat_transfer_') &&
         t.category_id !== 'cat_loan' &&
-        t.category_id !== 'cat_debt_repay'
+        t.category_id !== 'cat_debt_repay' &&
+        t.category_id !== 'cat_savings'
       ) {
         if (!map[t.category_id]) {
           map[t.category_id] = {
@@ -177,7 +180,8 @@ export function useFinanceMetrics({
             t.status !== 'CONFIRMED' ||
             t.category_id?.startsWith('cat_transfer_') ||
             t.category_id === 'cat_loan' ||
-            t.category_id === 'cat_debt_repay'
+            t.category_id === 'cat_debt_repay' ||
+            t.category_id === 'cat_savings'
           ) {
             return false;
           }
@@ -303,6 +307,40 @@ export function useFinanceMetrics({
     txSortOrder
   ]);
 
+  const { savingsTransactions, savingsStats } = useMemo(() => {
+    const now = new Date();
+    const curMonth = now.getMonth();
+    const curYear = now.getFullYear();
+
+    const list = transactions
+      .filter((t) => t.category_id === 'cat_savings' && t.status !== 'IGNORED')
+      .sort(
+        (a, b) =>
+          parseTxDate(b.transaction_time, b.created_at).getTime() -
+          parseTxDate(a.transaction_time, a.created_at).getTime()
+      );
+
+    let totalSaved = 0;
+    let thisMonthSaved = 0;
+    for (const t of list) {
+      const amt = Number(t.amount || 0);
+      totalSaved += amt;
+      const d = parseTxDate(t.transaction_time, t.created_at);
+      if (d && !isNaN(d.getTime()) && d.getMonth() === curMonth && d.getFullYear() === curYear) {
+        thisMonthSaved += amt;
+      }
+    }
+
+    return {
+      savingsTransactions: list,
+      savingsStats: {
+        totalSaved,
+        thisMonthSaved,
+        count: list.length
+      }
+    };
+  }, [transactions]);
+
   return {
     timeFilteredTransactions,
     displayedExpense,
@@ -315,6 +353,8 @@ export function useFinanceMetrics({
     last7DaysData,
     currentMonthStats,
     monthlySavingsHistory,
+    savingsTransactions,
+    savingsStats,
     timeLabel,
     pendingList,
     filteredTransactions

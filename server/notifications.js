@@ -422,3 +422,66 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
     formatted
   };
 }
+
+/**
+ * Gửi thông báo đề xuất trích 500k tiết kiệm ngay khi nhận lương
+ */
+export async function sendSalarySavingsPromptNotification({ amount = 0, description = '', accountName = '' } = {}) {
+  const title = `💰 Lương đã về${amount > 0 ? ` (+${fmtCompactVND(amount)})` : ''}! Đề xuất trích 500k tiết kiệm`;
+  const body = `Hãy chuyển ngay 500.000 ₫ vào tài khoản tiết kiệm Agribank Plus và ghi nhận vào mục "Tiền tiết kiệm" nhé!${accountName ? ` (Nguồn nhận: ${accountName})` : ''}`;
+  const targetUrl = '/?action=save-savings';
+
+  try {
+    const settingRows = await db
+      .prepare("SELECT key, value FROM settings WHERE key LIKE '%report%' OR key LIKE 'ntfy%' OR key LIKE 'telegram%' OR key LIKE 'macrodroid%'")
+      .all();
+    const settings = Object.fromEntries(settingRows.map((r) => [r.key, r.value]));
+
+    await sendWebPushNotificationToAll({
+      title,
+      body,
+      url: targetUrl,
+      data: { action: 'save-savings', amount }
+    });
+
+    const ntfyTopic = settings.ntfy_topic || process.env.NTFY_TOPIC;
+    if (ntfyTopic && ntfyTopic !== 'smartspend_kienvu') {
+      const baseAppUrl = (settings.app_url || 'https://smart-spend-23th.onrender.com').replace(/\/$/, '');
+      await fetch(`https://ntfy.sh/${encodeURIComponent(ntfyTopic)}`, {
+        method: 'POST',
+        headers: {
+          'Title': title,
+          'Priority': 'high',
+          'Tags': 'moneybag,sparkles',
+          'Click': `${baseAppUrl}${targetUrl}`
+        },
+        body
+      }).catch(() => {});
+    }
+
+    const macrodroidUrl = settings.macrodroid_webhook_url || process.env.MACRODROID_WEBHOOK_URL;
+    if (macrodroidUrl) {
+      await fetch(macrodroidUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, action: 'save-savings', amount, description })
+      }).catch(() => {});
+    }
+
+    const tgToken = settings.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    const tgChatId = settings.telegram_chat_id || process.env.TELEGRAM_CHAT_ID;
+    if (tgToken && tgChatId) {
+      await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: tgChatId,
+          text: `*${title}*\n\n${body}`,
+          parse_mode: 'Markdown'
+        })
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('[Salary Savings Notification Error]:', err.message);
+  }
+}

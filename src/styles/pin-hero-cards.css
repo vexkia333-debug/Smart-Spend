@@ -1180,6 +1180,143 @@
   color: var(--text-muted);
 }
 
+/* Lịch sử tiết kiệm (Savings History Card) */
+.savings-history-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.savings-summary-pill {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.savings-summary-pill.is-total {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), var(--bg-input));
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.savings-summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.savings-summary-val {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #34d399;
+}
+
+:root[data-theme="light"] .savings-summary-val {
+  color: #059669;
+}
+
+.savings-quick-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.savings-empty-note {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px dashed var(--border-subtle);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.savings-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.savings-tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+}
+
+.savings-tx-left {
+  min-width: 0;
+  flex: 1;
+}
+
+.savings-tx-desc {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.savings-tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.savings-tx-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.savings-tx-acc {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+
+.savings-tx-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.savings-tx-amount {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+:root[data-theme="light"] .savings-tx-amount {
+  color: #059669;
+}
+
+@media (max-width: 640px) {
+  .savings-history-summary {
+    grid-template-columns: 1fr;
+  }
+  .savings-quick-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .budget-goal-edit-panel {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);

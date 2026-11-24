@@ -92,7 +92,8 @@ self.addEventListener('push', (event) => {
     data: {
       url: data.url || '/',
       period: data.period || null,
-      date: data.date || null
+      date: data.date || null,
+      action: data.action || null
     }
   };
 
@@ -107,11 +108,13 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {
-      // Nếu app đang mở sẵn tab, focus vào tab đó và nhắn mở đúng kỳ báo cáo
+      // Nếu app đang mở sẵn tab, focus vào tab đó và nhắn mở đúng kỳ báo cáo hoặc form tiết kiệm
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           await client.focus();
-          if (notifData.period) {
+          if (notifData.action === 'save-savings') {
+            client.postMessage({ type: 'OPEN_SAVINGS_PROMPT', url: targetUrl });
+          } else if (notifData.period) {
             client.postMessage({
               type: 'OPEN_PERIODIC_REPORT',
               period: notifData.period,

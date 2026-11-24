@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { parseBankNotification, matchSuggestedCategory, extractTransferInfo } from '../parser.js';
 import { getVietnamTimeParts } from '../utils/time.js';
 import { broadcastEvent } from './sse.js';
+import { sendSalarySavingsPromptNotification } from '../notifications.js';
 
 // Chuỗi hàng đợi tuần tự hóa để chống race-condition khi MacroDroid bắn 2 webhook đồng thời
 let webhookPromiseChain = Promise.resolve();
@@ -419,6 +420,19 @@ async function processIncomingWebhookInternal(body = {}) {
     });
   } else {
     broadcastEvent('TRANSACTION_CREATED', newTx);
+  }
+
+  // Đề xuất trích 500k tiết kiệm ngay khi nhận lương
+  if (
+    !isInternalTransfer &&
+    parsed.type === 'INCOME' &&
+    (suggested?.categoryId === 'cat_salary' || /\b(lương|luong|salary)\b/i.test(rawContent || ''))
+  ) {
+    sendSalarySavingsPromptNotification({
+      amount: parsed.amount,
+      description: newTx?.description || '',
+      accountName: newTx?.account_name || parsed.bankName || ''
+    }).catch(() => {});
   }
 
   const launchDecision = status === 'PENDING' ? 'WAIT_AND_RECHECK' : 'SKIP';

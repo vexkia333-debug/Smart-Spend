@@ -27,14 +27,11 @@ export default function DashboardTab({
   setHoveredCatId,
   accounts = [],
   totalBalance = 0,
-  monthlyBudgetGoal = 500000,
-  currentMonthSavings = 0,
-  currentMonthIncome = 0,
-  currentMonthExpense = 0,
-  daysRemaining = 1,
-  currentMonthNumber = null,
-  monthlySavingsHistory = [],
-  onUpdateBudgetGoal,
+  savingsTransactions = [],
+  savingsStats = { totalSaved: 0, thisMonthSaved: 0, count: 0 },
+  onQuickSaveSavings,
+  openSavingsQuickAdd = false,
+  onClearOpenSavingsQuickAdd,
   onReconcile,
   onOpenDailyReport,
   onEditTransaction
@@ -634,17 +631,16 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* 3. Kế hoạch giữ mục tiêu tiết kiệm tháng (tách biệt tháng trước) */}
+      {/* 3. Lịch sử tiết kiệm (Danh mục Tiền tiết kiệm) */}
       <MonthlyGoalCard
-        monthlyBudgetGoal={monthlyBudgetGoal}
-        currentMonthSavings={currentMonthSavings}
-        currentMonthIncome={currentMonthIncome}
-        currentMonthExpense={currentMonthExpense}
-        daysRemaining={daysRemaining}
-        currentMonthNumber={currentMonthNumber}
-        monthlySavingsHistory={monthlySavingsHistory}
+        savingsTransactions={savingsTransactions}
+        savingsStats={savingsStats}
+        accounts={accounts}
         formatVND={formatVND}
-        onUpdateBudgetGoal={onUpdateBudgetGoal}
+        onQuickSaveSavings={onQuickSaveSavings}
+        onEditTransaction={onEditTransaction}
+        openSavingsQuickAdd={openSavingsQuickAdd}
+        onClearOpenSavingsQuickAdd={onClearOpenSavingsQuickAdd}
       />
 
       {/* 2. Dòng tiền & Tiết kiệm ({timeLabel}) - Toàn chiều rộng, sang trọng, rõ ràng */}

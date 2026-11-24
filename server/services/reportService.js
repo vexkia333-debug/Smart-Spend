@@ -14,13 +14,13 @@ function computeReportMetrics(txs = []) {
     .filter((t) => t.type === 'INCOME' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_debt_collect')
     .reduce((s, t) => s + (t.amount || 0), 0);
   const totalExpense = txs
-    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay')
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay' && t.category_id !== 'cat_savings')
     .reduce((s, t) => s + (t.amount || 0), 0);
   const netFlow = totalIncome - totalExpense;
 
   const catMap = {};
   txs
-    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay')
+    .filter((t) => t.type === 'EXPENSE' && !t.category_id?.startsWith('cat_transfer_') && t.category_id !== 'cat_loan' && t.category_id !== 'cat_debt_repay' && t.category_id !== 'cat_savings')
     .forEach((t) => {
       const cName = t.category_name || 'Khác';
       catMap[cName] = (catMap[cName] || 0) + (t.amount || 0);

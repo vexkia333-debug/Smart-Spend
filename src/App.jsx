@@ -129,18 +129,31 @@ export default function App() {
   const [editingTx, setEditingTx] = useState(null);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
   const [reportModalConfig, setReportModalConfig] = useState({ period: 'DAY', date: null });
+  const [openSavingsQuickAdd, setOpenSavingsQuickAdd] = useState(false);
 
-  // Hỗ trợ deep-link mở thẳng Báo cáo tài chính khi chạm thông báo điện thoại
+  // Hỗ trợ deep-link mở thẳng Báo cáo tài chính hoặc Form ghi nhận tiết kiệm khi chạm thông báo điện thoại
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const reportParam = params.get('report')?.toUpperCase();
       const dateParam = params.get('date') || null;
+      const actionParam = params.get('action');
+      let shouldCleanUrl = false;
+
       if (reportParam && ['DAY', 'WEEK', 'MONTH'].includes(reportParam)) {
         setReportModalConfig({ period: reportParam, date: dateParam });
         setShowDailyReportModal(true);
         params.delete('report');
         params.delete('date');
+        shouldCleanUrl = true;
+      }
+      if (actionParam === 'save-savings') {
+        setActiveTab('dashboard');
+        setOpenSavingsQuickAdd(true);
+        params.delete('action');
+        shouldCleanUrl = true;
+      }
+      if (shouldCleanUrl) {
         const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
         window.history.replaceState({}, '', nextUrl);
       }
@@ -155,6 +168,9 @@ export default function App() {
           : 'DAY';
         setReportModalConfig({ period: targetPeriod, date: msg.date || null });
         setShowDailyReportModal(true);
+      } else if (msg?.type === 'OPEN_SAVINGS_PROMPT') {
+        setActiveTab('dashboard');
+        setOpenSavingsQuickAdd(true);
       }
     };
     navigator.serviceWorker.addEventListener('message', handleSwMessage);
@@ -268,21 +284,24 @@ export default function App() {
     }
   };
 
-  const handleUpdateBudgetGoal = async (newGoal) => {
+  const handleQuickSaveSavings = async (payload) => {
     try {
-      const res = await authFetch('/api/settings/budget-goal', {
+      const res = await authFetch('/api/savings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ monthlyBudgetGoal: newGoal })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) return false;
-      const data = await res.json();
-      if (data.monthlyBudgetGoal) {
-        setMonthlyBudgetGoal(Number(data.monthlyBudgetGoal));
-      }
+      confetti({
+        particleCount: 45,
+        spread: 60,
+        origin: { y: 0.7 },
+        colors: ['#10b981', '#34d399', '#fbbf24']
+      });
+      await Promise.all([fetchTransactions(), fetchAccounts(), fetchStats()]);
       return true;
     } catch (e) {
-      console.error('Lỗi cập nhật mục tiêu chi tiêu tháng:', e);
+      console.error('Lỗi ghi nhận tiết kiệm:', e);
       return false;
     }
   };
@@ -903,8 +922,8 @@ export default function App() {
     savingsRate,
     categoryBreakdown,
     last7DaysData,
-    currentMonthStats,
-    monthlySavingsHistory,
+    savingsTransactions,
+    savingsStats,
     timeLabel,
     pendingList,
     filteredTransactions
@@ -1096,14 +1115,11 @@ export default function App() {
           hoveredCatId={hoveredCatId}
           setHoveredCatId={setHoveredCatId}
           last7DaysData={last7DaysData}
-          monthlyBudgetGoal={monthlyBudgetGoal}
-          currentMonthSavings={currentMonthStats.savings}
-          currentMonthIncome={currentMonthStats.income}
-          currentMonthExpense={currentMonthStats.expense}
-          daysRemaining={currentMonthStats.daysRemaining}
-          currentMonthNumber={currentMonthStats.monthNumber}
-          monthlySavingsHistory={monthlySavingsHistory}
-          onUpdateBudgetGoal={handleUpdateBudgetGoal}
+          savingsTransactions={savingsTransactions}
+          savingsStats={savingsStats}
+          onQuickSaveSavings={handleQuickSaveSavings}
+          openSavingsQuickAdd={openSavingsQuickAdd}
+          onClearOpenSavingsQuickAdd={() => setOpenSavingsQuickAdd(false)}
           accounts={accounts}
           totalBalance={stats.totalBalance}
           onReconcile={(acc) => {

@@ -200,8 +200,12 @@ export async function initDatabase() {
       INSERT OR IGNORE INTO categories (id, name, type, icon, color, is_quick_action, sort_order)
       VALUES ('cat_debt_repay', 'Trả nợ', 'EXPENSE', 'Handshake', '#f97316', 1, 15)
     `).run();
+    await db.prepare(`
+      INSERT OR IGNORE INTO categories (id, name, type, icon, color, is_quick_action, sort_order)
+      VALUES ('cat_savings', 'Tiền tiết kiệm', 'EXPENSE', 'PiggyBank', '#10b981', 1, 16)
+    `).run();
   } catch (err) {
-    console.warn('[Database] Không thể khởi tạo danh mục cat_debt_repay:', err.message);
+    console.warn('[Database] Không thể khởi tạo danh mục mặc định bổ sung:', err.message);
   }
 }
 
@@ -267,6 +271,7 @@ async function seedInitialData() {
     ['cat_other_income', 'Thu nhập khác', 'INCOME', 'PlusCircle', '#64748b', 0, 13],
     ['cat_loan', 'Cho vay & Cho mượn', 'EXPENSE', 'HandCoins', '#ec4899', 1, 14],
     ['cat_debt_collect', 'Thu hồi nợ / Nhận tiền trả', 'INCOME', 'Handshake', '#10b981', 1, 15],
+    ['cat_savings', 'Tiền tiết kiệm', 'EXPENSE', 'PiggyBank', '#10b981', 1, 16],
     ['cat_debt_repay', 'Trả nợ', 'EXPENSE', 'Handshake', '#f97316', 1, 15],
     ['cat_transfer_cash', 'Rút tiền vào Ví (ATM)', 'EXPENSE', 'Banknote', '#06b6d4', 1, 16],
     ['cat_transfer_internal', 'Chuyển tiền nội bộ', 'EXPENSE', 'ArrowLeftRight', '#6366f1', 1, 17],
