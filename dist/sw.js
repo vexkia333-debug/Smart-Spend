@@ -90,7 +90,9 @@ self.addEventListener('push', (event) => {
     tag: data.tag || 'smartspend-notification',
     renotify: true,
     data: {
-      url: data.url || '/'
+      url: data.url || '/',
+      period: data.period || null,
+      date: data.date || null
     }
   };
 
@@ -100,17 +102,27 @@ self.addEventListener('push', (event) => {
 // Xử lý khi người dùng chạm/click vào thông báo trên điện thoại
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  const notifData = event.notification.data || {};
+  const targetUrl = notifData.url || '/';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Nếu app đang mở sẵn tab, focus vào tab đó
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {
+      // Nếu app đang mở sẵn tab, focus vào tab đó và nhắn mở đúng kỳ báo cáo
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
+          await client.focus();
+          if (notifData.period) {
+            client.postMessage({
+              type: 'OPEN_PERIODIC_REPORT',
+              period: notifData.period,
+              date: notifData.date || null,
+              url: targetUrl
+            });
+          }
+          return client;
         }
       }
-      // Nếu chưa mở, mở cửa sổ mới
+      // Nếu chưa mở, mở cửa sổ mới tới đúng deep-link
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }

@@ -562,6 +562,7 @@ export async function generatePeriodicAiReport({
   netFlow = 0,
   catMap = {},
   categories = [],
+  contextMetrics = null,
   apiKey
 }) {
   if (!apiKey || !txs.length) return null;
@@ -622,7 +623,15 @@ Hãy lập ${periodTitle} dựa trên các số liệu thực tế:
 - TỔNG THU: ${fmtVND(totalIncome)}
 - TỔNG CHI: ${fmtVND(totalExpense)}
 - DÒNG TIỀN RÒNG: ${fmtVND(netFlow)}
-- CƠ CẤU CHI THEO DANH MỤC: ${JSON.stringify(catMap)}
+- CƠ CẤU CHI THEO DANH MỤC: ${JSON.stringify(catMap)}${
+    contextMetrics?.prevComparison
+      ? `\n- SO SÁNH KỲ TRƯỚC (${contextMetrics.prevComparison.label}): ${contextMetrics.prevComparison.diffAmount >= 0 ? '+' : ''}${fmtVND(contextMetrics.prevComparison.diffAmount)} (${contextMetrics.prevComparison.diffPct >= 0 ? '+' : ''}${contextMetrics.prevComparison.diffPct}%)`
+      : ''
+  }${
+    contextMetrics?.monthlyGoalContext
+      ? `\n- QUỸ ĐỂ DÀNH THÁNG (${fmtVND(contextMetrics.monthlyGoalContext.goal)}): Còn được phép tiêu ${fmtVND(Math.max(0, contextMetrics.monthlyGoalContext.safeToSpend))} cho ${contextMetrics.monthlyGoalContext.daysRemaining} ngày cuối (~${fmtVND(contextMetrics.monthlyGoalContext.dailyAllowance)}/ngày). Lưu ý: mức sinh hoạt tối thiểu thực tế ~80.000 VNĐ/ngày — KHÔNG khuyên tiêu dưới 80k/ngày như thể an toàn.`
+      : ''
+  }
 
 DANH SÁCH GIAO DỊCH (${txs.length} giao dịch):
 ${txListStr}
@@ -634,7 +643,8 @@ QUY ƯỚC DANH MỤC CỦA HỆ THỐNG SMARTSPEND:
 - Danh mục "Chuyển tiền nội bộ" / "Nhận chuyển nội bộ" / "Rút tiền vào Ví (ATM)" là luân chuyển giữa các ví của chính người dùng.
 ${extraGuidelines}
 ${catGuidelines}
-6. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
+6. "pushHook": Đúng 1 câu nhắc ngắn gọn (tối đa 85 ký tự) cho thông báo đẩy trên màn hình khóa điện thoại, tự nhiên, thực tế, không sáo rỗng.
+7. "suggestedEdits": Mảng các giao dịch cụ thể đề xuất người dùng nên bấm vào chỉnh sửa lại (nếu có nghi vấn):
    [
      {
        "txId": string,
@@ -652,6 +662,7 @@ Trả về DUY NHẤT một JSON hợp lệ:
   "highlights": [string],
   "anomalies": [string],
   "advice": string,
+  "pushHook": string,
   "suggestedEdits": [
     {
       "txId": string,
@@ -710,7 +721,7 @@ export async function generateDailyAiReport({ date, txs = [], totalIncome = 0, t
 /**
  * Bộ tạo báo cáo định kỳ dự phòng thông minh (khi offline hoặc không có API Key)
  */
-export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {} }) {
+export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs = [], totalIncome = 0, totalExpense = 0, netFlow = 0, catMap = {}, contextMetrics = null }) {
   const anomalies = [];
   const suggestedEdits = [];
   const highlights = [];
@@ -873,12 +884,39 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
     }
   }
 
+  // Tạo câu nhắc siêu gọn (<= 85 ký tự) cho thông báo màn hình khóa
+  let pushHook = '';
+  const mg = contextMetrics?.monthlyGoalContext;
+  if (period === 'WEEK') {
+    pushHook = totalExpense > totalIncome && totalIncome > 0
+      ? 'Tuần mới siết nhẹ nhóm chi giải trí & mua sắm để cân bằng lại nhé.'
+      : 'Giữ vững nhịp chi tiêu tuần này là cuối tháng cán đích đẹp!';
+  } else if (period === 'MONTH') {
+    pushHook = mg?.isAchieved
+      ? 'Chạm để xem báo cáo tháng chi tiết và khóa kế hoạch tháng mới!'
+      : 'Chạm để xem nhóm chi ngốn tiền nhất & rút kinh nghiệm cho tháng sau.';
+  } else {
+    const entAmt = catMap['Giải trí & Phim ảnh'] || 0;
+    if (totalExpense === 0) {
+      pushHook = 'Một ngày 0đ cực kỷ luật — tiếp tục giữ phong độ nhé!';
+    } else if (mg && (!mg.isProtected || mg.isTight)) {
+      pushHook = 'Phần dư tháng đang mỏng, ngày mai ưu tiên chi thiết yếu nhé!';
+    } else if (entAmt > 0 && totalExpense > 0 && entAmt / totalExpense >= 0.4) {
+      pushHook = 'Mai hãm nhóm giải trí, ăn uống gọn để bù lại nhịp tuần nhé!';
+    } else if (totalExpense > 300000) {
+      pushHook = 'Hôm nay chi hơi mạnh tay — mai giữ mức sinh hoạt gọn lại nhé.';
+    } else {
+      pushHook = 'Nhịp chi tiêu hôm nay rất gọn, tiếp tục duy trì nhé!';
+    }
+  }
+
   return {
     rating,
     overview,
     highlights: highlights.length > 0 ? highlights : ['Dòng tiền vận hành ổn định.'],
     anomalies: anomalies.length > 0 ? anomalies : ['Không phát hiện khoản chi tiêu bất thường hay nghi vấn xếp sai danh mục.'],
     advice,
+    pushHook,
     suggestedEdits
   };
 }

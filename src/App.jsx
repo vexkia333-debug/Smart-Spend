@@ -128,6 +128,40 @@ export default function App() {
   // Transaction Editing & Daily Report States
   const [editingTx, setEditingTx] = useState(null);
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
+  const [reportModalConfig, setReportModalConfig] = useState({ period: 'DAY', date: null });
+
+  // Hỗ trợ deep-link mở thẳng Báo cáo tài chính khi chạm thông báo điện thoại
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const reportParam = params.get('report')?.toUpperCase();
+      const dateParam = params.get('date') || null;
+      if (reportParam && ['DAY', 'WEEK', 'MONTH'].includes(reportParam)) {
+        setReportModalConfig({ period: reportParam, date: dateParam });
+        setShowDailyReportModal(true);
+        params.delete('report');
+        params.delete('date');
+        const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
+        window.history.replaceState({}, '', nextUrl);
+      }
+    } catch {}
+
+    if (!('serviceWorker' in navigator)) return undefined;
+    const handleSwMessage = (event) => {
+      const msg = event.data;
+      if (msg?.type === 'OPEN_PERIODIC_REPORT') {
+        const targetPeriod = ['DAY', 'WEEK', 'MONTH'].includes(String(msg.period || '').toUpperCase())
+          ? String(msg.period).toUpperCase()
+          : 'DAY';
+        setReportModalConfig({ period: targetPeriod, date: msg.date || null });
+        setShowDailyReportModal(true);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    };
+  }, []);
 
   // Debt & Loan Ledger Modal States
   const [showDebtLoanModal, setShowDebtLoanModal] = useState(false);
@@ -1176,6 +1210,8 @@ export default function App() {
       <DailyReportModal
         isOpen={showDailyReportModal}
         onClose={() => setShowDailyReportModal(false)}
+        initialPeriod={reportModalConfig.period}
+        initialDate={reportModalConfig.date}
         authFetch={authFetch}
         categories={categories}
         onCategoriesChange={fetchCategories}

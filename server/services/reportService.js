@@ -37,6 +37,112 @@ function computeReportMetrics(txs = []) {
   return { totalIncome, totalExpense, netFlow, catMap, accMap };
 }
 
+function shiftIsoDate(isoDate, deltaDays) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + deltaDays);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+async function computeExtendedContext({ period, targetDate, startDate, endDate, allTxs, totalExpense }) {
+  // 1. Tổng số dư khả dụng hiện tại
+  let totalBalance = 0;
+  try {
+    const balRow = await db.prepare('SELECT COALESCE(SUM(balance), 0) as total FROM accounts').get();
+    totalBalance = Number(balRow?.total || 0);
+  } catch {
+    totalBalance = 0;
+  }
+
+  // 2. Số giao dịch đang chờ phân loại
+  const pendingCount = allTxs.filter((t) => t.status === 'PENDING').length;
+
+  // 3. Bối cảnh Kế hoạch để dành tháng hiện tại (monthly_budget_goal)
+  let monthlyGoal = 500000;
+  try {
+    const goalRow = await db.prepare("SELECT value FROM settings WHERE key = 'monthly_budget_goal'").get();
+    if (goalRow?.value && Number(goalRow.value) > 0) {
+      monthlyGoal = Number(goalRow.value);
+    }
+  } catch {
+    monthlyGoal = 500000;
+  }
+
+  const [ty, tm, td] = targetDate.split('-').map(Number);
+  const monthPrefix = `${ty}-${String(tm).padStart(2, '0')}`;
+  const lastDayOfMonth = new Date(ty, tm, 0).getDate();
+  const daysRemaining = Math.max(1, lastDayOfMonth - td + 1);
+
+  const monthTxs = allTxs.filter((t) => parseTxDateToISO(t).startsWith(monthPrefix));
+  const monthMetrics = computeReportMetrics(monthTxs);
+  const monthSavings = monthMetrics.totalIncome - monthMetrics.totalExpense;
+  const safeToSpend = monthSavings - monthlyGoal;
+  const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / daysRemaining) : 0;
+
+  const monthlyGoalContext = {
+    goal: monthlyGoal,
+    monthIncome: monthMetrics.totalIncome,
+    monthExpense: monthMetrics.totalExpense,
+    monthSavings,
+    safeToSpend,
+    daysRemaining,
+    dailyAllowance,
+    isProtected: safeToSpend >= 0,
+    isTight: safeToSpend >= 0 && dailyAllowance < 80000,
+    isAchieved: monthSavings >= monthlyGoal
+  };
+
+  // 4. So sánh với kỳ liền trước
+  let prevComparison = null;
+  if (period === 'DAY') {
+    const prevStart = shiftIsoDate(startDate, -7);
+    const prevEnd = shiftIsoDate(startDate, -1);
+    const prevTxs = allTxs.filter((t) => {
+      const iso = parseTxDateToISO(t);
+      return iso >= prevStart && iso <= prevEnd;
+    });
+    const prevExp = computeReportMetrics(prevTxs).totalExpense;
+    const prevAvg = Math.round(prevExp / 7);
+    if (prevAvg > 0) {
+      const diffAmount = totalExpense - prevAvg;
+      const diffPct = Math.round((diffAmount / prevAvg) * 100);
+      prevComparison = { label: 'TB 7 ngày', prevBase: prevAvg, diffAmount, diffPct };
+    }
+  } else if (period === 'WEEK') {
+    const prevStart = shiftIsoDate(startDate, -7);
+    const prevEnd = shiftIsoDate(endDate, -7);
+    const prevTxs = allTxs.filter((t) => {
+      const iso = parseTxDateToISO(t);
+      return iso >= prevStart && iso <= prevEnd;
+    });
+    const prevExp = computeReportMetrics(prevTxs).totalExpense;
+    if (prevExp > 0) {
+      const diffAmount = totalExpense - prevExp;
+      const diffPct = Math.round((diffAmount / prevExp) * 100);
+      prevComparison = { label: 'tuần trước', prevBase: prevExp, diffAmount, diffPct };
+    }
+  } else if (period === 'MONTH') {
+    const prevMonthDate = new Date(ty, tm - 2, 1);
+    const py = prevMonthDate.getFullYear();
+    const pm = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const prevPrefix = `${py}-${pm}`;
+    const prevTxs = allTxs.filter((t) => parseTxDateToISO(t).startsWith(prevPrefix));
+    const prevExp = computeReportMetrics(prevTxs).totalExpense;
+    if (prevExp > 0) {
+      const diffAmount = totalExpense - prevExp;
+      const diffPct = Math.round((diffAmount / prevExp) * 100);
+      prevComparison = { label: `tháng ${prevMonthDate.getMonth() + 1}`, prevBase: prevExp, diffAmount, diffPct };
+    }
+  }
+
+  return {
+    totalBalance,
+    pendingCount,
+    monthlyGoalContext,
+    prevComparison
+  };
+}
+
 /**
  * Core Pipeline: Tạo và lưu trữ báo cáo tài chính định kỳ (Ngày / Tuần / Tháng), đồng thời gửi thông báo tới điện thoại
  */
@@ -103,6 +209,14 @@ export async function generateAndSavePeriodicReport({
     });
 
     const { totalIncome, totalExpense, netFlow, catMap, accMap } = computeReportMetrics(txs);
+    const contextMetrics = await computeExtendedContext({
+      period,
+      targetDate,
+      startDate,
+      endDate,
+      allTxs,
+      totalExpense
+    });
 
     // 3. Kiểm tra cache trong DB nếu không ép buộc (force) và số liệu vẫn khớp giao dịch thực tế
     if (!force) {
@@ -135,6 +249,7 @@ export async function generateAndSavePeriodicReport({
           txCount: Number(cached.tx_count) || 0,
           categoryBreakdown: cached.category_breakdown ? JSON.parse(cached.category_breakdown) : {},
           accountBreakdown: cached.account_breakdown ? JSON.parse(cached.account_breakdown) : {},
+          contextMetrics,
           transactions: txs,
           aiEvaluation: cachedAi,
           aiAnalysis: cachedAi,
@@ -159,6 +274,7 @@ export async function generateAndSavePeriodicReport({
         netFlow,
         catMap,
         categories: allCategories,
+        contextMetrics,
         apiKey
       });
     }
@@ -171,7 +287,8 @@ export async function generateAndSavePeriodicReport({
         totalIncome,
         totalExpense,
         netFlow,
-        catMap
+        catMap,
+        contextMetrics
       });
     }
 
@@ -189,6 +306,7 @@ export async function generateAndSavePeriodicReport({
       txCount: txs.length,
       categoryBreakdown: catMap,
       accountBreakdown: accMap,
+      contextMetrics,
       transactions: txs,
       aiEvaluation,
       aiAnalysis: aiEvaluation,

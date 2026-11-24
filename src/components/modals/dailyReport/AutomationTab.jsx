@@ -1,5 +1,38 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Smartphone, Bell, RefreshCw, CheckCircle, Clock, Sun, TrendingUp, Trophy } from 'lucide-react';
+
+const NOTIFICATION_PREVIEWS = {
+  DAY: {
+    label: 'Cuối ngày',
+    time: '22:00',
+    title: '🌙 Chốt ngày 24/11: -583k · Cân đối 👍',
+    lines: [
+      '📌 Giải trí 320k, Cơm & Đồ ăn 243k (↑ hơn TB tuần 190k)',
+      '💰 Số dư: 4,75tr · Còn ~115k/ngày để giữ quỹ 500k',
+      '💡 Mai hãm nhóm giải trí, ăn uống gọn để bù nhịp tuần nhé!'
+    ]
+  },
+  WEEK: {
+    label: 'Cuối tuần',
+    time: 'CN 21:00',
+    title: '📈 Tuần 18/11–24/11: Chi 1,85tr · Khá tốt 🌟',
+    lines: [
+      '📊 Giảm 240k (-11%) so với tuần trước · TB 264k/ngày',
+      '🏆 Chi nhiều nhất: Cơm & Đồ ăn 890k (48%), Giải trí 520k (28%)',
+      '🎯 Quỹ 500k an toàn · Giữ vững nhịp chi tiêu tuần này nhé!'
+    ]
+  },
+  MONTH: {
+    label: 'Cuối tháng',
+    time: 'Cuối tháng 21:30',
+    title: '🏆 Tổng kết Tháng 11: Dư +2,15tr · Vững mạnh 💎',
+    lines: [
+      '💰 Thu 7,24tr | Chi 5,09tr · Mục tiêu 500k: Đạt 100% 🎉',
+      '📊 Top chi: Cơm & Đồ ăn 2,1tr (41%) · Giải trí 980k (19%)',
+      '✨ Số dư cuối tháng: 5,22tr — Chạm để xem báo cáo chi tiết.'
+    ]
+  }
+};
 
 export default function AutomationTab({
   pushStatus,
@@ -13,6 +46,9 @@ export default function AutomationTab({
   handleSaveSettings,
   isSavingSettings
 }) {
+  const [previewPeriod, setPreviewPeriod] = useState('DAY');
+  const activePreview = NOTIFICATION_PREVIEWS[previewPeriod];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Card Trạng thái Thông báo Ứng dụng */}
@@ -133,6 +169,41 @@ export default function AutomationTab({
           {testResult.message}
         </div>
       )}
+
+      {/* Xem trước mẫu thông báo trên màn hình khóa điện thoại */}
+      <div className="notif-preview-card">
+        <div className="notif-preview-header">
+          <div className="notif-preview-title">
+            <Bell size={15} />
+            <span>Xem trước mẫu thông báo điện thoại</span>
+          </div>
+          <div className="notif-preview-tabs">
+            {(['DAY', 'WEEK', 'MONTH']).map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`notif-preview-tab ${previewPeriod === key ? 'is-active' : ''}`}
+                onClick={() => setPreviewPeriod(key)}
+              >
+                {NOTIFICATION_PREVIEWS[key].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="notif-phone-banner">
+          <div className="notif-phone-app-row">
+            <span className="notif-phone-app-name">SmartSpend</span>
+            <span className="notif-phone-time">{activePreview.time}</span>
+          </div>
+          <div className="notif-phone-title">{activePreview.title}</div>
+          <div className="notif-phone-body">
+            {activePreview.lines.map((line, idx) => (
+              <div key={idx}>{line}</div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Mục Cấu hình 3 Lịch Tự Động: Ngày - Tuần - Tháng */}
       <div

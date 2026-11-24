@@ -7,6 +7,8 @@ import AutomationTab from './dailyReport/AutomationTab.jsx';
 export default function DailyReportModal({
   isOpen,
   onClose,
+  initialPeriod = 'DAY',
+  initialDate = null,
   authFetch,
   categories = [],
   onCategoriesChange,
@@ -19,8 +21,19 @@ export default function DailyReportModal({
   };
 
   const [activeTab, setActiveTab] = useState('report'); // 'report' | 'automation'
-  const [period, setPeriod] = useState('DAY'); // 'DAY' | 'WEEK' | 'MONTH'
-  const [selectedDate, setSelectedDate] = useState(getTodayStr());
+  const [period, setPeriod] = useState(initialPeriod || 'DAY'); // 'DAY' | 'WEEK' | 'MONTH'
+  const [selectedDate, setSelectedDate] = useState(initialDate || getTodayStr());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialPeriod && ['DAY', 'WEEK', 'MONTH'].includes(initialPeriod)) {
+      setPeriod(initialPeriod);
+    }
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+    setActiveTab('report');
+  }, [isOpen, initialPeriod, initialDate]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState(null);

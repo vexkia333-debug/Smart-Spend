@@ -51,7 +51,7 @@ export async function initWebPush() {
 /**
  * Bắn thông báo đẩy trực tiếp tới tất cả thiết bị đã đăng ký nhận thông báo
  */
-export async function sendWebPushNotificationToAll({ title, body, url = '/' }) {
+export async function sendWebPushNotificationToAll({ title, body, url = '/', data = {} }) {
   await initWebPush();
   if (!isVapidConfigured) {
     return { sentCount: 0, failedCount: 0 };
@@ -73,7 +73,8 @@ export async function sendWebPushNotificationToAll({ title, body, url = '/' }) {
     body,
     icon: '/pwa-192x192.png',
     badge: '/favicon.png',
-    url
+    url,
+    ...data
   });
 
   for (const subRow of subs) {
@@ -96,6 +97,22 @@ export async function sendWebPushNotificationToAll({ title, body, url = '/' }) {
   return { sentCount, failedCount };
 }
 
+function fmtCompactVND(num) {
+  const abs = Math.abs(Number(num || 0));
+  if (abs === 0) return '0đ';
+  if (abs >= 1_000_000) {
+    const tr = abs / 1_000_000;
+    const str = (tr >= 10 ? tr.toFixed(1) : tr.toFixed(2))
+      .replace(/\.?0+$/, '')
+      .replace('.', ',');
+    return `${str}tr`;
+  }
+  if (abs >= 1_000) {
+    return `${Math.round(abs / 1_000)}k`;
+  }
+  return `${Math.round(abs)}đ`;
+}
+
 export function formatDailyReportNotification(report) {
   const {
     date,
@@ -106,95 +123,186 @@ export function formatDailyReportNotification(report) {
     totalExpense = 0,
     netFlow = 0,
     txCount = 0,
+    categoryBreakdown = {},
+    contextMetrics = null,
     aiEvaluation
   } = report;
 
   const dateParts = (date || '').split('-');
   const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : date;
+  const shortDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}` : (dateLabel || '');
   const displayLabel = dateLabel || dateRange || formattedDate;
 
   const fmtVND = (num) => new Intl.NumberFormat('vi-VN').format(Math.abs(num || 0)) + 'đ';
 
-  const rating = aiEvaluation?.rating || (totalExpense === 0 ? 'Xuất sắc 🌟' : 'Bình thường 👍');
+  const rating = aiEvaluation?.rating || (totalExpense === 0 ? 'Xuất sắc 🌟' : 'Cân đối 👍');
   const anomalies = Array.isArray(aiEvaluation?.anomalies) ? aiEvaluation.anomalies : [];
   const hasAnomalies = anomalies.length > 0 && !anomalies[0].toLowerCase().includes('không phát hiện');
   const highlights = Array.isArray(aiEvaluation?.highlights) ? aiEvaluation.highlights : [];
 
-  let title = `📊 SmartSpend: Báo cáo ngày ${displayLabel}`;
+  const topCats = Object.entries(categoryBreakdown || {})
+    .filter(([, amt]) => Number(amt) > 0)
+    .sort(([, a], [, b]) => Number(b) - Number(a));
+
+  const prevComp = contextMetrics?.prevComparison || null;
+  const mg = contextMetrics?.monthlyGoalContext || null;
+  const totalBalance = contextMetrics?.totalBalance;
+  const pendingCount = Number(contextMetrics?.pendingCount || 0);
+
+  const shortHook = (aiEvaluation?.pushHook || aiEvaluation?.advice || '').trim();
+  const compactHook = shortHook.length > 92 ? shortHook.slice(0, 89).trimEnd() + '…' : shortHook;
+
+  const targetUrl = `/?report=${encodeURIComponent(period)}${date ? `&date=${encodeURIComponent(date)}` : ''}`;
+
+  let title = '';
   let summaryLines = [];
   let markdownText = '';
 
   if (period === 'WEEK') {
-    title = `📈 SmartSpend: Tổng kết tài chính tuần (${displayLabel})`;
-    summaryLines = [
-      `💸 Chi tuần: ${fmtVND(totalExpense)} | 💰 Thu tuần: ${fmtVND(totalIncome)}`,
-      `⚖️ Dòng tiền ròng: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)`,
-      `🌟 Kỷ luật tuần: ${rating}`
-    ];
-    if (highlights.length > 0) {
-      summaryLines.push(`🔍 Nổi bật: ${highlights[0]}`);
-    }
-    if (aiEvaluation?.advice) {
-      summaryLines.push(`💡 Định hướng tuần tới: ${aiEvaluation.advice}`);
+    const shortRange = displayLabel.replace(/\/\d{4}$/, '');
+    title = `📈 Tuần ${shortRange}: Chi ${fmtCompactVND(totalExpense)} · ${rating}`;
+
+    // Dòng 1: So sánh tuần trước + TB/ngày
+    const dailyAvg = Math.round(totalExpense / 7);
+    let line1 = `📊 TB ${fmtCompactVND(dailyAvg)}/ngày (${txCount} GD)`;
+    if (prevComp) {
+      const dir = prevComp.diffAmount > 0 ? 'Tăng' : 'Giảm';
+      const pctStr = prevComp.diffPct !== 0 ? ` (${prevComp.diffPct > 0 ? '+' : ''}${prevComp.diffPct}%)` : '';
+      line1 = `📊 ${dir} ${fmtCompactVND(prevComp.diffAmount)}${pctStr} so với ${prevComp.label} · TB ${fmtCompactVND(dailyAvg)}/ngày`;
     }
 
+    // Dòng 2: Top 2 danh mục chi
+    const top2 = topCats
+      .slice(0, 2)
+      .map(([name, amt]) => `${name} ${fmtCompactVND(amt)} (${totalExpense > 0 ? Math.round((amt / totalExpense) * 100) : 0}%)`)
+      .join(', ');
+    const line2 = top2
+      ? `🏆 Chi nhiều nhất: ${top2}`
+      : `💰 Thu tuần: +${fmtCompactVND(totalIncome)} · Dòng tiền ${netFlow >= 0 ? '+' : '-'}${fmtCompactVND(netFlow)}`;
+
+    // Dòng 3: Quỹ tháng + định hướng ngắn
+    const goalTag = mg
+      ? mg.isProtected && !mg.isTight
+        ? `Quỹ ${fmtCompactVND(mg.goal)} an toàn`
+        : mg.isTight
+          ? `Quỹ ${fmtCompactVND(mg.goal)} eo hẹp ⚠️`
+          : `Quỹ ${fmtCompactVND(mg.goal)} đang bị lẹm ⚠️`
+      : '';
+    const line3 = `🎯 ${goalTag ? `${goalTag} · ` : ''}${compactHook || 'Chạm để xem tổng kết tuần chi tiết.'}`;
+
+    summaryLines = [line1, line2, line3];
+
     markdownText = `*${title}*\n\n` +
-      `💸 *Tổng chi tuần*: ${fmtVND(totalExpense)}\n` +
+      `💸 *Tổng chi tuần*: ${fmtVND(totalExpense)}${prevComp ? ` (${prevComp.diffAmount >= 0 ? '↑' : '↓'} ${fmtCompactVND(prevComp.diffAmount)} / ${prevComp.diffPct >= 0 ? '+' : ''}${prevComp.diffPct}% so với ${prevComp.label})` : ''}\n` +
       `💰 *Tổng thu tuần*: ${fmtVND(totalIncome)}\n` +
-      `⚖️ *Dòng tiền ròng*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)}\n` +
-      `🔢 *Số giao dịch*: ${txCount}\n\n` +
-      `🌟 *Đánh giá*: ${rating}\n` +
+      `⚖️ *Dòng tiền ròng*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)\n` +
+      (typeof totalBalance === 'number' ? `🏦 *Tổng số dư ví*: ${fmtVND(totalBalance)}\n` : '') +
+      `\n🌟 *Đánh giá*: ${rating}\n` +
       `📝 *Tổng quan*: ${aiEvaluation?.overview || 'Đã phân tích toàn bộ giao dịch trong tuần qua.'}\n\n` +
       (highlights.length > 0 ? `🔍 *Điểm nổi bật tuần*:\n${highlights.map(h => `• ${h}`).join('\n')}\n\n` : '') +
       (hasAnomalies ? `⚠️ *Lưu ý/Bất thường*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
       (aiEvaluation?.advice ? `💡 *Chiến lược tuần tới*: ${aiEvaluation.advice}\n` : '');
   } else if (period === 'MONTH') {
-    title = `🏆 SmartSpend: Báo cáo tài chính ${displayLabel.startsWith('Tháng') ? displayLabel : 'tháng ' + displayLabel}`;
+    const monthTitle = displayLabel.startsWith('Tháng') ? displayLabel : `Tháng ${displayLabel}`;
     const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
-    summaryLines = [
-      `💸 Tổng chi tháng: ${fmtVND(totalExpense)} | 💰 Thu: ${fmtVND(totalIncome)}`,
-      `💎 Tích lũy tháng: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (Tiết kiệm ${savingsRate}%)`,
-      `🌟 Sức khỏe tài chính: ${rating}`
-    ];
-    if (highlights.length > 0) {
-      summaryLines.push(`📊 Phân tích: ${highlights[0]}`);
-    }
-    if (aiEvaluation?.advice) {
-      summaryLines.push(`🎯 Chiến lược tháng mới: ${aiEvaluation.advice}`);
-    }
+    title = netFlow >= 0
+      ? `🏆 Tổng kết ${monthTitle}: Dư +${fmtCompactVND(netFlow)} · ${rating}`
+      : `⚠️ Tổng kết ${monthTitle}: Chi vượt thu -${fmtCompactVND(netFlow)}`;
+
+    // Dòng 1: Thu | Chi & Kết quả mục tiêu để dành
+    const goalGoalStr = mg
+      ? mg.isAchieved
+        ? `Mục tiêu ${fmtCompactVND(mg.goal)}: Đạt 100% 🎉`
+        : `Mục tiêu ${fmtCompactVND(mg.goal)}: Đạt ${Math.max(0, Math.round((Math.max(0, netFlow) / mg.goal) * 100))}%`
+      : `Tiết kiệm ${savingsRate}%`;
+    const line1 = `💰 Thu ${fmtCompactVND(totalIncome)} | Chi ${fmtCompactVND(totalExpense)} · ${goalGoalStr}`;
+
+    // Dòng 2: Top 2 danh mục chi tháng
+    const top2 = topCats
+      .slice(0, 2)
+      .map(([name, amt]) => `${name} ${fmtCompactVND(amt)} (${totalExpense > 0 ? Math.round((amt / totalExpense) * 100) : 0}%)`)
+      .join(' · ');
+    const line2 = top2 ? `📊 Top chi: ${top2}` : `📊 Tổng ${txCount} giao dịch trong tháng`;
+
+    // Dòng 3: Số dư cuối tháng + lời khuyên
+    const line3 = typeof totalBalance === 'number'
+      ? `✨ Số dư cuối tháng: ${fmtCompactVND(totalBalance)} — ${compactHook || 'Chạm để xem báo cáo đầy đủ.'}`
+      : `✨ ${compactHook || 'Chạm để xem báo cáo tháng đầy đủ.'}`;
+
+    summaryLines = [line1, line2, line3];
 
     markdownText = `*${title}*\n\n` +
-      `💸 *Tổng chi tháng*: ${fmtVND(totalExpense)}\n` +
+      `💸 *Tổng chi tháng*: ${fmtVND(totalExpense)}${prevComp ? ` (${prevComp.diffAmount >= 0 ? '↑' : '↓'} ${fmtCompactVND(prevComp.diffAmount)} so với ${prevComp.label})` : ''}\n` +
       `💰 *Tổng thu tháng*: ${fmtVND(totalIncome)}\n` +
-      `💎 *Tích lũy*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${savingsRate}%)\n` +
-      `🔢 *Số giao dịch*: ${txCount}\n\n` +
-      `🌟 *Sức khỏe tài chính*: ${rating}\n` +
+      `💎 *Tích lũy ròng*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${savingsRate}%)\n` +
+      (typeof totalBalance === 'number' ? `🏦 *Tổng số dư cuối tháng*: ${fmtVND(totalBalance)}\n` : '') +
+      `\n🌟 *Sức khỏe tài chính*: ${rating}\n` +
       `📝 *Toàn cảnh*: ${aiEvaluation?.overview || 'Báo cáo tổng hợp tài chính cả tháng.'}\n\n` +
       (highlights.length > 0 ? `📊 *Cơ cấu & Điểm nhấn*:\n${highlights.map(h => `• ${h}`).join('\n')}\n\n` : '') +
       (hasAnomalies ? `⚠️ *Khoản đột biến*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
       (aiEvaluation?.advice ? `🎯 *Kế hoạch tháng mới*: ${aiEvaluation.advice}\n` : '');
   } else {
     // DAY
-    summaryLines = [
-      `💸 Chi: ${fmtVND(totalExpense)} | 💰 Thu: ${fmtVND(totalIncome)}`,
-      `⚖️ Dòng tiền: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)`,
-      `🌟 Đánh giá AI: ${rating}`
-    ];
+    if (totalExpense === 0 && totalIncome === 0) {
+      title = `🌟 Chốt ngày ${shortDate}: 0đ chi tiêu — Giữ trọn quỹ!`;
+      const balStr = typeof totalBalance === 'number' ? `💰 Số dư: ${fmtCompactVND(totalBalance)}` : '💰 Dòng tiền giữ nguyên vẹn';
+      const goalLine = mg
+        ? mg.isProtected && !mg.isTight
+          ? `🎯 Quỹ ${fmtCompactVND(mg.goal)} an toàn · Còn ~${fmtCompactVND(mg.dailyAllowance)}/ngày (${mg.daysRemaining} ngày cuối)`
+          : `🎯 Quỹ ${fmtCompactVND(mg.goal)}: còn dư ${fmtCompactVND(Math.max(0, mg.safeToSpend))} cho ${mg.daysRemaining} ngày cuối`
+        : '🎯 Tiếp tục duy trì kỷ luật tài chính tuyệt vời này!';
+      const line3 = pendingCount > 0
+        ? `⏳ Còn ${pendingCount} khoản chờ phân loại — chạm để xử lý nhanh.`
+        : `💡 ${compactHook || 'Một ngày 0đ cực kỷ luật — giữ vững phong độ nhé!'}`;
+      summaryLines = [balStr, goalLine, line3];
+    } else {
+      title = totalIncome > 0
+        ? `🌙 ${shortDate}: Chi ${fmtCompactVND(totalExpense)} | Thu +${fmtCompactVND(totalIncome)} · ${rating}`
+        : `🌙 Chốt ngày ${shortDate}: -${fmtCompactVND(totalExpense)} · ${rating}`;
 
-    if (hasAnomalies) {
-      summaryLines.push(`⚠️ Cần chú ý: ${anomalies[0]}`);
-    }
+      // Dòng 1: Top 2 danh mục + so sánh TB 7 ngày
+      const top2 = topCats
+        .slice(0, 2)
+        .map(([name, amt]) => `${name} ${fmtCompactVND(amt)}`)
+        .join(', ');
+      const compTag = prevComp
+        ? prevComp.diffAmount > 0
+          ? ` (↑ hơn TB tuần ${fmtCompactVND(prevComp.diffAmount)})`
+          : prevComp.diffAmount < 0
+            ? ` (↓ thấp hơn TB tuần ${fmtCompactVND(prevComp.diffAmount)})`
+            : ''
+        : '';
+      const line1 = top2
+        ? `📌 ${top2}${compTag}`
+        : `📌 ${txCount} giao dịch trong ngày${compTag}`;
 
-    if (aiEvaluation?.advice) {
-      summaryLines.push(`💡 Lời khuyên: ${aiEvaluation.advice}`);
+      // Dòng 2: Số dư + trạng thái Quỹ để dành tháng
+      const balPart = typeof totalBalance === 'number' ? `💰 Số dư: ${fmtCompactVND(totalBalance)}` : `⚖️ Ròng: ${netFlow >= 0 ? '+' : '-'}${fmtCompactVND(netFlow)}`;
+      let goalPart = '';
+      if (mg) {
+        if (!mg.isProtected) {
+          goalPart = ` · Quỹ ${fmtCompactVND(mg.goal)} bị lẹm ${fmtCompactVND(Math.abs(mg.safeToSpend))} ⚠️`;
+        } else if (mg.isTight) {
+          goalPart = ` · Quỹ ${fmtCompactVND(mg.goal)}: dư mỏng ${fmtCompactVND(mg.safeToSpend)} (${mg.daysRemaining} ngày cuối) ⚠️`;
+        } else {
+          goalPart = ` · Còn ~${fmtCompactVND(mg.dailyAllowance)}/ngày để giữ quỹ ${fmtCompactVND(mg.goal)}`;
+        }
+      }
+      const line2 = `${balPart}${goalPart}`;
+
+      // Dòng 3: Lời khuyên gọn + nhắc pending (nếu có)
+      const pendingTag = pendingCount > 0 ? ` (⏳ ${pendingCount} GD chờ duyệt)` : '';
+      const line3 = `💡 ${compactHook || 'Chạm để xem chi tiết báo cáo cuối ngày.'}${pendingTag}`;
+
+      summaryLines = [line1, line2, line3];
     }
 
     markdownText = `*${title}*\n\n` +
-      `💸 *Tổng chi*: ${fmtVND(totalExpense)}\n` +
+      `💸 *Tổng chi*: ${fmtVND(totalExpense)}${prevComp ? ` (${prevComp.diffAmount >= 0 ? '↑' : '↓'} ${fmtCompactVND(prevComp.diffAmount)} so với ${prevComp.label})` : ''}\n` +
       `💰 *Tổng thu*: ${fmtVND(totalIncome)}\n` +
-      `⚖️ *Chênh lệch*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)}\n` +
-      `🔢 *Số giao dịch*: ${txCount}\n\n` +
-      `🌟 *Đánh giá*: ${rating}\n` +
+      `⚖️ *Chênh lệch*: ${netFlow >= 0 ? '+' : '-'}${fmtVND(netFlow)} (${txCount} GD)\n` +
+      (typeof totalBalance === 'number' ? `🏦 *Tổng số dư ví*: ${fmtVND(totalBalance)}\n` : '') +
+      `\n🌟 *Đánh giá*: ${rating}\n` +
       `📝 *Tổng quan*: ${aiEvaluation?.overview || 'Đã phân tích toàn bộ giao dịch trong ngày.'}\n\n` +
       (hasAnomalies ? `⚠️ *Khoản nghi vấn/bất thường*:\n${anomalies.map(a => `• ${a}`).join('\n')}\n\n` : '') +
       (aiEvaluation?.advice ? `💡 *Lời khuyên ngày mai*: ${aiEvaluation.advice}\n` : '');
@@ -204,8 +312,11 @@ export function formatDailyReportNotification(report) {
 
   return {
     title,
+    pushTitle: title,
+    pushBody: shortText,
     shortText,
     markdownText,
+    targetUrl,
     hasAnomalies,
     rating
   };
@@ -228,9 +339,13 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
   // 1. Gửi qua Web Push Ứng dụng TRỰC TIẾP đến điện thoại người dùng (Không cần công cụ bên thứ 3)
   try {
     const webPushRes = await sendWebPushNotificationToAll({
-      title: formatted.title,
-      body: formatted.shortText,
-      url: '/'
+      title: formatted.pushTitle,
+      body: formatted.pushBody,
+      url: formatted.targetUrl,
+      data: {
+        period: report.period || 'DAY',
+        date: report.date || ''
+      }
     });
     results.webPush = webPushRes.sentCount > 0;
     results.webPushCount = webPushRes.sentCount;
@@ -243,15 +358,16 @@ export async function dispatchDailyReportNotification(report, settings = {}) {
   const ntfyTopic = settings.ntfy_topic || process.env.NTFY_TOPIC;
   if (ntfyTopic && ntfyTopic !== 'smartspend_kienvu') {
     try {
+      const baseAppUrl = (settings.app_url || 'https://smart-spend-23th.onrender.com').replace(/\/$/, '');
       const ntfyRes = await fetch(`https://ntfy.sh/${encodeURIComponent(ntfyTopic)}`, {
         method: 'POST',
         headers: {
-          'Title': formatted.title,
+          'Title': formatted.pushTitle,
           'Priority': formatted.hasAnomalies ? 'high' : 'default',
           'Tags': formatted.hasAnomalies ? 'warning,chart_with_upwards_trend' : 'sparkles,moneybag',
-          'Click': settings.app_url || 'https://smartspend.onrender.com'
+          'Click': `${baseAppUrl}${formatted.targetUrl}`
         },
-        body: formatted.shortText
+        body: formatted.pushBody
       });
       results.ntfy = ntfyRes.ok;
     } catch (err) {
