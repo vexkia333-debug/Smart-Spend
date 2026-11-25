@@ -4,7 +4,6 @@ import { getVietnamTimeParts, parseTxDateToISO } from '../utils/time.js';
 import { generatePeriodicAiReport, generateFallbackPeriodicReport } from '../gemini.js';
 import { dispatchDailyReportNotification } from '../notifications.js';
 import { broadcastEvent } from './sse.js';
-import { computeMonthlySavingsSummary } from '../../src/utils/savingsMetrics.js';
 
 const inFlightReportKeys = new Set();
 let isCronRunning = false;
@@ -58,41 +57,33 @@ async function computeExtendedContext({ period, targetDate, startDate, endDate, 
   // 2. Số giao dịch đang chờ phân loại
   const pendingCount = allTxs.filter((t) => t.status === 'PENDING').length;
 
-  // 3. Bối cảnh Kế hoạch để dành tháng hiện tại (monthly_budget_goal)
-  let monthlyGoal = 500000;
-  try {
-    const goalRow = await db.prepare("SELECT value FROM settings WHERE key = 'monthly_budget_goal'").get();
-    if (goalRow?.value && Number(goalRow.value) > 0) {
-      monthlyGoal = Number(goalRow.value);
-    }
-  } catch {
-    monthlyGoal = 500000;
-  }
-
-  const [ty, tm, td] = targetDate.split('-').map(Number);
+  // 3. Bối cảnh Quỹ tiết kiệm thực tế (2 chiều: gửi cat_savings - rút cat_savings_withdraw) & tổng thu/chi tháng
+  const [ty, tm] = targetDate.split('-').map(Number);
   const monthPrefix = `${ty}-${String(tm).padStart(2, '0')}`;
-  const lastDayOfMonth = new Date(ty, tm, 0).getDate();
-  const daysRemaining = Math.max(1, lastDayOfMonth - td + 1);
 
   const monthTxs = allTxs.filter(
     (t) => !t.category_id?.startsWith('cat_transfer_') && parseTxDateToISO(t).startsWith(monthPrefix)
   );
-  const monthSummary = computeMonthlySavingsSummary(monthTxs);
-  const monthSavings = monthSummary.savings;
-  const safeToSpend = monthSavings - monthlyGoal;
-  const dailyAllowance = safeToSpend > 0 ? Math.floor(safeToSpend / daysRemaining) : 0;
+  const monthMetrics = computeReportMetrics(monthTxs);
 
-  const monthlyGoalContext = {
-    goal: monthlyGoal,
-    monthIncome: monthSummary.income,
-    monthExpense: monthSummary.expense,
-    monthSavings,
-    safeToSpend,
-    daysRemaining,
-    dailyAllowance,
-    isProtected: safeToSpend >= 0,
-    isTight: safeToSpend >= 0 && dailyAllowance < 80000,
-    isAchieved: monthSavings >= monthlyGoal
+  let totalSaved = 0;
+  let thisMonthSaved = 0;
+  for (const t of allTxs) {
+    if (t.status === 'IGNORED') continue;
+    if (t.category_id !== 'cat_savings' && t.category_id !== 'cat_savings_withdraw') continue;
+    const amt = Number(t.amount || 0);
+    const signedAmt = t.category_id === 'cat_savings_withdraw' ? -amt : amt;
+    totalSaved += signedAmt;
+    if (parseTxDateToISO(t).startsWith(monthPrefix)) {
+      thisMonthSaved += signedAmt;
+    }
+  }
+
+  const savingsFundContext = {
+    totalSaved,
+    thisMonthSaved,
+    monthIncome: monthMetrics.totalIncome,
+    monthExpense: monthMetrics.totalExpense
   };
 
   // 4. So sánh với kỳ liền trước
@@ -141,7 +132,7 @@ async function computeExtendedContext({ period, targetDate, startDate, endDate, 
   return {
     totalBalance,
     pendingCount,
-    monthlyGoalContext,
+    savingsFundContext,
     prevComparison
   };
 }

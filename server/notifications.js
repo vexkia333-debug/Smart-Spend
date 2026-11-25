@@ -145,7 +145,7 @@ export function formatDailyReportNotification(report) {
     .sort(([, a], [, b]) => Number(b) - Number(a));
 
   const prevComp = contextMetrics?.prevComparison || null;
-  const mg = contextMetrics?.monthlyGoalContext || null;
+  const sf = contextMetrics?.savingsFundContext || null;
   const totalBalance = contextMetrics?.totalBalance;
   const pendingCount = Number(contextMetrics?.pendingCount || 0);
 
@@ -180,15 +180,9 @@ export function formatDailyReportNotification(report) {
       ? `🏆 Chi nhiều nhất: ${top2}`
       : `💰 Thu tuần: +${fmtCompactVND(totalIncome)} · Dòng tiền ${netFlow >= 0 ? '+' : '-'}${fmtCompactVND(netFlow)}`;
 
-    // Dòng 3: Quỹ tháng + định hướng ngắn
-    const goalTag = mg
-      ? mg.isProtected && !mg.isTight
-        ? `Quỹ ${fmtCompactVND(mg.goal)} an toàn`
-        : mg.isTight
-          ? `Quỹ ${fmtCompactVND(mg.goal)} eo hẹp ⚠️`
-          : `Quỹ ${fmtCompactVND(mg.goal)} đang bị lẹm ⚠️`
-      : '';
-    const line3 = `🎯 ${goalTag ? `${goalTag} · ` : ''}${compactHook || 'Chạm để xem tổng kết tuần chi tiết.'}`;
+    // Dòng 3: Quỹ tiết kiệm hiện có (nếu có) + định hướng ngắn
+    const fundTag = sf && sf.totalSaved > 0 ? `Quỹ tiết kiệm: ${fmtCompactVND(sf.totalSaved)} · ` : '';
+    const line3 = `💡 ${fundTag}${compactHook || 'Chạm để xem tổng kết tuần chi tiết.'}`;
 
     summaryLines = [line1, line2, line3];
 
@@ -209,13 +203,11 @@ export function formatDailyReportNotification(report) {
       ? `🏆 Tổng kết ${monthTitle}: Dư +${fmtCompactVND(netFlow)} · ${rating}`
       : `⚠️ Tổng kết ${monthTitle}: Chi vượt thu -${fmtCompactVND(netFlow)}`;
 
-    // Dòng 1: Thu | Chi & Kết quả mục tiêu để dành
-    const goalGoalStr = mg
-      ? mg.isAchieved
-        ? `Mục tiêu ${fmtCompactVND(mg.goal)}: Đạt 100% 🎉`
-        : `Mục tiêu ${fmtCompactVND(mg.goal)}: Đạt ${Math.max(0, Math.round((Math.max(0, netFlow) / mg.goal) * 100))}%`
-      : `Tiết kiệm ${savingsRate}%`;
-    const line1 = `💰 Thu ${fmtCompactVND(totalIncome)} | Chi ${fmtCompactVND(totalExpense)} · ${goalGoalStr}`;
+    // Dòng 1: Thu | Chi & Kết quả trích tiết kiệm thực tế
+    const savingsStr = sf && sf.thisMonthSaved > 0
+      ? `Trích tiết kiệm +${fmtCompactVND(sf.thisMonthSaved)}`
+      : `Tích lũy ${savingsRate}%`;
+    const line1 = `💰 Thu ${fmtCompactVND(totalIncome)} | Chi ${fmtCompactVND(totalExpense)} · ${savingsStr}`;
 
     // Dòng 2: Top 2 danh mục chi tháng
     const top2 = topCats
@@ -244,17 +236,17 @@ export function formatDailyReportNotification(report) {
   } else {
     // DAY
     if (totalExpense === 0 && totalIncome === 0) {
-      title = `🌟 Chốt ngày ${shortDate}: 0đ chi tiêu — Giữ trọn quỹ!`;
-      const balStr = typeof totalBalance === 'number' ? `💰 Số dư: ${fmtCompactVND(totalBalance)}` : '💰 Dòng tiền giữ nguyên vẹn';
-      const goalLine = mg
-        ? mg.isProtected && !mg.isTight
-          ? `🎯 Quỹ ${fmtCompactVND(mg.goal)} an toàn · Còn ~${fmtCompactVND(mg.dailyAllowance)}/ngày (${mg.daysRemaining} ngày cuối)`
-          : `🎯 Quỹ ${fmtCompactVND(mg.goal)}: còn dư ${fmtCompactVND(Math.max(0, mg.safeToSpend))} cho ${mg.daysRemaining} ngày cuối`
+      title = `🌟 Chốt ngày ${shortDate}: 0đ chi tiêu — Tuyệt vời!`;
+      const balStr = typeof totalBalance === 'number'
+        ? `💰 Số dư: ${fmtCompactVND(totalBalance)}${sf && sf.totalSaved > 0 ? ` · Quỹ tiết kiệm: ${fmtCompactVND(sf.totalSaved)}` : ''}`
+        : '💰 Dòng tiền giữ nguyên vẹn';
+      const monthLine = sf
+        ? `📊 Tháng này đã chi ${fmtCompactVND(sf.monthExpense)}${sf.thisMonthSaved > 0 ? ` · Đã trích tiết kiệm ${fmtCompactVND(sf.thisMonthSaved)}` : ''}`
         : '🎯 Tiếp tục duy trì kỷ luật tài chính tuyệt vời này!';
       const line3 = pendingCount > 0
         ? `⏳ Còn ${pendingCount} khoản chờ phân loại — chạm để xử lý nhanh.`
         : `💡 ${compactHook || 'Một ngày 0đ cực kỷ luật — giữ vững phong độ nhé!'}`;
-      summaryLines = [balStr, goalLine, line3];
+      summaryLines = [balStr, monthLine, line3];
     } else {
       title = totalIncome > 0
         ? `🌙 ${shortDate}: Chi ${fmtCompactVND(totalExpense)} | Thu +${fmtCompactVND(totalIncome)} · ${rating}`
@@ -276,19 +268,16 @@ export function formatDailyReportNotification(report) {
         ? `📌 ${top2}${compTag}`
         : `📌 ${txCount} giao dịch trong ngày${compTag}`;
 
-      // Dòng 2: Số dư + trạng thái Quỹ để dành tháng
-      const balPart = typeof totalBalance === 'number' ? `💰 Số dư: ${fmtCompactVND(totalBalance)}` : `⚖️ Ròng: ${netFlow >= 0 ? '+' : '-'}${fmtCompactVND(netFlow)}`;
-      let goalPart = '';
-      if (mg) {
-        if (!mg.isProtected) {
-          goalPart = ` · Quỹ ${fmtCompactVND(mg.goal)} bị lẹm ${fmtCompactVND(Math.abs(mg.safeToSpend))} ⚠️`;
-        } else if (mg.isTight) {
-          goalPart = ` · Quỹ ${fmtCompactVND(mg.goal)}: dư mỏng ${fmtCompactVND(mg.safeToSpend)} (${mg.daysRemaining} ngày cuối) ⚠️`;
-        } else {
-          goalPart = ` · Còn ~${fmtCompactVND(mg.dailyAllowance)}/ngày để giữ quỹ ${fmtCompactVND(mg.goal)}`;
-        }
-      }
-      const line2 = `${balPart}${goalPart}`;
+      // Dòng 2: Số dư + Quỹ tiết kiệm hiện có (hoặc tổng chi tháng)
+      const balPart = typeof totalBalance === 'number'
+        ? `💰 Số dư: ${fmtCompactVND(totalBalance)}`
+        : `⚖️ Ròng: ${netFlow >= 0 ? '+' : '-'}${fmtCompactVND(netFlow)}`;
+      const extraPart = sf
+        ? sf.totalSaved > 0
+          ? ` · Quỹ tiết kiệm: ${fmtCompactVND(sf.totalSaved)}`
+          : ` · Chi tháng này: ${fmtCompactVND(sf.monthExpense)}`
+        : '';
+      const line2 = `${balPart}${extraPart}`;
 
       // Dòng 3: Lời khuyên gọn + nhắc pending (nếu có)
       const pendingTag = pendingCount > 0 ? ` (⏳ ${pendingCount} GD chờ duyệt)` : '';

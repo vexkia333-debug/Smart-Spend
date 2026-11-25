@@ -634,8 +634,8 @@ Hãy lập ${periodTitle} dựa trên các số liệu thực tế:
       ? `\n- SO SÁNH KỲ TRƯỚC (${contextMetrics.prevComparison.label}): ${contextMetrics.prevComparison.diffAmount >= 0 ? '+' : ''}${fmtVND(contextMetrics.prevComparison.diffAmount)} (${contextMetrics.prevComparison.diffPct >= 0 ? '+' : ''}${contextMetrics.prevComparison.diffPct}%)`
       : ''
   }${
-    contextMetrics?.monthlyGoalContext
-      ? `\n- QUỸ ĐỂ DÀNH THÁNG (${fmtVND(contextMetrics.monthlyGoalContext.goal)}): Còn được phép tiêu ${fmtVND(Math.max(0, contextMetrics.monthlyGoalContext.safeToSpend))} cho ${contextMetrics.monthlyGoalContext.daysRemaining} ngày cuối (~${fmtVND(contextMetrics.monthlyGoalContext.dailyAllowance)}/ngày). Lưu ý: mức sinh hoạt tối thiểu thực tế ~80.000 VNĐ/ngày — KHÔNG khuyên tiêu dưới 80k/ngày như thể an toàn.`
+    contextMetrics?.savingsFundContext
+      ? `\n- QUỸ TIẾT KIỆM THỰC TẾ: Hiện có ${fmtVND(contextMetrics.savingsFundContext.totalSaved)} (tháng này trích ròng ${contextMetrics.savingsFundContext.thisMonthSaved >= 0 ? '+' : '-'}${fmtVND(contextMetrics.savingsFundContext.thisMonthSaved)}). Lưu ý: người dùng tự chuyển khoản tiết kiệm riêng khi nhận lương, KHÔNG tính toán hay nhắc "quỹ để dành 500k bị lẹm" hoặc áp đặt định mức trừ 500k/tháng vào chi tiêu hàng ngày.`
       : ''
   }
 
@@ -859,8 +859,8 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
     highlights.push(`Tỷ lệ tích lũy của tháng đạt ${savingsRate}%.`);
 
     advice = savingsRate >= 20
-      ? 'Sức khỏe tài chính tháng qua rất tích cực! Bạn có thể trích phần dư này vào mục tiêu tiết kiệm tháng trước khi bước sang chu kỳ mới.'
-      : 'Tháng tới hãy ưu tiên khóa sớm 500.000 ₫ tiết kiệm ngay đầu tháng và kiểm soát nhóm chi không thiết yếu để nâng tỷ lệ tích lũy.';
+      ? 'Sức khỏe tài chính tháng qua rất tích cực! Duy trì nhịp chi tiêu gọn gàng này để dòng tiền tháng mới tiếp tục dư dả.'
+      : 'Tháng tới hãy ưu tiên kiểm soát nhóm chi không thiết yếu và theo dõi các khoản nhỏ lẻ để nâng tỷ lệ tích lũy.';
   } else {
     // DAY
     const entAmt = catMap['Giải trí & Phim ảnh'] || 0;
@@ -882,31 +882,28 @@ export function generateFallbackPeriodicReport({ period = 'DAY', dateRange, txs 
       : `Hôm nay bạn chưa phát sinh khoản chi nào — toàn bộ số dư được bảo toàn trọn vẹn.`;
 
     if (entAmt > 0 && totalExpense > 0 && entAmt / totalExpense >= 0.4) {
-      advice = `Hôm nay chi cho vui chơi/giải trí (${fmtVND(entAmt)}) chiếm tới ${Math.round((entAmt / totalExpense) * 100)}% tổng chi. Ngày mai bạn nên hãm lại nhóm hưởng thụ, giữ mức chi ăn uống gọn trong ngày để bù lại cho quỹ tháng nhé.`;
+      advice = `Hôm nay chi cho vui chơi/giải trí (${fmtVND(entAmt)}) chiếm tới ${Math.round((entAmt / totalExpense) * 100)}% tổng chi. Ngày mai bạn nên hãm lại nhóm hưởng thụ, giữ mức chi ăn uống gọn trong ngày nhé.`;
     } else if (totalExpense > 300000) {
-      advice = `Tổng chi hôm nay (${fmtVND(totalExpense)}) nhỉnh hơn mức sinh hoạt ngày thường${foodAmt > 0 ? ` (riêng ăn uống ${fmtVND(foodAmt)})` : ''}. Ngày mai hãy ưu tiên các bữa ăn tiết kiệm để giữ vững định mức bình quân còn lại của tháng.`;
+      advice = `Tổng chi hôm nay (${fmtVND(totalExpense)}) nhỉnh hơn mức sinh hoạt ngày thường${foodAmt > 0 ? ` (riêng ăn uống ${fmtVND(foodAmt)})` : ''}. Ngày mai hãy ưu tiên các bữa ăn gọn nhẹ để cân bằng lại nhịp chi tiêu.`;
     } else {
-      advice = 'Mức chi trong ngày đang rất gọn gàng và dễ kiểm soát. Duy trì nhịp này đều đặn sẽ giúp bạn đạt dư mục tiêu tiết kiệm cuối tháng.';
+      advice = 'Mức chi trong ngày đang rất gọn gàng và dễ kiểm soát. Tiếp tục duy trì nhịp này đều đặn nhé!';
     }
   }
 
   // Tạo câu nhắc siêu gọn (<= 85 ký tự) cho thông báo màn hình khóa
   let pushHook = '';
-  const mg = contextMetrics?.monthlyGoalContext;
   if (period === 'WEEK') {
     pushHook = totalExpense > totalIncome && totalIncome > 0
       ? 'Tuần mới siết nhẹ nhóm chi giải trí & mua sắm để cân bằng lại nhé.'
       : 'Giữ vững nhịp chi tiêu tuần này là cuối tháng cán đích đẹp!';
   } else if (period === 'MONTH') {
-    pushHook = mg?.isAchieved
-      ? 'Chạm để xem báo cáo tháng chi tiết và khóa kế hoạch tháng mới!'
+    pushHook = netFlow >= 0
+      ? 'Chạm để xem báo cáo tháng chi tiết và cơ cấu chi tiêu nổi bật!'
       : 'Chạm để xem nhóm chi ngốn tiền nhất & rút kinh nghiệm cho tháng sau.';
   } else {
     const entAmt = catMap['Giải trí & Phim ảnh'] || 0;
     if (totalExpense === 0) {
       pushHook = 'Một ngày 0đ cực kỷ luật — tiếp tục giữ phong độ nhé!';
-    } else if (mg && (!mg.isProtected || mg.isTight)) {
-      pushHook = 'Phần dư tháng đang mỏng, ngày mai ưu tiên chi thiết yếu nhé!';
     } else if (entAmt > 0 && totalExpense > 0 && entAmt / totalExpense >= 0.4) {
       pushHook = 'Mai hãm nhóm giải trí, ăn uống gọn để bù lại nhịp tuần nhé!';
     } else if (totalExpense > 300000) {
